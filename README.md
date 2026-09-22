@@ -26,3 +26,16 @@ lib/
 ## Conectar Supabase
 Implementar `WmsRepository` como `SupabaseWmsRepository` y cambiar el override en `main.dart`.
 Las reglas de `InMemoryWmsRepository` (límites, stock) deben replicarse en funciones RPC transaccionales.
+
+
+
+
+
+cd /c/Users/analistadatos/Downloads/orbiloq_wms/orbiloq_wms
+flutter create . --platforms=web --project-name orbiloq_wms
+flutter pub get
+flutter test
+flutter run -d chrome
+
+
+
