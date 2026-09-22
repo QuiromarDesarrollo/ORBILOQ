@@ -43,6 +43,16 @@ class SupabaseImportadorOrdenes {
           );
     } on StorageException catch (e) {
       return Err<ResumenImportacion>('No se pudo archivar el Excel original: ${e.message}');
+    } catch (e) {
+      // Cubre errores de red que no son StorageException (proxies/antivirus
+      // que interfieren con la conexión, cortes de conexión, etc.) — sin
+      // este catch genérico, un fallo así deja la pantalla "cargando" para
+      // siempre sin avisar nada.
+      return Err<ResumenImportacion>(
+        'No se pudo subir el archivo a Supabase (falla de red). Si tienes un '
+        'antivirus con "inspección de conexiones cifradas" (ej. Kaspersky), '
+        'intenta desactivarla para este sitio o usa otro navegador. Detalle: $e',
+      );
     }
 
     try {
