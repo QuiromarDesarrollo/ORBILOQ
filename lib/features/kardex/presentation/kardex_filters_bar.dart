@@ -3,156 +3,153 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/fecha.dart';
-import '../../../domain/models.dart';
-import '../../../shared/widgets/multi_select_filter.dart';
 
-/// Barra de filtros desplegables con casillas y búsqueda.
-class KardexFiltersBar extends ConsumerWidget {
+/// Barra de filtros: búsqueda libre + cliente + estado.
+class KardexFiltersBar extends ConsumerStatefulWidget {
   const KardexFiltersBar({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final rol = ref.watch(rolProvider);
+  ConsumerState<KardexFiltersBar> createState() => _KardexFiltersBarState();
+}
+
+class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
+  late final TextEditingController _busquedaCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _busquedaCtrl = TextEditingController(text: ref.read(kardexFiltersProvider).busqueda);
+  }
+
+  @override
+  void dispose() {
+    _busquedaCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final filtros = ref.watch(kardexFiltersProvider);
     final opciones = ref.watch(opcionesFiltroProvider);
     final notifier = ref.read(kardexFiltersProvider.notifier);
-    final esProduccion = rol == Rol.produccion;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
       ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _FilterButton(
-            icon: Icons.tag,
-            etiqueta: 'OP',
-            todos: 'TODOS',
-            cantidad: filtros.ops.length,
-            onTap: () async {
-              final r = await showMultiSelectFilter<String>(
-                context,
-                title: 'Filtrar por OP',
-                options: opciones.ops,
-                selected: filtros.ops,
-                labelOf: (v) => v,
-              );
-              if (r != null) notifier.setOps(r);
-            },
-          ),
-          _FilterButton(
-            icon: Icons.receipt_long,
-            etiqueta: 'OC',
-            todos: 'TODOS',
-            cantidad: filtros.ocs.length,
-            onTap: () async {
-              final r = await showMultiSelectFilter<String>(
-                context,
-                title: 'Filtrar por Orden de Compra (OC)',
-                options: opciones.ocs,
-                selected: filtros.ocs,
-                labelOf: (v) => v,
-              );
-              if (r != null) notifier.setOcs(r);
-            },
-          ),
-          _FilterButton(
-            icon: Icons.business,
-            etiqueta: 'Cliente',
-            todos: 'TODOS',
-            cantidad: filtros.clientes.length,
-            onTap: () async {
-              final r = await showMultiSelectFilter<String>(
-                context,
-                title: 'Filtrar por Cliente',
-                options: opciones.clientes,
-                selected: filtros.clientes,
-                labelOf: (v) => v,
-              );
-              if (r != null) notifier.setClientes(r);
-            },
-          ),
-          _FilterButton(
-            icon: esProduccion ? Icons.event_available : Icons.event_note,
-            etiqueta: esProduccion ? 'F. Entrega' : 'F. Recepción',
-            todos: 'TODAS',
-            cantidad: filtros.fechas.length,
-            onTap: () async {
-              final r = await showMultiSelectFilter<DateTime>(
-                context,
-                title: esProduccion
-                    ? 'Filtrar por Fecha de Entrega (Producción)'
-                    : 'Filtrar por Fecha de Recepción (Bodega)',
-                options: opciones.fechas,
-                selected: filtros.fechas,
-                labelOf: formatFecha,
-              );
-              if (r != null) notifier.setFechas(r);
-            },
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final estrecho = constraints.maxWidth < 760;
+          final campos = <Widget>[
+            SizedBox(
+              width: estrecho ? double.infinity : 320,
+              child: TextField(
+                controller: _busquedaCtrl,
+                onChanged: notifier.setBusqueda,
+                decoration: InputDecoration(
+                  hintText: 'Buscar por OP, cliente, OC o producto',
+                  hintStyle: const TextStyle(color: AppColors.slate400, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.slate400),
+                  filled: true,
+                  fillColor: AppColors.slate50,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.cardBorder),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.cardBorder),
+                  ),
+                ),
+              ),
+            ),
+            _Desplegable(
+              ancho: estrecho ? double.infinity : 200,
+              etiquetaTodos: 'Todos los clientes',
+              valor: filtros.cliente,
+              opciones: opciones.clientes,
+              onChanged: notifier.setCliente,
+            ),
+            _Desplegable(
+              ancho: estrecho ? double.infinity : 190,
+              etiquetaTodos: 'Todos los estados',
+              valor: filtros.estado,
+              opciones: opciones.estados,
+              onChanged: notifier.setEstado,
+            ),
+            OutlinedButton.icon(
+              onPressed: () {
+                _busquedaCtrl.clear();
+                notifier.limpiar();
+              },
+              icon: const Icon(Icons.tune, size: 18),
+              label: const Text('Limpiar'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.slate600,
+                side: const BorderSide(color: AppColors.cardBorder),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+            ),
+          ];
+
+          return Wrap(spacing: 12, runSpacing: 12, children: campos);
+        },
       ),
     );
   }
 }
 
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({
-    required this.icon,
-    required this.etiqueta,
-    required this.todos,
-    required this.cantidad,
-    required this.onTap,
+class _Desplegable extends StatelessWidget {
+  const _Desplegable({
+    required this.ancho,
+    required this.etiquetaTodos,
+    required this.valor,
+    required this.opciones,
+    required this.onChanged,
   });
 
-  final IconData icon;
-  final String etiqueta;
-  final String todos;
-  final int cantidad;
-  final VoidCallback onTap;
+  final double ancho;
+  final String etiquetaTodos;
+  final String? valor;
+  final List<String> opciones;
+  final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final activo = cantidad > 0;
-    final color = activo ? AppColors.primaryNavy : Colors.grey.shade700;
     return SizedBox(
-      width: 210,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: activo ? Colors.blue.shade50 : Colors.grey.shade100,
-            border: Border.all(
-              color: activo ? AppColors.primaryNavy : Colors.grey.shade400,
-              width: activo ? 1.5 : 1,
-            ),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  activo ? '$etiqueta: ($cantidad)' : '$etiqueta: $todos',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: activo ? FontWeight.bold : FontWeight.w500,
-                    color: activo ? AppColors.primaryNavy : Colors.black87,
-                  ),
-                ),
+      width: ancho,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.slate50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String?>(
+            isExpanded: true,
+            isDense: true,
+            value: valor,
+            hint: Text(etiquetaTodos, style: const TextStyle(fontSize: 13, color: AppColors.slate600)),
+            icon: const Icon(Icons.expand_more, size: 18, color: AppColors.slate400),
+            items: [
+              DropdownMenuItem<String?>(
+                value: null,
+                child: Text(etiquetaTodos, style: const TextStyle(fontSize: 13)),
               ),
-              Icon(Icons.arrow_drop_down, size: 20, color: color),
+              for (final o in opciones)
+                DropdownMenuItem<String?>(
+                  value: o,
+                  child: Text(o, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
+                ),
             ],
+            onChanged: onChanged,
           ),
         ),
       ),

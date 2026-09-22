@@ -8,6 +8,23 @@ abstract final class AppColors {
   static const alertRed = Color(0xFFD32F2F);
   static const accentCyan = Color(0xFF00A8CC);
   static const background = Color(0xFFF4F6F9);
+
+  // ---- Paleta del rediseño del Kardex (pantalla principal) ----
+  static const tealPrimary = Color(0xFF0F766E);
+  static const tealDark = Color(0xFF0B5750);
+  static const tealSoft = Color(0xFFE6F4F2);
+  static const slate900 = Color(0xFF0F172A);
+  static const slate600 = Color(0xFF475569);
+  static const slate400 = Color(0xFF94A3B8);
+  static const slate200 = Color(0xFFE2E8F0);
+  static const slate50 = Color(0xFFF8FAFC);
+  static const cardBorder = Color(0xFFE5E9F0);
+  static const amberChip = Color(0xFFB45309);
+  static const amberChipBg = Color(0xFFFFF7ED);
+  static const redChipBg = Color(0xFFFEF2F2);
+  static const greenChipBg = Color(0xFFECFDF5);
+  static const blueChipBg = Color(0xFFEFF6FF);
+  static const blueChip = Color(0xFF1D4ED8);
 }
 
 abstract final class AppTheme {

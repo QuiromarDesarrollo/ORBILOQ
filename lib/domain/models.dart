@@ -148,6 +148,7 @@ class ItemKardex {
     required this.ubicaciones,
     this.fechaEntrega,
     this.fechaRecepcion,
+    this.fechaEntregaLogistica,
   });
 
   final ItemOrden item;
@@ -159,6 +160,10 @@ class ItemKardex {
   final Map<String, int> ubicaciones;
   final DateTime? fechaEntrega;
   final DateTime? fechaRecepcion;
+
+  /// Fecha comprometida de entrega al cliente final (viene del Excel de
+  /// fechas de entrega logística; puede no existir todavía).
+  final DateTime? fechaEntregaLogistica;
 
   String get id => item.id;
   int get cantidadPedida => item.cantidadPedida;

@@ -1,94 +1,153 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../application/providers.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
-import '../../../application/kardex_filters.dart';
-import '../../../shared/widgets/status_chip.dart';
 import 'observacion_dialog.dart';
 
-const double _kAltoFila = 48;
-
-/// Anchos por columna (mismo orden que las celdas de cabecera y de fila).
-const List<double> _kAnchos = [
-  64, 80, 120, 120, 120, 210, 80, 100, 120, 110, 110, 110, 140, 230, 180,
+const List<double> _kAnchos = [110, 250, 190, 90, 100, 90, 110, 170, 130];
+const List<String> _kEtiquetas = [
+  'OP / OBSERVACIÓN', 'PRODUCTO', 'CLIENTE / OC', 'PEDIDAS',
+  'PRODUCCIÓN', 'BODEGA', 'DESPACHADAS', 'AVANCE', 'ENTREGA',
 ];
 
-/// Tabla virtualizada: solo construye las filas visibles, por lo que escala a miles de registros.
-class KardexTable extends StatefulWidget {
-  const KardexTable({super.key, required this.rows, required this.rol});
+const _kPaletaProducto = [
+  Color(0xFF0F172A), Color(0xFF0F766E), Color(0xFF7C3AED), Color(0xFFB45309),
+  Color(0xFF1D4ED8), Color(0xFF991B1B), Color(0xFF15803D), Color(0xFF334155),
+];
 
-  final List<ItemKardex> rows;
-  final Rol rol;
+Color _colorProducto(String codigo) => _kPaletaProducto[codigo.hashCode.abs() % _kPaletaProducto.length];
 
-  @override
-  State<KardexTable> createState() => _KardexTableState();
-}
+const _mesesEs = [
+  '', 'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
+];
+String _fechaCorta(DateTime d) => '${d.day} ${_mesesEs[d.month]}';
 
-class _KardexTableState extends State<KardexTable> {
-  final ScrollController _horizontal = ScrollController();
-
-  @override
-  void dispose() {
-    _horizontal.dispose();
-    super.dispose();
-  }
+/// Tabla del kardex, paginada. Cada página construye solo sus propias filas,
+/// así que sigue escalando bien con miles de registros en total.
+class KardexTable extends ConsumerWidget {
+  const KardexTable({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final total = _kAnchos.fold<double>(0, (a, b) => a + b);
-    final esProduccion = widget.rol == Rol.produccion;
-    final etiquetas = <String>[
-      'OBS.', 'OP', 'CLIENTE', 'N° OC', 'CÓDIGO', 'DESCRIPCIÓN / TALLA', 'PEDIDAS',
-      'PRODUCCIÓN', 'RECIBIDO BODEGA', 'PEND. BODEGA', 'DESPACHADAS', 'DISP. ESTANTE',
-      esProduccion ? 'FECHA ENTREGA' : 'FECHA RECEPCIÓN', 'UBICACIÓN(ES)', 'ESTADO',
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filas = ref.watch(kardexPaginaActualProvider);
+    final total = ref.watch(kardexFiltradoProvider).length;
+    final pagina = ref.watch(kardexPaginaProvider);
+    final totalPaginas = total == 0 ? 1 : ((total - 1) ~/ kardexFilasPorPagina) + 1;
+    final anchoTabla = _kAnchos.fold<double>(0, (a, b) => a + b);
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-      elevation: 2,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
       clipBehavior: Clip.antiAlias,
-      child: Scrollbar(
-        controller: _horizontal,
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          controller: _horizontal,
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: total,
-            child: Column(
-              children: [
-                Container(
-                  height: 44,
-                  color: AppColors.primaryNavy,
-                  child: Row(
-                    children: [
-                      for (var i = 0; i < etiquetas.length; i++)
-                        _Celda(
-                          i,
-                          Text(
-                            etiquetas[i],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: anchoTabla,
+              child: Column(
+                children: [
+                  Container(
+                    color: AppColors.slate50,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < _kEtiquetas.length; i++)
+                          _Celda(
+                            i,
+                            Text(
+                              _kEtiquetas[i],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.slate600,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: widget.rows.isEmpty
-                      ? const Center(child: Text('Sin resultados para los filtros aplicados.', style: TextStyle(color: Colors.grey)))
-                      : ListView.builder(
-                          itemExtent: _kAltoFila,
-                          itemCount: widget.rows.length,
-                          itemBuilder: (_, i) => _KardexRow(item: widget.rows[i], rol: widget.rol, zebra: i.isOdd),
-                        ),
-                ),
-              ],
+                  const Divider(height: 1, color: AppColors.cardBorder),
+                  if (filas.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: Text('Sin resultados para los filtros aplicados.',
+                            style: TextStyle(color: AppColors.slate400)),
+                      ),
+                    )
+                  else
+                    for (final item in filas) _KardexRow(item: item),
+                ],
+              ),
             ),
           ),
-        ),
+          const Divider(height: 1, color: AppColors.cardBorder),
+          _BarraPaginacion(pagina: pagina, totalPaginas: totalPaginas, total: total, filas: filas.length),
+        ],
+      ),
+    );
+  }
+}
+
+class _BarraPaginacion extends ConsumerWidget {
+  const _BarraPaginacion({
+    required this.pagina,
+    required this.totalPaginas,
+    required this.total,
+    required this.filas,
+  });
+
+  final int pagina;
+  final int totalPaginas;
+  final int total;
+  final int filas;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(kardexPaginaProvider.notifier);
+    final desde = total == 0 ? 0 : pagina * kardexFilasPorPagina + 1;
+    final hasta = pagina * kardexFilasPorPagina + filas;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Mostrando $desde-$hasta de $total registros',
+            style: const TextStyle(fontSize: 12, color: AppColors.slate600),
+          ),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: pagina > 0 ? () => notifier.ir(pagina - 1) : null,
+                icon: const Icon(Icons.chevron_left, size: 18),
+                label: const Text('Anterior'),
+                style: OutlinedButton.styleFrom(foregroundColor: AppColors.slate600),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: pagina + 1 < totalPaginas ? () => notifier.ir(pagina + 1) : null,
+                icon: const Icon(Icons.chevron_right, size: 18),
+                label: const Text('Siguiente'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.tealPrimary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: AppColors.slate200,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -106,7 +165,7 @@ class _Celda extends StatelessWidget {
     return SizedBox(
       width: _kAnchos[col],
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Align(alignment: alignment, child: child),
       ),
     );
@@ -114,67 +173,164 @@ class _Celda extends StatelessWidget {
 }
 
 class _KardexRow extends StatelessWidget {
-  const _KardexRow({required this.item, required this.rol, required this.zebra});
+  const _KardexRow({required this.item});
 
   final ItemKardex item;
-  final Rol rol;
-  final bool zebra;
-
-  Text _t(String s, {FontWeight? w, Color? c, double? size}) => Text(
-        s,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontWeight: w, color: c, fontSize: size),
-      );
 
   @override
   Widget build(BuildContext context) {
     final o = item.item;
-    final fecha = fechaSegunRol(item, rol);
+    final completado = item.cantidadPedida > 0 && item.despachado >= item.cantidadPedida;
+    final avance = item.cantidadPedida == 0
+        ? 0.0
+        : (item.recibido / item.cantidadPedida).clamp(0.0, 1.0);
+
     return Container(
-      decoration: BoxDecoration(
-        color: zebra ? const Color(0xFFF7F9FC) : Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.cardBorder)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _Celda(
             0,
-            IconButton(
-              icon: const Icon(Icons.comment, color: AppColors.accentCyan, size: 20),
-              tooltip: 'Ver observación OP',
-              onPressed: () => showObservacionDialog(context, item),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  onTap: () => showObservacionDialog(context, item),
+                  borderRadius: BorderRadius.circular(4),
+                  child: const Padding(
+                    padding: EdgeInsets.only(right: 6),
+                    child: Icon(Icons.chat_bubble_outline, size: 16, color: AppColors.slate400),
+                  ),
+                ),
+                Text('#${o.op}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              ],
             ),
           ),
-          _Celda(1, _t(o.op, w: FontWeight.bold)),
-          _Celda(2, _t(o.cliente)),
-          _Celda(3, _t(o.oc, w: FontWeight.w600, c: AppColors.secondaryNavy)),
-          _Celda(4, _t(o.codigo)),
-          _Celda(5, _t('${o.descripcion} (${o.talla})')),
-          _Celda(6, _t('${item.cantidadPedida}'), alignment: Alignment.center),
-          _Celda(7, _t('${item.producido}', w: FontWeight.bold, c: AppColors.actionGreen), alignment: Alignment.center),
           _Celda(
-            8,
-            _t('${item.recibido}', w: FontWeight.bold, c: item.excedente > 0 ? AppColors.actionOrange : AppColors.accentCyan),
-            alignment: Alignment.center,
+            1,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  margin: const EdgeInsets.only(right: 8, top: 2),
+                  decoration: BoxDecoration(color: _colorProducto(o.codigo), borderRadius: BorderRadius.circular(3)),
+                ),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(o.descripcion,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                      Text('Talla ${o.talla}', style: const TextStyle(fontSize: 11, color: AppColors.slate400)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           _Celda(
-            9,
-            _t('${item.pendienteRecibir}', w: FontWeight.bold, c: item.pendienteRecibir > 0 ? AppColors.alertRed : Colors.grey),
-            alignment: Alignment.center,
+            2,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(o.cliente, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                if (o.oc.isNotEmpty)
+                  Text('OC ${o.oc}', maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppColors.slate400)),
+              ],
+            ),
           ),
-          _Celda(10, _t('${item.despachado}', w: FontWeight.bold, c: AppColors.actionOrange), alignment: Alignment.center),
-          _Celda(
-            11,
-            _t('${item.stockDisponible}', w: FontWeight.bold, c: item.stockDisponible > 0 ? AppColors.primaryNavy : Colors.grey),
-            alignment: Alignment.center,
+          _Celda(3, Text('${item.cantidadPedida}', style: const TextStyle(fontSize: 13)),
+              alignment: Alignment.center),
+          _Celda(4, Text('${item.producido}', style: const TextStyle(fontSize: 13, color: AppColors.tealPrimary)),
+              alignment: Alignment.center),
+          _Celda(5, Text('${item.recibido}', style: const TextStyle(fontSize: 13, color: AppColors.blueChip)),
+              alignment: Alignment.center),
+          _Celda(6, Text('${item.despachado}', style: const TextStyle(fontSize: 13, color: AppColors.amberChip)),
+              alignment: Alignment.center),
+          _Celda(7, _Avance(porcentaje: avance, completado: completado)),
+          _Celda(8, _ChipEntrega(item: item, completado: completado)),
+        ],
+      ),
+    );
+  }
+}
+
+class _Avance extends StatelessWidget {
+  const _Avance({required this.porcentaje, required this.completado});
+
+  final double porcentaje;
+  final bool completado;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = completado ? AppColors.actionGreen : AppColors.tealPrimary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: completado ? 1 : porcentaje,
+            minHeight: 6,
+            backgroundColor: AppColors.slate200,
+            valueColor: AlwaysStoppedAnimation(color),
           ),
-          _Celda(12, _t(formatFechaHora(fecha), size: 12)),
-          _Celda(
-            13,
-            Tooltip(message: item.ubicacionesFormateadas, child: _t(item.ubicacionesFormateadas, w: FontWeight.w500)),
-          ),
-          _Celda(14, StatusChip(label: item.estadoEtiqueta, color: AppColors.primaryNavy)),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          completado ? 'Completado' : '${(porcentaje * 100).toStringAsFixed(0)}% recibido',
+          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChipEntrega extends StatelessWidget {
+  const _ChipEntrega({required this.item, required this.completado});
+
+  final ItemKardex item;
+  final bool completado;
+
+  @override
+  Widget build(BuildContext context) {
+    if (completado) {
+      return _chip('ENTREGADO', AppColors.actionGreen, AppColors.greenChipBg, Icons.check_circle_outline);
+    }
+    final fecha = item.fechaEntregaLogistica;
+    if (fecha == null) {
+      return _chip('Sin fecha', AppColors.slate400, AppColors.slate50, Icons.event_outlined);
+    }
+    final vencida = fecha.isBefore(DateTime.now());
+    return _chip(
+      _fechaCorta(fecha),
+      vencida ? AppColors.alertRed : AppColors.slate600,
+      vencida ? AppColors.redChipBg : AppColors.slate50,
+      Icons.event_outlined,
+    );
+  }
+
+  Widget _chip(String texto, Color color, Color fondo, IconData icono) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(6)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icono, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(texto, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
     );
