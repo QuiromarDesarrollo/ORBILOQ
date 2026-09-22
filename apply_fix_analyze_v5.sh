@@ -1,3 +1,76 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Corrige los avisos de 'flutter analyze' (v5)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_analyze_v5.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Corrigiendo avisos de flutter analyze..."
+
+echo "  - lib/main.dart"
+mkdir -p "$(dirname 'lib/main.dart')"
+cat > 'lib/main.dart' << 'ORBILOQ_EOF'
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'app.dart';
+import 'application/providers.dart';
+import 'data/in_memory_wms_repository.dart';
+import 'data/supabase_importador_ordenes.dart';
+import 'data/supabase_wms_repository.dart';
+
+/// Credenciales de Supabase, pasadas al compilar con:
+///   flutter run -d chrome \
+///     --dart-define=SUPABASE_URL=https://xxxx.supabase.co \
+///     --dart-define=SUPABASE_ANON_KEY=sb_publishable_xxxx
+///
+/// Si no se pasan (quedan vacías), la app arranca con datos de prueba en
+/// memoria — útil para desarrollar la interfaz sin depender de la base real.
+const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const _supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final usarSupabase = _supabaseUrl.isNotEmpty && _supabaseAnonKey.isNotEmpty;
+
+  if (usarSupabase) {
+    await Supabase.initialize(url: _supabaseUrl, publishableKey: _supabaseAnonKey);
+  }
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        wmsRepositoryProvider.overrideWith((ref) {
+          if (usarSupabase) {
+            final repo = SupabaseWmsRepository(Supabase.instance.client);
+            ref.onDispose(repo.dispose);
+            return repo;
+          }
+          final repo = InMemoryWmsRepository.seeded();
+          ref.onDispose(repo.dispose);
+          return repo;
+        }),
+        importadorOrdenesProvider.overrideWith((ref) {
+          if (!usarSupabase) return null;
+          return SupabaseImportadorOrdenes(Supabase.instance.client);
+        }),
+      ],
+      child: const OrbiloqWmsApp(),
+    ),
+  );
+}
+ORBILOQ_EOF
+
+echo "  - test/wms_rules_test.dart"
+mkdir -p "$(dirname 'test/wms_rules_test.dart')"
+cat > 'test/wms_rules_test.dart' << 'ORBILOQ_EOF'
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:orbiloq_wms/core/result.dart';
@@ -94,3 +167,9 @@ void main() {
     });
   });
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. Siguiente paso:"
+echo "  flutter analyze   (deberia salir: No issues found!)"
+echo "  flutter test"

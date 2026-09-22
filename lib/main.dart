@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'application/providers.dart';
 import 'data/in_memory_wms_repository.dart';
+import 'data/supabase_importador_ordenes.dart';
 import 'data/supabase_wms_repository.dart';
 
 /// Credenciales de Supabase, pasadas al compilar con:
@@ -23,7 +24,7 @@ Future<void> main() async {
   final usarSupabase = _supabaseUrl.isNotEmpty && _supabaseAnonKey.isNotEmpty;
 
   if (usarSupabase) {
-    await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
+    await Supabase.initialize(url: _supabaseUrl, publishableKey: _supabaseAnonKey);
   }
 
   runApp(
@@ -38,6 +39,10 @@ Future<void> main() async {
           final repo = InMemoryWmsRepository.seeded();
           ref.onDispose(repo.dispose);
           return repo;
+        }),
+        importadorOrdenesProvider.overrideWith((ref) {
+          if (!usarSupabase) return null;
+          return SupabaseImportadorOrdenes(Supabase.instance.client);
         }),
       ],
       child: const OrbiloqWmsApp(),

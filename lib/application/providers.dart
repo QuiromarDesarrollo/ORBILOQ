@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/utils/fecha.dart';
+import '../data/supabase_importador_ordenes.dart';
 import '../domain/models.dart';
 import '../domain/wms_repository.dart';
 import 'kardex_filters.dart';
@@ -9,6 +10,10 @@ import 'kardex_filters.dart';
 final wmsRepositoryProvider = Provider<WmsRepository>(
   (ref) => throw UnimplementedError('Sobrescribe wmsRepositoryProvider en main.dart'),
 );
+
+/// Solo disponible cuando la app corre contra Supabase; `null` en modo memoria
+/// (la importación de Excel no tiene sentido sin una base de datos real detrás).
+final importadorOrdenesProvider = Provider<SupabaseImportadorOrdenes?>((ref) => null);
 
 final wmsSnapshotProvider = StreamProvider<WmsSnapshot>(
   (ref) => ref.watch(wmsRepositoryProvider).watch(),

@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../domain/models.dart';
 import '../../../shared/widgets/action_button.dart';
 import '../../despacho/presentation/despacho_dialog.dart';
+import '../../importacion/presentation/importar_ordenes_dialog.dart';
 import '../../produccion/presentation/entrega_produccion_dialog.dart';
 import '../../recepcion/presentation/recepcion_dialog.dart';
 import '../../ubicaciones/presentation/ubicaciones_dialog.dart';
@@ -83,6 +84,13 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                 if (r != null) ref.read(rolProvider.notifier).cambiar(r);
               },
             ),
+          ),
+          const SizedBox(width: 12),
+          ActionButton(
+            icon: Icons.upload_file,
+            label: 'IMPORTAR EXCEL',
+            color: Colors.indigo.shade700,
+            onPressed: () => showImportarOrdenesDialog(context),
           ),
           const SizedBox(width: 12),
           ActionButton(
