@@ -1,3 +1,21 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Corrige el filtro que 'no hacia nada' al aplicar (v12)
+# Aplica a los 4 filtros: OP, OC, Cliente y Fecha (mismo componente)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_filtro_v12.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Aplicando correccion del filtro..."
+
+echo "  - lib/shared/widgets/multi_select_filter.dart"
+mkdir -p "$(dirname 'lib/shared/widgets/multi_select_filter.dart')"
+cat > 'lib/shared/widgets/multi_select_filter.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -146,3 +164,9 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. Siguiente paso:"
+echo "  flutter analyze"
+echo "  flutter test"
