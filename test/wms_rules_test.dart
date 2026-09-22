@@ -21,6 +21,20 @@ void main() {
       expect(qr.noOc, 'ORD-001-ENE');
     });
 
+    test('parsea un QR real donde la OP queda pegada a la URL, sin ; de por medio', () {
+      // Caso real detectado: el '?' no va seguido de ';', la OP queda directo
+      // pegada al final de la URL.
+      final qr = QrPrenda.tryParse(
+        'https://www.atom.bio/grupoquiromarsas?25079;202674809;'
+        'BLUSA ADMINISTRATIVA DAMA  T. S/8;TV COLOMBIA DIGITAL;PEDIDO AGOSTO;ID0016',
+      );
+      expect(qr, isNotNull);
+      expect(qr!.op, '25079');
+      expect(qr.codigo, '202674809');
+      expect(qr.cliente, 'TV COLOMBIA DIGITAL');
+      expect(qr.noOc, 'PEDIDO AGOSTO');
+    });
+
     test('rechaza QR incompleto o con OP/Código vacíos', () {
       expect(QrPrenda.tryParse('url;ENEL'), isNull);
       expect(QrPrenda.tryParse('url;;2025289514;TSHIRT;ENEL;ORD-001-ENE'), isNull);

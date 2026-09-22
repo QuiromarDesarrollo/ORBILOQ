@@ -1,3 +1,21 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Arregla de verdad el parser del QR (v7)
+# Este archivo se me habia quedado pendiente de enviar por error.
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_qr_real_v7.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Aplicando el arreglo real del parser de QR..."
+
+echo "  - lib/domain/qr_prenda.dart"
+mkdir -p "$(dirname 'lib/domain/qr_prenda.dart')"
+cat > 'lib/domain/qr_prenda.dart' << 'ORBILOQ_EOF'
 /// Contenido real del QR impreso en la marquilla de cada prenda:
 /// `<url>?OP;Código;Descripción;Cliente;NO.OC;ID`
 ///
@@ -60,3 +78,9 @@ class QrPrenda {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. Siguiente paso:"
+echo "  flutter analyze"
+echo "  flutter test   (deberian pasar las 11)"
