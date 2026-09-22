@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Diagnostico: imprime en consola cada pagina que se pide (v11)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_diagnostico_v11.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Agregando registros de diagnostico..."
+
+echo "  - lib/data/supabase_wms_repository.dart"
+mkdir -p "$(dirname 'lib/data/supabase_wms_repository.dart')"
+cat > 'lib/data/supabase_wms_repository.dart' << 'ORBILOQ_EOF'
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -309,3 +326,10 @@ class SupabaseWmsRepository implements WmsRepository {
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. Siguiente paso:"
+echo "  flutter analyze"
+echo "  flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=..."
+echo "  Luego abre F12 -> Console y busca lineas que empiezan con [ORBILOQ]"

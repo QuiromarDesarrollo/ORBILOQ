@@ -1,6 +1,23 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Corrige el limite de 1000 filas de Supabase (v10)
+# Este era el bug real: la app solo cargaba las primeras ~1000 filas del kardex
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_paginacion_v10.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Aplicando correccion del limite de filas de Supabase..."
+
+echo "  - lib/data/supabase_wms_repository.dart"
+mkdir -p "$(dirname 'lib/data/supabase_wms_repository.dart')"
+cat > 'lib/data/supabase_wms_repository.dart' << 'ORBILOQ_EOF'
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/result.dart';
@@ -67,21 +84,14 @@ class SupabaseWmsRepository implements WmsRepository {
   /// sin esto, tablas grandes (como el kardex con miles de líneas) se
   /// cortan en silencio y la app termina sin ver datos que sí existen.
   Future<List<Map<String, dynamic>>> _traerTodo(
-    dynamic Function(int desde, int hasta) construirConsulta, {
-    String etiqueta = '',
-  }) async {
+    dynamic Function(int desde, int hasta) construirConsulta,
+  ) async {
     const tamPagina = 1000;
     final todas = <Map<String, dynamic>>[];
     var desde = 0;
-    var vuelta = 0;
     while (true) {
-      vuelta++;
       final resultado = await construirConsulta(desde, desde + tamPagina - 1);
       final lote = (resultado as List).cast<Map<String, dynamic>>();
-      debugPrint(
-        '[ORBILOQ][$etiqueta] vuelta $vuelta: pedí rango $desde-${desde + tamPagina - 1}, '
-        'llegaron ${lote.length} filas',
-      );
       if (lote.isEmpty) break;
       todas.addAll(lote);
       // Avanza según lo que realmente llegó (no según lo pedido): si el
@@ -89,7 +99,6 @@ class SupabaseWmsRepository implements WmsRepository {
       // evita saltarse filas en la siguiente página.
       desde += lote.length;
     }
-    debugPrint('[ORBILOQ][$etiqueta] TOTAL acumulado: ${todas.length} filas');
     return todas;
   }
 
@@ -101,16 +110,10 @@ class SupabaseWmsRepository implements WmsRepository {
           .order('numero_op')
           .order('codigo')
           .range(desde, hasta),
-      etiqueta: 'vista_kardex',
-    );
-    debugPrint(
-      '[ORBILOQ][vista_kardex] ¿contiene OP 25079? '
-      '${kardexRows.any((r) => r['numero_op']?.toString() == '25079')}',
     );
 
     final stockRows = await _traerTodo(
       (desde, hasta) => _client.from('vista_stock_ubicacion_detalle').select().range(desde, hasta),
-      etiqueta: 'vista_stock_ubicacion_detalle',
     );
 
     final remisionesRows = await _traerTodo(
@@ -119,7 +122,6 @@ class SupabaseWmsRepository implements WmsRepository {
           .select()
           .order('fecha_envio', ascending: false)
           .range(desde, hasta),
-      etiqueta: 'vista_remisiones',
     );
 
     final stockPorItem = <String, Map<String, int>>{};
@@ -309,3 +311,9 @@ class SupabaseWmsRepository implements WmsRepository {
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. Siguiente paso:"
+echo "  flutter analyze"
+echo "  flutter test"
