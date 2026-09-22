@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
+import 'package:excel/excel.dart' as xlsx;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:orbiloq_wms/core/result.dart';
+import 'package:orbiloq_wms/data/excel_ordenes_parser.dart';
 import 'package:orbiloq_wms/data/in_memory_wms_repository.dart';
 import 'package:orbiloq_wms/domain/models.dart';
 import 'package:orbiloq_wms/domain/qr_prenda.dart';
@@ -105,6 +109,89 @@ void main() {
       for (final k in snap.kardex) {
         expect(k.ubicaciones.values.fold<int>(0, (a, b) => a + b), k.stockDisponible);
       }
+    });
+  });
+
+  group('ExcelOrdenesParser (bytes reales de .xlsx)', () {
+    // Esta prueba existe porque un bug real (encabezados que no se
+    // reconocían por diferencias de mayúsculas/tildes) pasó sin detectarse
+    // porque nunca se probó el parser contra un archivo Excel de verdad,
+    // solo contra texto. Aquí se construye un .xlsx real en memoria.
+    List<int> construirXlsxDePrueba() {
+      final libro = xlsx.Excel.createExcel();
+
+      final orden = libro['Orden'];
+      // Encabezados con mayúsculas/espacios distintos a los del diccionario
+      // interno, a propósito, para probar la normalización.
+      orden.appendRow([
+        xlsx.TextCellValue('IDENTIFICADOR'),
+        xlsx.TextCellValue(' Cliente '),
+        xlsx.TextCellValue('CANTIDAD'),
+      ]);
+      orden.appendRow([
+        xlsx.IntCellValue(25079),
+        xlsx.TextCellValue('TV COLOMBIA DIGITAL'),
+        xlsx.IntCellValue(15),
+      ]);
+
+      final tallas = libro['Tallas'];
+      tallas.appendRow([
+        xlsx.TextCellValue('identificador orden'), // minúsculas
+        xlsx.TextCellValue('CODIGO'), // sin tilde, mayúsculas (la clave real es "Código")
+        xlsx.TextCellValue('TALLAS NOMBRE'),
+        xlsx.TextCellValue('cantidad'),
+      ]);
+      tallas.appendRow([
+        xlsx.IntCellValue(25079),
+        // Código como celda numérica con decimales, para probar que no
+        // quede guardado como "202674809.0".
+        xlsx.DoubleCellValue(202674809),
+        xlsx.TextCellValue('S/8'),
+        xlsx.IntCellValue(15),
+      ]);
+
+      libro.delete('Sheet1');
+      final bytes = libro.encode();
+      if (bytes == null) {
+        fail('No se pudo generar el .xlsx de prueba');
+      }
+      return bytes;
+    }
+
+    test('reconoce encabezados aunque vengan con mayúsculas/tildes distintas', () {
+      final bytes = Uint8List.fromList(construirXlsxDePrueba());
+      final parseado = ExcelOrdenesParser.parsear(bytes);
+
+      expect(parseado.ordenes.length, 1);
+      expect(parseado.ordenes.first['identificador'], '25079');
+      expect(parseado.ordenes.first['cliente'], 'TV COLOMBIA DIGITAL');
+
+      expect(parseado.tallas.length, 1);
+      expect(parseado.tallas.first['identificador_orden'], '25079');
+      expect(parseado.tallas.first['talla'], 'S/8');
+    });
+
+    test('un código numérico no queda con ".0" pegado al final', () {
+      final bytes = Uint8List.fromList(construirXlsxDePrueba());
+      final parseado = ExcelOrdenesParser.parsear(bytes);
+
+      expect(parseado.tallas.first['codigo'], '202674809');
+    });
+
+    test('avisa claramente si falta una columna requerida, en vez de fallar en silencio', () {
+      final libro = xlsx.Excel.createExcel();
+      final orden = libro['Orden'];
+      // Sin columna "Identificador": debe fallar de forma explícita.
+      orden.appendRow([xlsx.TextCellValue('Cliente'), xlsx.TextCellValue('Cantidad')]);
+      orden.appendRow([xlsx.TextCellValue('ACME'), xlsx.IntCellValue(1)]);
+      libro['Tallas'].appendRow([xlsx.TextCellValue('Identificador orden')]);
+      libro.delete('Sheet1');
+      final bytes = Uint8List.fromList(libro.encode()!);
+
+      expect(
+        () => ExcelOrdenesParser.parsear(bytes),
+        throwsA(isA<ExcelOrdenesParseException>()),
+      );
     });
   });
 }

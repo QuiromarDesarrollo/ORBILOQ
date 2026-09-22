@@ -105,8 +105,18 @@ class ExcelOrdenesParser {
       );
     }
 
-    final ordenes = _leerHoja(libro.tables[nombreHojaOrden]!, _columnasOrden);
-    final tallas = _leerHoja(libro.tables[nombreHojaTallas]!, _columnasTallas);
+    final ordenes = _leerHoja(
+      libro.tables[nombreHojaOrden]!,
+      _columnasOrden,
+      requeridas: const ['identificador'],
+      nombreHoja: 'Orden',
+    );
+    final tallas = _leerHoja(
+      libro.tables[nombreHojaTallas]!,
+      _columnasTallas,
+      requeridas: const ['identificador_orden', 'codigo', 'talla', 'cantidad'],
+      nombreHoja: 'Tallas',
+    );
 
     if (ordenes.isEmpty) {
       throw ExcelOrdenesParseException('La hoja "Orden" no tiene filas de datos.');
@@ -122,16 +132,31 @@ class ExcelOrdenesParser {
     return null;
   }
 
-  static List<Map<String, String?>> _leerHoja(Sheet hoja, Map<String, String> columnas) {
+  static List<Map<String, String?>> _leerHoja(
+    Sheet hoja,
+    Map<String, String> columnas, {
+    required List<String> requeridas,
+    required String nombreHoja,
+  }) {
     if (hoja.maxRows == 0) return const [];
 
     final encabezados = hoja.rows.first;
     final indicePorClave = <String, int>{};
+    final encabezadosLeidos = <String>[];
     for (var i = 0; i < encabezados.length; i++) {
       final texto = _texto(encabezados[i]?.value)?.trim();
-      if (texto == null) continue;
-      final clave = columnas[texto];
+      if (texto == null || texto.isEmpty) continue;
+      encabezadosLeidos.add(texto);
+      final clave = columnas[_normalizarEncabezado(texto)];
       if (clave != null) indicePorClave[clave] = i;
+    }
+
+    final faltantes = requeridas.where((r) => !indicePorClave.containsKey(r)).toList();
+    if (faltantes.isNotEmpty) {
+      throw ExcelOrdenesParseException(
+        'No se reconocieron algunas columnas requeridas en la hoja "$nombreHoja" '
+        '(${faltantes.join(", ")}). Encabezados encontrados: ${encabezadosLeidos.join(", ")}',
+      );
     }
 
     final filas = <Map<String, String?>>[];

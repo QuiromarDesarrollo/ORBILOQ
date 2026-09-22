@@ -137,25 +137,34 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
               const SizedBox(height: 16),
               FeedbackBanner(message: _msg!),
             ],
-            if (_resumen != null && _resumen!.advertencias.isNotEmpty) ...[
+            if (_resumen != null && _resumen!.tuvoProblemas) ...[
               const SizedBox(height: 12),
               Text(
-                'Advertencias (${_resumen!.advertencias.length})'
-                '${_resumen!.filasInvalidas > 0 ? ' · ${_resumen!.filasInvalidas} filas sin OP válida' : ''}:',
+                'Detalle'
+                '${_resumen!.filasInvalidas > 0 ? ' · ${_resumen!.filasInvalidas} filas sin OP válida' : ''}'
+                '${_resumen!.advertencias.isNotEmpty ? ' · ${_resumen!.advertencias.length} advertencias de cantidad' : ''}:',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 220),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _resumen!.advertencias.length,
-                  itemBuilder: (_, i) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text('• ${_resumen!.advertencias[i]}', style: const TextStyle(fontSize: 12)),
+              if (_resumen!.advertencias.isEmpty)
+                const Text(
+                  'No hay advertencias de cantidad para mostrar, pero revisa el mensaje '
+                  'de filas sin OP válida arriba — probablemente el archivo no tiene el '
+                  'formato de columnas esperado.',
+                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _resumen!.advertencias.length,
+                    itemBuilder: (_, i) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text('• ${_resumen!.advertencias[i]}', style: const TextStyle(fontSize: 12)),
+                    ),
                   ),
                 ),
-              ),
             ],
           ],
         ],
