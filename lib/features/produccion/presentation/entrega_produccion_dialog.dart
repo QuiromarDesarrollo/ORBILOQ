@@ -96,21 +96,21 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
       _error('QR inválido. Formato esperado: ${QrPrenda.formato}');
       return;
     }
-    final kardex = ref.read(wmsSnapshotProvider).value?.kardexPorId(qr.itemId);
+    final kardex = ref.read(wmsSnapshotProvider).value?.kardexPorOpCodigo(qr.op, qr.codigo);
     if (kardex == null) {
-      _error('La prenda no existe en el kardex (OP ${qr.op} · OC ${qr.oc} · ${qr.codigo} · ${qr.talla}).');
+      _error('La prenda no existe en el kardex (OP ${qr.op} · Código ${qr.codigo}).');
       return;
     }
 
     // Al cambiar de producto el conteo se reinicia.
-    final base = _itemId == qr.itemId ? _conteo : 0;
+    final base = _itemId == kardex.id ? _conteo : 0;
     if (base >= kardex.pendienteProduccion) {
       _error('LÍMITE ALCANZADO: esta OP ya cumplió la cantidad pedida (${kardex.pendienteProduccion} Uds por entregar).');
       return;
     }
 
     setState(() {
-      _itemId = qr.itemId;
+      _itemId = kardex.id;
       _conteo = base + 1;
       _cantidadCtrl.text = '$_conteo';
       _msg = null;
@@ -176,7 +176,9 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
                   textCapitalization: TextCapitalization.characters,
                   decoration: wmsInput(
                     'N° Remisión / Lote',
-                    hint: proxima == null ? 'Automático' : 'Automático ($proxima)',
+                    hint: (proxima == null || proxima == 'Automático')
+                        ? 'Automático'
+                        : 'Automático ($proxima)',
                   ),
                 ),
               ),

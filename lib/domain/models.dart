@@ -38,8 +38,13 @@ String buildItemId(String op, String oc, String codigo, String talla) =>
     '$op|$oc|$codigo|$talla';
 
 /// Línea de una orden de producción (dato maestro, inmutable).
+///
+/// [id] es la clave real que usan los repositorios para referenciar esta
+/// línea (en Supabase, el UUID de `items_orden.id`; en el repositorio en
+/// memoria, la clave compuesta [buildItemId]).
 class ItemOrden {
   const ItemOrden({
+    required this.id,
     required this.op,
     required this.cliente,
     required this.oc,
@@ -50,6 +55,7 @@ class ItemOrden {
     this.observacionOp = '',
   });
 
+  final String id;
   final String op;
   final String cliente;
   final String oc;
@@ -58,8 +64,6 @@ class ItemOrden {
   final String talla;
   final int cantidadPedida;
   final String observacionOp;
-
-  String get id => buildItemId(op, oc, codigo, talla);
 }
 
 /// Movimiento inmutable del libro de movimientos (ledger). Es la única fuente
@@ -202,7 +206,14 @@ class WmsSnapshot {
   final String proximaRemision;
 
   late final Map<String, ItemKardex> _porId = {for (final k in kardex) k.id: k};
+  late final Map<String, ItemKardex> _porOpCodigo = {
+    for (final k in kardex) '${k.item.op}|${k.item.codigo}': k,
+  };
   late final int remisionesEnTransito = remisiones.where((r) => r.enTransito).length;
 
   ItemKardex? kardexPorId(String id) => _porId[id];
+
+  /// El QR real de la marquilla trae OP + Código, sin talla (el código ya es
+  /// único por talla dentro de cada OP). Esta es la búsqueda que usa el escaneo.
+  ItemKardex? kardexPorOpCodigo(String op, String codigo) => _porOpCodigo['$op|$codigo'];
 }

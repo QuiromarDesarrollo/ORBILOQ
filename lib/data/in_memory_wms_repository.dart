@@ -259,27 +259,32 @@ class InMemoryWmsRepository implements WmsRepository {
   // ---------------------------------------------------------------- datos demo
 
   void _sembrar() {
-    const xs = ItemOrden(
+    final xs = ItemOrden(
+      id: buildItemId('19249', 'ORD-001-ENE', '2025289514', 'XS'),
       op: '19249', cliente: 'ENEL', oc: 'ORD-001-ENE', codigo: '2025289514',
       descripcion: 'TSHIRT MANGA CORTA', talla: 'XS', cantidadPedida: 9,
       observacionOp: 'MARQUILLA DOT TEJIDA 2025 - PECHO IZQ',
     );
-    const s = ItemOrden(
+    final s = ItemOrden(
+      id: buildItemId('19249', 'ORD-001-ENE', '2025289515', 'S'),
       op: '19249', cliente: 'ENEL', oc: 'ORD-001-ENE', codigo: '2025289515',
       descripcion: 'TSHIRT MANGA CORTA', talla: 'S', cantidadPedida: 264,
       observacionOp: 'TELA AZUL CONFECCIÓN NORMAL - CUELLO REDONDO',
     );
-    const m = ItemOrden(
+    final m = ItemOrden(
+      id: buildItemId('19249', 'ORD-001-ENE', '2025289516', 'M'),
       op: '19249', cliente: 'ENEL', oc: 'ORD-001-ENE', codigo: '2025289516',
       descripcion: 'TSHIRT MANGA CORTA', talla: 'M', cantidadPedida: 841,
       observacionOp: 'DESPACHO PRIORITARIO BOGOTÁ',
     );
-    const blusa = ItemOrden(
+    final blusa = ItemOrden(
+      id: buildItemId('18348', 'OC-40012', 'MTHBMMCCV', 'M'),
       op: '18348', cliente: 'MEDICALL', oc: 'OC-40012', codigo: 'MTHBMMCCV',
       descripcion: 'BLUSA MUJER', talla: 'M', cantidadPedida: 160,
       observacionOp: 'BORDADO EN BOLSILLO DELANTERO',
     );
-    const bata = ItemOrden(
+    final bata = ItemOrden(
+      id: buildItemId('18353', 'OC-9920', 'CLSBAOCD20', 'L'),
       op: '18353', cliente: 'COLSUBSIDIO', oc: 'OC-9920', codigo: 'CLSBAOCD20',
       descripcion: 'BATA MÉDICA', talla: 'L', cantidadPedida: 45,
       observacionOp: 'BOTONES ANTIFLUIDO BLANCO',

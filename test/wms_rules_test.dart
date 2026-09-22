@@ -10,15 +10,20 @@ const _s = '19249|ORD-001-ENE|2025289515|S'; // pedida 264, producido 100, stock
 
 void main() {
   group('QrPrenda', () {
-    test('parsea un QR válido', () {
-      final qr = QrPrenda.tryParse('19249;ENEL;2025289514;TSHIRT;XS;ORD-001-ENE');
+    test('parsea un QR válido con el formato real de la marquilla', () {
+      final qr = QrPrenda.tryParse(
+        'https://orbiloq.app/qr?;19249;2025289514;TSHIRT MANGA CORTA T. XS;ENEL;ORD-001-ENE;ID0001',
+      );
       expect(qr, isNotNull);
-      expect(qr!.itemId, _xs);
+      expect(qr!.op, '19249');
+      expect(qr.codigo, '2025289514');
+      expect(qr.cliente, 'ENEL');
+      expect(qr.noOc, 'ORD-001-ENE');
     });
 
-    test('rechaza QR incompleto o con campos vacíos', () {
-      expect(QrPrenda.tryParse('19249;ENEL'), isNull);
-      expect(QrPrenda.tryParse('19249;ENEL;2025289514;;XS;ORD-001-ENE'), isNull);
+    test('rechaza QR incompleto o con OP/Código vacíos', () {
+      expect(QrPrenda.tryParse('url;ENEL'), isNull);
+      expect(QrPrenda.tryParse('url;;2025289514;TSHIRT;ENEL;ORD-001-ENE'), isNull);
     });
   });
 

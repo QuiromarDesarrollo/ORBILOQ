@@ -76,7 +76,7 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     final qr = QrPrenda.tryParse(raw);
     if (qr == null) {
       setState(() => _msg = FeedbackMessage.error('QR inválido. Formato esperado: ${QrPrenda.formato}'));
-    } else if (qr.itemId != remision.item.id) {
+    } else if (qr.op != remision.item.op || qr.codigo != remision.item.codigo) {
       setState(() => _msg = const FeedbackMessage.error('La prenda NO corresponde a esta remisión.'));
     } else {
       setState(() {

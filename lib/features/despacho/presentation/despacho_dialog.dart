@@ -53,7 +53,7 @@ class _DespachoDialogState extends ConsumerState<DespachoDialog> {
       _error('QR inválido. Formato esperado: ${QrPrenda.formato}');
       return;
     }
-    final k = ref.read(wmsSnapshotProvider).value?.kardexPorId(qr.itemId);
+    final k = ref.read(wmsSnapshotProvider).value?.kardexPorOpCodigo(qr.op, qr.codigo);
     if (k == null) {
       _error('La prenda no está registrada en el kardex.');
       return;
