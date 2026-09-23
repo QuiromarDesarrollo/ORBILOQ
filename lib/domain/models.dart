@@ -149,6 +149,7 @@ class ItemKardex {
     this.fechaEntrega,
     this.fechaRecepcion,
     this.fechaEntregaLogistica,
+    this.pendienteReproceso = 0,
   });
 
   final ItemOrden item;
@@ -164,6 +165,9 @@ class ItemKardex {
   /// Fecha comprometida de entrega al cliente final (viene del Excel de
   /// fechas de entrega logística; puede no existir todavía).
   final DateTime? fechaEntregaLogistica;
+
+  /// Unidades devueltas a Producción por no conformidad, aún sin reprocesar.
+  final int pendienteReproceso;
 
   String get id => item.id;
   int get cantidadPedida => item.cantidadPedida;

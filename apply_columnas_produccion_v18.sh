@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Columnas propias para la vista de Produccion (v18)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_columnas_produccion_v18.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando columnas de Produccion..."
+
+echo "  - lib/features/kardex/presentation/kardex_table.dart"
+mkdir -p "$(dirname 'lib/features/kardex/presentation/kardex_table.dart')"
+cat > 'lib/features/kardex/presentation/kardex_table.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -499,3 +515,7 @@ class _ChipEntrega extends StatelessWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze / flutter test"
