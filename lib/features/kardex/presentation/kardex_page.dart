@@ -43,14 +43,14 @@ class _KardexPageState extends ConsumerState<KardexPage> {
     final snapshot = ref.watch(wmsSnapshotProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.slate50,
+      backgroundColor: AppColors.darkBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.slate900,
+        backgroundColor: AppColors.darkHeader,
+        foregroundColor: AppColors.darkTextPrimary,
         elevation: 0,
         toolbarHeight: 72,
-        surfaceTintColor: Colors.white,
-        shape: const Border(bottom: BorderSide(color: AppColors.cardBorder)),
+        surfaceTintColor: AppColors.darkHeader,
+        shape: const Border(bottom: BorderSide(color: AppColors.darkCardBorder)),
         titleSpacing: 20,
         title: Row(
           children: [
@@ -67,19 +67,19 @@ class _KardexPageState extends ConsumerState<KardexPage> {
               children: [
                 RichText(
                   text: const TextSpan(
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.slate900),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
                     children: [
                       TextSpan(text: 'ORBILOQ '),
                       TextSpan(
                         text: '| KARDEX MAESTRO',
-                        style: TextStyle(fontWeight: FontWeight.w500, color: AppColors.slate600),
+                        style: TextStyle(fontWeight: FontWeight.w500, color: AppColors.tealAccent),
                       ),
                     ],
                   ),
                 ),
                 const Text(
                   'CONTROL OPERATIVO DE BODEGA Y PRODUCCIÓN',
-                  style: TextStyle(fontSize: 10, color: AppColors.slate400, letterSpacing: 0.4),
+                  style: TextStyle(fontSize: 10, color: AppColors.darkTextMuted, letterSpacing: 0.4),
                 ),
               ],
             ),
@@ -91,8 +91,8 @@ class _KardexPageState extends ConsumerState<KardexPage> {
             icon: const Icon(Icons.upload_file_outlined, size: 18),
             label: const Text('Importar Excel'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.slate600,
-              side: const BorderSide(color: AppColors.cardBorder),
+              foregroundColor: AppColors.darkTextSecondary,
+              side: const BorderSide(color: AppColors.darkCardBorder),
             ),
           ),
           const SizedBox(width: 10),
@@ -108,12 +108,16 @@ class _KardexPageState extends ConsumerState<KardexPage> {
               foregroundColor: Colors.white,
             ),
           ),
+          const SizedBox(width: 10),
+          _SelectorPerfil(rol: rol),
           const SizedBox(width: 20),
         ],
       ),
       body: snapshot.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error cargando datos: $e')),
+        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.tealAccent)),
+        error: (e, _) => Center(
+          child: Text('Error cargando datos: $e', style: const TextStyle(color: AppColors.darkTextPrimary)),
+        ),
         data: (s) => SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -134,28 +138,103 @@ class _KardexPageState extends ConsumerState<KardexPage> {
   }
 }
 
-class _Cabecera extends ConsumerWidget {
+/// Botón-píldora "PERFIL DE TRABAJO" que abre un menú con los roles
+/// disponibles. Solo muestra los 2 que funcionan hoy (Producción y Bodega).
+class _SelectorPerfil extends ConsumerWidget {
+  const _SelectorPerfil({required this.rol});
+
+  final Rol rol;
+
+  IconData _icono(Rol r) => r == Rol.produccion ? Icons.content_cut : Icons.warehouse_outlined;
+  String _etiqueta(Rol r) => r == Rol.produccion ? 'Producción' : 'Bodega';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton<Rol>(
+      color: AppColors.darkCard,
+      offset: const Offset(0, 44),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: AppColors.darkCardBorder),
+      ),
+      onSelected: (r) => ref.read(rolProvider.notifier).cambiar(r),
+      itemBuilder: (context) => [
+        const PopupMenuItem<Rol>(
+          enabled: false,
+          height: 32,
+          child: Text(
+            'PERFIL DE TRABAJO',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.darkTextMuted, letterSpacing: 0.5),
+          ),
+        ),
+        for (final r in Rol.values)
+          PopupMenuItem<Rol>(
+            value: r,
+            child: Row(
+              children: [
+                Icon(_icono(r), size: 18, color: r == rol ? AppColors.tealAccent : AppColors.darkTextSecondary),
+                const SizedBox(width: 10),
+                Text(_etiqueta(r),
+                    style: TextStyle(
+                      color: r == rol ? AppColors.tealAccent : AppColors.darkTextPrimary,
+                      fontWeight: r == rol ? FontWeight.bold : FontWeight.normal,
+                    )),
+                if (r == rol) ...[
+                  const Spacer(),
+                  const Icon(Icons.check, size: 16, color: AppColors.tealAccent),
+                ],
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.tealPrimary.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.tealPrimary),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_icono(rol), size: 16, color: AppColors.tealAccent),
+            const SizedBox(width: 8),
+            Text(_etiqueta(rol),
+                style: const TextStyle(color: AppColors.tealAccent, fontWeight: FontWeight.w600, fontSize: 13)),
+            const SizedBox(width: 4),
+            const Icon(Icons.expand_more, size: 16, color: AppColors.tealAccent),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Cabecera extends StatelessWidget {
   const _Cabecera({required this.rol, required this.enTransito});
 
   final Rol rol;
   final int enTransito;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
       runSpacing: 12,
       children: [
-        Column(
+        const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _SelectorPerfil(rol: rol),
-            const SizedBox(height: 2),
-            const Text(
+            Text(
               'Órdenes activas',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.slate900),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'Producción, bodega y despachos en un solo tablero',
+              style: TextStyle(fontSize: 13, color: AppColors.darkTextSecondary),
             ),
           ],
         ),
@@ -193,36 +272,6 @@ class _Cabecera extends ConsumerWidget {
   }
 }
 
-/// Se ve como una etiqueta de texto ("Perfil: X"), pero sigue siendo un
-/// desplegable funcional para cambiar de rol — necesario mientras no exista
-/// login real con el rol del usuario autenticado.
-class _SelectorPerfil extends ConsumerWidget {
-  const _SelectorPerfil({required this.rol});
-
-  final Rol rol;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<Rol>(
-        value: rol,
-        isDense: true,
-        icon: const Icon(Icons.expand_more, size: 16, color: AppColors.slate400),
-        style: const TextStyle(fontSize: 12, color: AppColors.slate600, fontWeight: FontWeight.w500),
-        items: [
-          for (final r in Rol.values)
-            DropdownMenuItem(value: r, child: Text('Perfil: ${_etiquetaCorta(r)}')),
-        ],
-        onChanged: (r) {
-          if (r != null) ref.read(rolProvider.notifier).cambiar(r);
-        },
-      ),
-    );
-  }
-
-  String _etiquetaCorta(Rol r) => r == Rol.produccion ? 'Producción (Taller)' : 'Logística (Bodega)';
-}
-
 class _BotonAccion extends StatelessWidget {
   const _BotonAccion({required this.icono, required this.texto, required this.onPressed});
 
@@ -237,7 +286,7 @@ class _BotonAccion extends StatelessWidget {
       icon: Icon(icono, size: 16),
       label: Text(texto),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.tealPrimary,
+        foregroundColor: AppColors.tealAccent,
         side: const BorderSide(color: AppColors.tealPrimary),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),

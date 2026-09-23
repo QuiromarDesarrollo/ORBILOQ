@@ -25,6 +25,23 @@ abstract final class AppColors {
   static const greenChipBg = Color(0xFFECFDF5);
   static const blueChipBg = Color(0xFFEFF6FF);
   static const blueChip = Color(0xFF1D4ED8);
+
+  // ---- Paleta oscura (rediseño del Kardex, tema dark) ----
+  static const darkBg = Color(0xFF0B1220);
+  static const darkHeader = Color(0xFF0E1729);
+  static const darkCard = Color(0xFF141B2D);
+  static const darkCardBorder = Color(0xFF232D42);
+  static const darkInput = Color(0xFF0F1729);
+  static const darkTextPrimary = Color(0xFFF1F5F9);
+  static const darkTextSecondary = Color(0xFF8895AC);
+  static const darkTextMuted = Color(0xFF5B6B85);
+  static const tealAccent = Color(0xFF2DD4BF);
+  static const chipRedBgDark = Color(0xFF3B1219);
+  static const chipRedDark = Color(0xFFFCA5A5);
+  static const chipGreenBgDark = Color(0xFF0F2E22);
+  static const chipGreenDark = Color(0xFF6EE7B7);
+  static const chipNeutralBgDark = Color(0xFF1B2438);
+  static const chipNeutralDark = Color(0xFF94A3B8);
 }
 
 abstract final class AppTheme {

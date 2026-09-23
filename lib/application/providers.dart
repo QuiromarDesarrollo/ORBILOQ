@@ -45,6 +45,7 @@ class KardexFiltersNotifier extends Notifier<KardexFilters> {
   void setBusqueda(String v) => state = state.copyWith(busqueda: v);
   void setCliente(String? v) => state = state.copyWith(cliente: v);
   void setEstado(String? v) => state = state.copyWith(estado: v);
+  void setOps(Set<String> v) => state = state.copyWith(ops: v);
   void limpiar() => state = const KardexFilters();
 }
 
@@ -69,6 +70,7 @@ final opcionesFiltroProvider = Provider<OpcionesFiltro>((ref) {
   return OpcionesFiltro(
     clientes: unicos((i) => i.item.cliente),
     estados: unicos((i) => i.estadoEtiqueta),
+    ops: unicos((i) => i.item.op),
   );
 });
 

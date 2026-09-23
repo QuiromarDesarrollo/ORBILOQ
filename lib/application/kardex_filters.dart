@@ -1,33 +1,39 @@
 import '../domain/models.dart';
 
-/// Filtros del kardex: búsqueda libre + cliente + estado, todos opcionales.
-/// `null`/vacío en cualquiera de ellos significa "sin restricción en ese campo".
+/// Filtros del kardex: búsqueda libre + cliente + estado + selección
+/// específica de OP (columna). Todos opcionales / combinables.
 class KardexFilters {
   const KardexFilters({
     this.busqueda = '',
     this.cliente,
     this.estado,
+    this.ops = const {},
   });
 
   final String busqueda;
   final String? cliente;
   final String? estado; // etiqueta de EstadoItem, o null = todos
+  final Set<String> ops; // vacío = todas las OP
 
-  bool get hayFiltros => busqueda.trim().isNotEmpty || cliente != null || estado != null;
+  bool get hayFiltros =>
+      busqueda.trim().isNotEmpty || cliente != null || estado != null || ops.isNotEmpty;
 
   KardexFilters copyWith({
     String? busqueda,
     Object? cliente = _sinCambio,
     Object? estado = _sinCambio,
+    Set<String>? ops,
   }) {
     return KardexFilters(
       busqueda: busqueda ?? this.busqueda,
       cliente: identical(cliente, _sinCambio) ? this.cliente : cliente as String?,
       estado: identical(estado, _sinCambio) ? this.estado : estado as String?,
+      ops: ops ?? this.ops,
     );
   }
 
   bool aplica(ItemKardex i) {
+    if (ops.isNotEmpty && !ops.contains(i.item.op)) return false;
     if (cliente != null && i.item.cliente != cliente) return false;
     if (estado != null && i.estadoEtiqueta != estado) return false;
     final q = busqueda.trim().toLowerCase();
@@ -43,11 +49,12 @@ class KardexFilters {
 
 const _sinCambio = Object();
 
-/// Valores disponibles en los desplegables de filtro.
+/// Valores disponibles en los desplegables/popups de filtro.
 class OpcionesFiltro {
-  const OpcionesFiltro({required this.clientes, required this.estados});
+  const OpcionesFiltro({required this.clientes, required this.estados, required this.ops});
   final List<String> clientes;
   final List<String> estados;
+  final List<String> ops;
 }
 
 /// Totales agregados para las tarjetas de resumen, calculados sobre la lista
