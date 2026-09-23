@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../application/auth_providers.dart';
 import '../../../application/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/models.dart';
+import '../../../domain/sesion.dart';
 import '../../despacho/presentation/despacho_dialog.dart';
 import '../../importacion/presentation/importar_ordenes_dialog.dart';
 import '../../produccion/presentation/entrega_produccion_dialog.dart';
@@ -150,6 +152,52 @@ class _SelectorPerfil extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final usarSupabase = ref.watch(usarSupabaseProvider);
+    final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
+    final esAdmin = !usarSupabase || sesion?.rolCuenta == RolCuenta.admin;
+
+    final pastilla = esAdmin
+        ? _pastillaDesplegable(context, ref)
+        : _pastillaFija(sesion?.nombre ?? _etiqueta(rol));
+
+    if (!usarSupabase) return pastilla; // modo memoria: sin sesión que cerrar
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        pastilla,
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'Cerrar sesión',
+          icon: const Icon(Icons.logout, size: 18, color: AppColors.darkTextMuted),
+          onPressed: () => ref.read(authRepositoryProvider)?.cerrarSesion(),
+        ),
+      ],
+    );
+  }
+
+  /// Producción o Logística: no pueden cambiar de rol, solo ven quiénes son.
+  Widget _pastillaFija(String nombre) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.tealPrimary.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.tealPrimary),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_icono(rol), size: 16, color: AppColors.tealAccent),
+          const SizedBox(width: 8),
+          Text(nombre, style: const TextStyle(color: AppColors.tealAccent, fontWeight: FontWeight.w600, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  /// Administrador (o modo memoria sin login): puede alternar entre vistas.
+  Widget _pastillaDesplegable(BuildContext context, WidgetRef ref) {
     return PopupMenuButton<Rol>(
       color: AppColors.darkCard,
       offset: const Offset(0, 44),

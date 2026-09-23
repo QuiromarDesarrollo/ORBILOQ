@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
+import 'application/auth_providers.dart';
 import 'application/providers.dart';
+import 'data/auth_repository.dart';
 import 'data/in_memory_wms_repository.dart';
 import 'data/supabase_importador_ordenes.dart';
 import 'data/supabase_wms_repository.dart';
@@ -43,6 +45,11 @@ Future<void> main() async {
         importadorOrdenesProvider.overrideWith((ref) {
           if (!usarSupabase) return null;
           return SupabaseImportadorOrdenes(Supabase.instance.client);
+        }),
+        usarSupabaseProvider.overrideWithValue(usarSupabase),
+        authRepositoryProvider.overrideWith((ref) {
+          if (!usarSupabase) return null;
+          return AuthRepository(Supabase.instance.client);
         }),
       ],
       child: const OrbiloqWmsApp(),

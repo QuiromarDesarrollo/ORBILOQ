@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/supabase_importador_ordenes.dart';
 import '../domain/models.dart';
+import '../domain/sesion.dart';
 import '../domain/wms_repository.dart';
+import 'auth_providers.dart';
 import 'kardex_filters.dart';
 
 /// Debe sobrescribirse en `main.dart` (o en tests) con la implementación deseada.
@@ -26,10 +28,25 @@ final kardexProvider = Provider<List<ItemKardex>>(
 
 class RolNotifier extends Notifier<Rol> {
   @override
-  Rol build() => Rol.produccion;
+  Rol build() {
+    final usarSupabase = ref.watch(usarSupabaseProvider);
+    if (!usarSupabase) return Rol.produccion; // modo memoria: sin login, libre como antes
+
+    final sesion = ref.watch(usuarioSesionProvider).value;
+    if (sesion == null) return Rol.produccion; // aún cargando / sin sesión
+    return switch (sesion.rolCuenta) {
+      RolCuenta.produccion => Rol.produccion,
+      RolCuenta.logistica => Rol.logistica,
+      RolCuenta.admin => Rol.produccion, // el admin arranca en Producción y puede cambiar
+    };
+  }
 
   void cambiar(Rol rol) {
     if (rol == state) return;
+    if (ref.read(usarSupabaseProvider)) {
+      final esAdmin = ref.read(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
+      if (!esAdmin) return; // Producción/Logística no pueden cambiarse su propio rol
+    }
     state = rol;
   }
 }
