@@ -29,21 +29,27 @@ class EntregaProduccionDialog extends StatelessWidget {
       icon: Icons.precision_manufacturing,
       iconColor: AppColors.actionGreen,
       expand: true,
+      maxWidth: 1200,
       child: DefaultTabController(
-        length: 2,
+        length: 3,
         child: Column(
           children: [
             const TabBar(
               labelColor: AppColors.primaryNavy,
+              unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primaryNavy,
+              labelPadding: EdgeInsets.symmetric(vertical: 4),
+              labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+              unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
-                Tab(icon: Icon(Icons.add_box), text: 'NUEVA ENTREGA CON LÍMITES'),
-                Tab(icon: Icon(Icons.history), text: 'HISTORIAL DE REMISIONES'),
+                Tab(height: 38, icon: Icon(Icons.qr_code_scanner, size: 16), text: 'ESCANEAR QR'),
+                Tab(height: 38, icon: Icon(Icons.edit_note, size: 16), text: 'ENTREGA MANUAL'),
+                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             const Expanded(
-              child: TabBarView(children: [_NuevaEntregaTab(), _HistorialTab()]),
+              child: TabBarView(children: [_NuevaEntregaTab(), _EntregaManualTab(), _HistorialTab()]),
             ),
           ],
         ),
@@ -52,9 +58,9 @@ class EntregaProduccionDialog extends StatelessWidget {
   }
 }
 
-/// Estado de UNA tarjeta de producto/talla dentro de la sesión de escaneo.
-/// Varias pueden coexistir: escanear una OP/talla nueva crea una tarjeta
-/// aparte, sin perder el conteo de las demás.
+/// Estado de UNA tarjeta de producto/talla dentro de la sesión de entrega
+/// (por escaneo o manual). Varias pueden coexistir, cada una con su propio
+/// conteo, sin perderse entre sí.
 class _TarjetaEntrega {
   _TarjetaEntrega({required this.itemId}) : cantidadCtrl = TextEditingController(text: '1');
 
@@ -68,6 +74,52 @@ class _TarjetaEntrega {
 
   void dispose() => cantidadCtrl.dispose();
 }
+
+/// Ejecuta el despacho de una tarjeta contra el repositorio y actualiza su
+/// estado. Compartido entre la pestaña de escaneo y la de entrega manual.
+Future<void> _despacharTarjeta({
+  required WidgetRef ref,
+  required _TarjetaEntrega t,
+  required String operario,
+  required void Function(void Function()) setStateFn,
+  required bool Function() estaMontado,
+}) async {
+  final kardex = ref.read(wmsSnapshotProvider).value?.kardexPorId(t.itemId);
+  if (kardex == null) return;
+  final cantidad = int.tryParse(t.cantidadCtrl.text.trim()) ?? 0;
+
+  if (cantidad <= 0) {
+    setStateFn(() => t.mensaje = const FeedbackMessage.error('Ingresa una cantidad mayor a 0.'));
+    return;
+  }
+  if (cantidad > kardex.pendienteProduccion) {
+    setStateFn(() => t.mensaje = FeedbackMessage.error(
+          'LÍMITE EXCEDIDO: solo faltan ${kardex.pendienteProduccion} Uds por producir.',
+        ));
+    return;
+  }
+
+  setStateFn(() => t.enviando = true);
+  final res = await ref.read(wmsRepositoryProvider).entregarLote(
+        itemId: t.itemId,
+        cantidad: cantidad,
+        operario: operario,
+      );
+  if (!estaMontado()) return;
+  setStateFn(() {
+    t.enviando = false;
+    switch (res) {
+      case Ok(:final value):
+        t.enviada = true;
+        t.remisionId = value.id;
+        t.mensaje = FeedbackMessage.ok('Remisión ${value.id} de ${value.cantidadEnviada} Uds despachada a bodega.');
+      case Err(:final message):
+        t.mensaje = FeedbackMessage.error(message);
+    }
+  });
+}
+
+// ============================================================ pestaña 1: QR
 
 class _NuevaEntregaTab extends ConsumerStatefulWidget {
   const _NuevaEntregaTab();
@@ -97,9 +149,6 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
     super.dispose();
   }
 
-  /// La tarjeta activa (aún no enviada) para este producto, si existe.
-  /// Si ya se envió una tarjeta de este mismo producto, un nuevo escaneo
-  /// abre una tarjeta nueva (un lote nuevo), no reutiliza la ya cerrada.
   _TarjetaEntrega? _tarjetaActivaPara(String itemId) {
     for (final t in _tarjetas) {
       if (t.itemId == itemId && !t.enviada) return t;
@@ -131,6 +180,9 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
       _msgGeneral = null;
       final existente = _tarjetaActivaPara(kardex.id);
       if (existente != null) {
+        // Siempre sube al tope, para que se vea cuál fue la última escaneada.
+        _tarjetas.remove(existente);
+        _tarjetas.insert(0, existente);
         if (existente.conteo >= kardex.pendienteProduccion) {
           existente.mensaje = FeedbackMessage.error(
             'LÍMITE ALCANZADO: esta OP ya cumplió la cantidad pedida (${kardex.pendienteProduccion} Uds por entregar).',
@@ -164,42 +216,6 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
     setState(() {
       t.dispose();
       _tarjetas.remove(t);
-    });
-  }
-
-  Future<void> _despachar(_TarjetaEntrega t) async {
-    final kardex = ref.read(wmsSnapshotProvider).value?.kardexPorId(t.itemId);
-    if (kardex == null) return;
-    final cantidad = int.tryParse(t.cantidadCtrl.text.trim()) ?? 0;
-
-    if (cantidad <= 0) {
-      setState(() => t.mensaje = const FeedbackMessage.error('Ingresa una cantidad mayor a 0.'));
-      return;
-    }
-    if (cantidad > kardex.pendienteProduccion) {
-      setState(() => t.mensaje = FeedbackMessage.error(
-            'LÍMITE EXCEDIDO: solo faltan ${kardex.pendienteProduccion} Uds por producir.',
-          ));
-      return;
-    }
-
-    setState(() => t.enviando = true);
-    final res = await ref.read(wmsRepositoryProvider).entregarLote(
-          itemId: t.itemId,
-          cantidad: cantidad,
-          operario: _operario,
-        );
-    if (!mounted) return;
-    setState(() {
-      t.enviando = false;
-      switch (res) {
-        case Ok(:final value):
-          t.enviada = true;
-          t.remisionId = value.id;
-          t.mensaje = FeedbackMessage.ok('Remisión ${value.id} de ${value.cantidadEnviada} Uds despachada a bodega.');
-        case Err(:final message):
-          t.mensaje = FeedbackMessage.error(message);
-      }
     });
   }
 
@@ -250,7 +266,13 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
                 kardex: snapshot?.kardexPorId(t.itemId),
                 onRecontear: () => _reiniciarConteo(t),
                 onQuitar: () => _quitarTarjeta(t),
-                onDespachar: () => _despachar(t),
+                onDespachar: () => _despacharTarjeta(
+                  ref: ref,
+                  t: t,
+                  operario: _operario,
+                  setStateFn: setState,
+                  estaMontado: () => mounted,
+                ),
               ),
               const SizedBox(height: 10),
             ],
@@ -260,8 +282,197 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
   }
 }
 
-/// Una tarjeta individual: activa (editable, con conteo) o ya enviada
-/// (se queda visible, marcada, sin controles de edición).
+// ==================================================== pestaña 2: manual
+
+class _EntregaManualTab extends ConsumerStatefulWidget {
+  const _EntregaManualTab();
+
+  @override
+  ConsumerState<_EntregaManualTab> createState() => _EntregaManualTabState();
+}
+
+class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with AutomaticKeepAliveClientMixin {
+  final _opCtrl = TextEditingController();
+  String _operario = WmsConstantes.operarios.first;
+  List<ItemKardex> _resultados = [];
+  final Set<String> _seleccionados = {};
+  final List<_TarjetaEntrega> _tarjetas = [];
+  String? _errorBusqueda;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    _opCtrl.dispose();
+    for (final t in _tarjetas) {
+      t.dispose();
+    }
+    super.dispose();
+  }
+
+  _TarjetaEntrega? _tarjetaActivaPara(String itemId) {
+    for (final t in _tarjetas) {
+      if (t.itemId == itemId && !t.enviada) return t;
+    }
+    return null;
+  }
+
+  void _buscar() {
+    final op = _opCtrl.text.trim();
+    final kardex = ref.read(wmsSnapshotProvider).value?.kardex ?? const <ItemKardex>[];
+    setState(() {
+      _seleccionados.clear();
+      if (op.isEmpty) {
+        _resultados = [];
+        _errorBusqueda = 'Escribe un número de OP.';
+        return;
+      }
+      _resultados = kardex.where((k) => k.item.op == op && k.pendienteProduccion > 0).toList();
+      _errorBusqueda = _resultados.isEmpty
+          ? 'No se encontraron tallas con producción pendiente para la OP $op.'
+          : null;
+    });
+  }
+
+  void _agregarSeleccionadas() {
+    setState(() {
+      for (final id in _seleccionados) {
+        if (_tarjetaActivaPara(id) != null) continue; // ya está agregada y activa
+        _tarjetas.insert(0, _TarjetaEntrega(itemId: id));
+      }
+      _seleccionados.clear();
+      _resultados = [];
+      _opCtrl.clear();
+    });
+  }
+
+  void _reiniciarConteo(_TarjetaEntrega t) {
+    setState(() {
+      t.conteo = 0;
+      t.cantidadCtrl.text = '1';
+      t.mensaje = null;
+    });
+  }
+
+  void _quitarTarjeta(_TarjetaEntrega t) {
+    setState(() {
+      t.dispose();
+      _tarjetas.remove(t);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final snapshot = ref.watch(wmsSnapshotProvider).value;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LabeledDropdown<String>(
+            label: 'Operario de Producción',
+            value: _operario,
+            items: WmsConstantes.operarios,
+            onChanged: (v) => setState(() => _operario = v),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _opCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: wmsInput('Número de OP', icon: Icons.tag),
+                  onSubmitted: (_) => _buscar(),
+                ),
+              ),
+              const SizedBox(width: 10),
+              ActionButton(icon: Icons.search, label: 'BUSCAR', color: AppColors.primaryNavy, onPressed: _buscar),
+            ],
+          ),
+          if (_errorBusqueda != null) ...[
+            const SizedBox(height: 10),
+            FeedbackBanner(message: FeedbackMessage.error(_errorBusqueda!)),
+          ],
+          if (_resultados.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  for (final r in _resultados)
+                    CheckboxListTile(
+                      dense: true,
+                      value: _seleccionados.contains(r.id),
+                      activeColor: AppColors.actionGreen,
+                      onChanged: (v) => setState(() {
+                        if (v == true) {
+                          _seleccionados.add(r.id);
+                        } else {
+                          _seleccionados.remove(r.id);
+                        }
+                      }),
+                      title: Text(
+                        '${r.item.codigo} — ${r.item.descripcion} (Talla ${r.item.talla})',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text('Pendiente por producir: ${r.pendienteProduccion} Uds'),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ActionButton(
+                icon: Icons.playlist_add,
+                label: 'AGREGAR SELECCIONADAS (${_seleccionados.length})',
+                color: AppColors.actionGreen,
+                onPressed: _seleccionados.isEmpty ? null : _agregarSeleccionadas,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          if (_tarjetas.isEmpty && _resultados.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  'Escribe una OP y busca para ver sus tallas pendientes.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            )
+          else
+            for (final t in _tarjetas) ...[
+              _TarjetaWidget(
+                tarjeta: t,
+                kardex: snapshot?.kardexPorId(t.itemId),
+                onRecontear: () => _reiniciarConteo(t),
+                onQuitar: () => _quitarTarjeta(t),
+                onDespachar: () => _despacharTarjeta(
+                  ref: ref,
+                  t: t,
+                  operario: _operario,
+                  setStateFn: setState,
+                  estaMontado: () => mounted,
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+// ==================================================== tarjeta (compartida)
+
 class _TarjetaWidget extends StatelessWidget {
   const _TarjetaWidget({
     required this.tarjeta,
@@ -386,6 +597,8 @@ class _TarjetaWidget extends StatelessWidget {
     );
   }
 }
+
+// ==================================================== pestaña 3: historial
 
 class _HistorialTab extends ConsumerWidget {
   const _HistorialTab();
