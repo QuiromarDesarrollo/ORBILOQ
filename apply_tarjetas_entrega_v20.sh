@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Tarjetas independientes en Entrega de Produccion (v20)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_tarjetas_entrega_v20.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando tarjetas independientes..."
+
+echo "  - lib/features/produccion/presentation/entrega_produccion_dialog.dart"
+mkdir -p "$(dirname 'lib/features/produccion/presentation/entrega_produccion_dialog.dart')"
+cat > 'lib/features/produccion/presentation/entrega_produccion_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -427,3 +443,7 @@ class _HistorialTab extends ConsumerWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze / flutter test"
