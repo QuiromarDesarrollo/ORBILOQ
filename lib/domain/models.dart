@@ -33,6 +33,19 @@ enum EstadoItem {
   final String etiqueta;
 }
 
+/// Estado propio de la vista de Producción (distinto de [EstadoItem], que es
+/// el que usa Bodega). "Retardo" requiere una fecha esperada de entrega con
+/// la que compararse — mientras esa fecha no tenga una fuente de datos real,
+/// este estado nunca se activa y todo lo pendiente cae en "parcial por entregar".
+enum EstadoProduccion {
+  completado('Completado'),
+  parcialPorEntregar('Estado parcial por entregar'),
+  parcialPorRetardo('Estado parcial por retardo');
+
+  const EstadoProduccion(this.etiqueta);
+  final String etiqueta;
+}
+
 /// Clave única de una línea de orden (OP + OC + código + talla).
 String buildItemId(String op, String oc, String codigo, String talla) =>
     '$op|$oc|$codigo|$talla';
@@ -193,6 +206,16 @@ class ItemKardex {
 
   String get estadoEtiqueta =>
       estado == EstadoItem.excedente ? 'EXCEDENTE (+$excedente)' : estado.etiqueta;
+
+  /// Estado para la vista de Producción. "Retardo" queda reservado para
+  /// cuando exista una fecha esperada real de entrega (aún no conectada);
+  /// mientras tanto, nunca se activa.
+  EstadoProduccion get estadoProduccion {
+    if (pendienteProduccion <= 0 && cantidadPedida > 0) return EstadoProduccion.completado;
+    // TODO: activar "parcialPorRetardo" cuando exista una fecha esperada de
+    // entrega real contra la cual comparar la fecha de hoy.
+    return EstadoProduccion.parcialPorEntregar;
+  }
 
   String get ubicacionesFormateadas {
     if (ubicaciones.isEmpty) return 'SIN UBICACIÓN';

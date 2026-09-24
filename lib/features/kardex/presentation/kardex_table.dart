@@ -1,26 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../application/kardex_filters.dart';
 import '../../../application/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/models.dart';
 import '../../../shared/widgets/multi_select_filter.dart';
 import 'observacion_dialog.dart';
 
-// Columnas para el rol Producción (Taller).
-const List<double> _kAnchosProduccion = [110, 240, 180, 90, 170, 110, 170, 130, 140];
+// Columnas para el rol Producción (Taller). Todas tienen filtro por columna.
+const List<double> _kAnchosProduccion = [110, 220, 170, 85, 160, 100, 150, 190, 120, 120];
 const List<String> _kEtiquetasProduccion = [
   'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'CANTIDAD',
   'ENTREGADO A LOGÍSTICA', 'PENDIENTE', 'PRODUCTO NO CONFORME',
-  'FECHA DE ENTREGA', 'FECHA ESPERADA',
+  'ESTADOS', 'FECHA DE ENTREGA', 'FECHA ESPERADA',
+];
+// A qué columna de filtro corresponde cada encabezado de Producción (por
+// índice). `null` = sin filtro en esa columna.
+const List<String?> _kColumnasProduccion = [
+  ColKardex.op, ColKardex.producto, ColKardex.cliente, ColKardex.cantidad,
+  ColKardex.entregado, ColKardex.pendiente, ColKardex.noConforme,
+  ColKardex.estadoProduccion, ColKardex.fechaEntrega, ColKardex.fechaEsperada,
 ];
 
-// Columnas para el rol Logística (Bodega).
+// Columnas para el rol Logística (Bodega) — sin cambios, solo OP tiene filtro.
 const List<double> _kAnchosBodega = [110, 250, 190, 90, 100, 90, 110, 170, 130];
 const List<String> _kEtiquetasBodega = [
   'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'PEDIDAS',
   'PRODUCCIÓN', 'BODEGA', 'DESPACHADAS', 'AVANCE', 'ENTREGA',
 ];
+const List<String?> _kColumnasBodega = [ColKardex.op, null, null, null, null, null, null, null, null];
 
 const _kPaletaProducto = [
   Color(0xFF2DD4BF), Color(0xFF60A5FA), Color(0xFFA78BFA), Color(0xFFFBBF24),
@@ -47,6 +56,7 @@ class KardexTable extends ConsumerWidget {
     final esProduccion = rol == Rol.produccion;
     final anchos = esProduccion ? _kAnchosProduccion : _kAnchosBodega;
     final etiquetas = esProduccion ? _kEtiquetasProduccion : _kEtiquetasBodega;
+    final columnas = esProduccion ? _kColumnasProduccion : _kColumnasBodega;
     final totalPaginas = total == 0 ? 1 : ((total - 1) ~/ kardexFilasPorPagina) + 1;
     final anchoTabla = anchos.fold<double>(0, (a, b) => a + b);
 
@@ -74,9 +84,8 @@ class KardexTable extends ConsumerWidget {
                           _Celda(
                             i,
                             anchos,
-                            i == 0
-                                ? const _EncabezadoOp()
-                                : Text(
+                            columnas[i] == null
+                                ? Text(
                                     etiquetas[i],
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -86,6 +95,11 @@ class KardexTable extends ConsumerWidget {
                                       fontSize: 11,
                                       letterSpacing: 0.3,
                                     ),
+                                  )
+                                : _EncabezadoConFiltro(
+                                    columna: columnas[i]!,
+                                    etiqueta: etiquetas[i],
+                                    esOp: columnas[i] == ColKardex.op,
                                   ),
                           ),
                       ],
@@ -114,27 +128,30 @@ class KardexTable extends ConsumerWidget {
   }
 }
 
-/// Encabezado de la columna OP con el ícono de embudo que abre el filtro de
-/// selección múltiple, reutilizando el mismo diálogo de búsqueda+casillas
-/// que ya usan los demás filtros.
-class _EncabezadoOp extends ConsumerWidget {
-  const _EncabezadoOp();
+/// Encabezado de columna con el ícono de embudo que abre el filtro de
+/// selección múltiple (búsqueda + casillas), para cualquier columna.
+class _EncabezadoConFiltro extends ConsumerWidget {
+  const _EncabezadoConFiltro({required this.columna, required this.etiqueta, this.esOp = false});
+
+  final String columna;
+  final String etiqueta;
+  final bool esOp;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filtros = ref.watch(kardexFiltersProvider);
     final opciones = ref.watch(opcionesFiltroProvider);
-    final activo = filtros.ops.isNotEmpty;
+    final activo = filtros.valoresDe(columna).isNotEmpty;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Flexible(
+        Flexible(
           child: Text(
-            'OP / OBS.',
+            etiqueta,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.darkTextSecondary,
               fontWeight: FontWeight.w700,
               fontSize: 11,
@@ -148,12 +165,12 @@ class _EncabezadoOp extends ConsumerWidget {
           onTap: () async {
             final r = await showMultiSelectFilter<String>(
               context,
-              title: 'Filtrar por OP',
-              options: opciones.ops,
-              selected: filtros.ops,
-              labelOf: (v) => '#$v',
+              title: 'Filtrar por $etiqueta',
+              options: opciones.de(columna),
+              selected: filtros.valoresDe(columna),
+              labelOf: esOp ? (v) => '#$v' : (v) => v,
             );
-            if (r != null) ref.read(kardexFiltersProvider.notifier).setOps(r);
+            if (r != null) ref.read(kardexFiltersProvider.notifier).setColumna(columna, r);
           },
           child: Icon(
             Icons.filter_alt,
@@ -374,16 +391,39 @@ class _KardexRow extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: noConforme > 0 ? Color(0xFFFBBF24) : AppColors.darkTextMuted,
+            color: noConforme > 0 ? const Color(0xFFFBBF24) : AppColors.darkTextMuted,
           ),
         ),
         alignment: Alignment.center,
       ),
-      _Celda(7, anchos, _chipFecha(item.fechaEntrega)),
+      _Celda(7, anchos, _celdaEstado()),
+      _Celda(8, anchos, _chipFecha(item.fechaEntrega)),
       // "Fecha esperada": aún sin fuente de datos definida — placeholder
       // visual hasta que se conecte (el usuario indicará el origen luego).
-      _Celda(8, anchos, _chipFecha(null)),
+      _Celda(9, anchos, _chipFecha(null)),
     ];
+  }
+
+  Widget _celdaEstado() {
+    final e = item.estadoProduccion;
+    final Color color;
+    final Color fondo;
+    final IconData icono;
+    switch (e) {
+      case EstadoProduccion.completado:
+        color = AppColors.chipGreenDark;
+        fondo = AppColors.chipGreenBgDark;
+        icono = Icons.check_circle_outline;
+      case EstadoProduccion.parcialPorRetardo:
+        color = AppColors.chipRedDark;
+        fondo = AppColors.chipRedBgDark;
+        icono = Icons.warning_amber_outlined;
+      case EstadoProduccion.parcialPorEntregar:
+        color = AppColors.darkTextSecondary;
+        fondo = AppColors.chipNeutralBgDark;
+        icono = Icons.hourglass_bottom;
+    }
+    return _chip(e.etiqueta, color, fondo, icono);
   }
 
   Widget _chipFecha(DateTime? fecha) {
@@ -421,7 +461,12 @@ class _KardexRow extends StatelessWidget {
         children: [
           Icon(icono, size: 12, color: color),
           const SizedBox(width: 4),
-          Text(texto, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+          Flexible(
+            child: Text(texto,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+          ),
         ],
       ),
     );

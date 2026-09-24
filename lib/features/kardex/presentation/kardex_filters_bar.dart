@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../application/kardex_filters.dart';
 import '../../../application/providers.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../domain/models.dart';
 
 /// Barra de filtros: búsqueda libre + cliente + estado (tema oscuro).
 class KardexFiltersBar extends ConsumerStatefulWidget {
@@ -32,6 +34,8 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
     final filtros = ref.watch(kardexFiltersProvider);
     final opciones = ref.watch(opcionesFiltroProvider);
     final notifier = ref.read(kardexFiltersProvider.notifier);
+    final rol = ref.watch(rolProvider);
+    final colEstado = rol == Rol.produccion ? ColKardex.estadoProduccion : ColKardex.estadoBodega;
 
     return Container(
       width: double.infinity,
@@ -77,16 +81,16 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
             _Desplegable(
               ancho: estrecho ? double.infinity : 200,
               etiquetaTodos: 'Todos los clientes',
-              valor: filtros.cliente,
-              opciones: opciones.clientes,
-              onChanged: notifier.setCliente,
+              valor: filtros.valoresDe(ColKardex.cliente).firstOrNull,
+              opciones: opciones.de(ColKardex.cliente),
+              onChanged: (v) => notifier.setColumna(ColKardex.cliente, v == null ? {} : {v}),
             ),
             _Desplegable(
               ancho: estrecho ? double.infinity : 190,
               etiquetaTodos: 'Todos los estados',
-              valor: filtros.estado,
-              opciones: opciones.estados,
-              onChanged: notifier.setEstado,
+              valor: filtros.valoresDe(colEstado).firstOrNull,
+              opciones: opciones.de(colEstado),
+              onChanged: (v) => notifier.setColumna(colEstado, v == null ? {} : {v}),
             ),
             OutlinedButton.icon(
               onPressed: () {
@@ -108,6 +112,10 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
       ),
     );
   }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
 
 class _Desplegable extends StatelessWidget {

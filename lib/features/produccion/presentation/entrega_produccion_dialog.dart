@@ -135,6 +135,7 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
   String _operario = WmsConstantes.operarios.first;
   final List<_TarjetaEntrega> _tarjetas = [];
   FeedbackMessage? _msgGeneral;
+  bool _despachandoTodo = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -219,10 +220,32 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
     });
   }
 
+  /// Despacha TODAS las tarjetas activas (no enviadas) del lote, una tras
+  /// otra, como un solo grupo — en vez de tener que hacerlo tarjeta por
+  /// tarjeta. Cada una sigue generando su propia remisión (así es como
+  /// funciona la base de datos hoy), pero desde la interfaz es una sola acción.
+  Future<void> _despacharTodo() async {
+    final pendientes = _tarjetas.where((t) => !t.enviada).toList();
+    if (pendientes.isEmpty) return;
+    setState(() => _despachandoTodo = true);
+    for (final t in pendientes) {
+      await _despacharTarjeta(
+        ref: ref,
+        t: t,
+        operario: _operario,
+        setStateFn: setState,
+        estaMontado: () => mounted,
+      );
+    }
+    if (!mounted) return;
+    setState(() => _despachandoTodo = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final snapshot = ref.watch(wmsSnapshotProvider).value;
+    final pendientes = _tarjetas.where((t) => !t.enviada).length;
 
     return SingleChildScrollView(
       child: Column(
@@ -259,23 +282,34 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
                 ),
               ),
             )
-          else
+          else ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  pendientes > 0 ? '$pendientes tarjeta(s) lista(s) para despachar' : 'Todas las tarjetas ya se enviaron',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                ActionButton(
+                  icon: Icons.local_shipping,
+                  label: 'DESPACHAR TODO A LOGÍSTICA',
+                  color: AppColors.actionGreen,
+                  busy: _despachandoTodo,
+                  onPressed: pendientes == 0 ? null : _despacharTodo,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             for (final t in _tarjetas) ...[
               _TarjetaWidget(
                 tarjeta: t,
                 kardex: snapshot?.kardexPorId(t.itemId),
                 onRecontear: () => _reiniciarConteo(t),
                 onQuitar: () => _quitarTarjeta(t),
-                onDespachar: () => _despacharTarjeta(
-                  ref: ref,
-                  t: t,
-                  operario: _operario,
-                  setStateFn: setState,
-                  estaMontado: () => mounted,
-                ),
               ),
               const SizedBox(height: 10),
             ],
+          ],
         ],
       ),
     );
@@ -298,6 +332,7 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
   final Set<String> _seleccionados = {};
   final List<_TarjetaEntrega> _tarjetas = [];
   String? _errorBusqueda;
+  bool _despachandoTodo = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -362,10 +397,28 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
     });
   }
 
+  Future<void> _despacharTodo() async {
+    final pendientes = _tarjetas.where((t) => !t.enviada).toList();
+    if (pendientes.isEmpty) return;
+    setState(() => _despachandoTodo = true);
+    for (final t in pendientes) {
+      await _despacharTarjeta(
+        ref: ref,
+        t: t,
+        operario: _operario,
+        setStateFn: setState,
+        estaMontado: () => mounted,
+      );
+    }
+    if (!mounted) return;
+    setState(() => _despachandoTodo = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final snapshot = ref.watch(wmsSnapshotProvider).value;
+    final pendientes = _tarjetas.where((t) => !t.enviada).length;
 
     return SingleChildScrollView(
       child: Column(
@@ -448,23 +501,34 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
                 ),
               ),
             )
-          else
+          else if (_tarjetas.isNotEmpty) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  pendientes > 0 ? '$pendientes tarjeta(s) lista(s) para despachar' : 'Todas las tarjetas ya se enviaron',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                ActionButton(
+                  icon: Icons.local_shipping,
+                  label: 'DESPACHAR TODO A LOGÍSTICA',
+                  color: AppColors.actionGreen,
+                  busy: _despachandoTodo,
+                  onPressed: pendientes == 0 ? null : _despacharTodo,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             for (final t in _tarjetas) ...[
               _TarjetaWidget(
                 tarjeta: t,
                 kardex: snapshot?.kardexPorId(t.itemId),
                 onRecontear: () => _reiniciarConteo(t),
                 onQuitar: () => _quitarTarjeta(t),
-                onDespachar: () => _despacharTarjeta(
-                  ref: ref,
-                  t: t,
-                  operario: _operario,
-                  setStateFn: setState,
-                  estaMontado: () => mounted,
-                ),
               ),
               const SizedBox(height: 10),
             ],
+          ],
         ],
       ),
     );
@@ -479,14 +543,12 @@ class _TarjetaWidget extends StatelessWidget {
     required this.kardex,
     required this.onRecontear,
     required this.onQuitar,
-    required this.onDespachar,
   });
 
   final _TarjetaEntrega tarjeta;
   final ItemKardex? kardex;
   final VoidCallback onRecontear;
   final VoidCallback onQuitar;
-  final VoidCallback onDespachar;
 
   @override
   Widget build(BuildContext context) {
@@ -521,7 +583,9 @@ class _TarjetaWidget extends StatelessWidget {
                             ),
                           ),
                           if (enviada)
-                            StatusChip(label: 'ENVIADA · ${tarjeta.remisionId}', color: AppColors.actionGreen),
+                            StatusChip(label: 'ENVIADA · ${tarjeta.remisionId}', color: AppColors.actionGreen)
+                          else if (tarjeta.enviando)
+                            const StatusChip(label: 'ENVIANDO…', color: AppColors.accentCyan),
                         ],
                       ),
                       Text(
@@ -536,12 +600,12 @@ class _TarjetaWidget extends StatelessWidget {
                     icon: Icons.refresh,
                     label: 'RECONTEAR',
                     color: Colors.amber.shade900,
-                    onPressed: onRecontear,
+                    onPressed: tarjeta.enviando ? null : onRecontear,
                   ),
                   IconButton(
                     tooltip: 'Quitar esta tarjeta',
                     icon: const Icon(Icons.close, color: AppColors.alertRed),
-                    onPressed: onQuitar,
+                    onPressed: tarjeta.enviando ? null : onQuitar,
                   ),
                 ],
               ],
@@ -569,26 +633,11 @@ class _TarjetaWidget extends StatelessWidget {
             ]),
             if (!enviada) ...[
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: tarjeta.cantidadCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: wmsInput('Cantidad a enviar (máx ${k.pendienteProduccion} Uds)'),
-                      onSubmitted: (_) => onDespachar(),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  ActionButton(
-                    icon: Icons.local_shipping,
-                    label: 'DESPACHAR A BODEGA',
-                    color: AppColors.actionGreen,
-                    busy: tarjeta.enviando,
-                    onPressed: onDespachar,
-                  ),
-                ],
+              TextField(
+                controller: tarjeta.cantidadCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: wmsInput('Cantidad a enviar (máx ${k.pendienteProduccion} Uds)'),
               ),
             ],
           ],

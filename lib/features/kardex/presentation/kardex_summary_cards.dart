@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../domain/models.dart';
 
 class KardexSummaryCards extends ConsumerWidget {
   const KardexSummaryCards({super.key});
@@ -10,11 +11,54 @@ class KardexSummaryCards extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final r = ref.watch(kardexResumenProvider);
+    final esProduccion = ref.watch(rolProvider) == Rol.produccion;
+
+    final tarjetas = <_SummaryCard>[
+      _SummaryCard(
+        titulo: 'UNIDADES PEDIDAS',
+        valor: '${r.unidadesPedidas}',
+        subtitulo: '+${r.cantidadOrdenes} órdenes',
+        subtituloColor: AppColors.darkTextSecondary,
+        icono: Icons.bar_chart_rounded,
+      ),
+      _SummaryCard(
+        titulo: esProduccion ? 'ENTREGADO A LOGÍSTICA' : 'EN PRODUCCIÓN',
+        valor: '${r.enProduccion}',
+        subtitulo: '${r.porcentajeProduccion.toStringAsFixed(1)}% del total',
+        subtituloColor: AppColors.darkTextSecondary,
+        icono: Icons.autorenew_rounded,
+      ),
+      if (esProduccion)
+        _SummaryCard(
+          titulo: 'PENDIENTE POR ENTREGAR',
+          valor: '${r.pendientePorEntregar}',
+          subtitulo: r.pendientePorEntregar > 0 ? 'Requiere seguimiento' : 'Al día',
+          subtituloColor: r.pendientePorEntregar > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
+          icono: Icons.local_shipping_rounded,
+        )
+      else ...[
+        _SummaryCard(
+          titulo: 'RECIBIDO EN BODEGA',
+          valor: '${r.recibidoEnBodega}',
+          subtitulo: '${r.porcentajeBodega.toStringAsFixed(1)}% del total',
+          subtituloColor: AppColors.darkTextSecondary,
+          icono: Icons.warehouse_rounded,
+        ),
+        _SummaryCard(
+          titulo: 'PENDIENTE POR DESPACHAR',
+          valor: '${r.pendientePorDespachar}',
+          subtitulo: r.pendientePorDespachar > 0 ? 'Requiere seguimiento' : 'Al día',
+          subtituloColor: r.pendientePorDespachar > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
+          icono: Icons.inventory_2_rounded,
+        ),
+      ],
+    ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final n = tarjetas.length;
         final anchoTarjeta = constraints.maxWidth >= 900
-            ? (constraints.maxWidth - 3 * 16) / 4
+            ? (constraints.maxWidth - (n - 1) * 16) / n
             : constraints.maxWidth >= 500
                 ? (constraints.maxWidth - 16) / 2
                 : constraints.maxWidth;
@@ -22,48 +66,7 @@ class KardexSummaryCards extends ConsumerWidget {
         return Wrap(
           spacing: 16,
           runSpacing: 16,
-          children: [
-            SizedBox(
-              width: anchoTarjeta,
-              child: _SummaryCard(
-                titulo: 'UNIDADES PEDIDAS',
-                valor: '${r.unidadesPedidas}',
-                subtitulo: '+${r.cantidadOrdenes} órdenes',
-                subtituloColor: AppColors.darkTextSecondary,
-                icono: Icons.bar_chart_rounded,
-              ),
-            ),
-            SizedBox(
-              width: anchoTarjeta,
-              child: _SummaryCard(
-                titulo: 'EN PRODUCCIÓN',
-                valor: '${r.enProduccion}',
-                subtitulo: '${r.porcentajeProduccion.toStringAsFixed(1)}% del total',
-                subtituloColor: AppColors.darkTextSecondary,
-                icono: Icons.autorenew_rounded,
-              ),
-            ),
-            SizedBox(
-              width: anchoTarjeta,
-              child: _SummaryCard(
-                titulo: 'RECIBIDO EN BODEGA',
-                valor: '${r.recibidoEnBodega}',
-                subtitulo: '${r.porcentajeBodega.toStringAsFixed(1)}% del total',
-                subtituloColor: AppColors.darkTextSecondary,
-                icono: Icons.warehouse_rounded,
-              ),
-            ),
-            SizedBox(
-              width: anchoTarjeta,
-              child: _SummaryCard(
-                titulo: 'PENDIENTE POR DESPACHAR',
-                valor: '${r.pendientePorDespachar}',
-                subtitulo: r.pendientePorDespachar > 0 ? 'Requiere seguimiento' : 'Al día',
-                subtituloColor: r.pendientePorDespachar > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
-                icono: Icons.inventory_2_rounded,
-              ),
-            ),
-          ],
+          children: [for (final t in tarjetas) SizedBox(width: anchoTarjeta, child: t)],
         );
       },
     );

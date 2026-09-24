@@ -5,6 +5,7 @@ import '../domain/models.dart';
 import '../domain/sesion.dart';
 import '../domain/wms_repository.dart';
 import 'auth_providers.dart';
+import 'kardex_columnas.dart';
 import 'kardex_filters.dart';
 
 /// Debe sobrescribirse en `main.dart` (o en tests) con la implementación deseada.
@@ -53,16 +54,20 @@ class RolNotifier extends Notifier<Rol> {
 
 final rolProvider = NotifierProvider<RolNotifier, Rol>(RolNotifier.new);
 
+/// El mapa de "columna -> valor" que le corresponde a la vista actual.
+final extractoresColumnaProvider = Provider<Map<String, ExtractorColumna>>((ref) {
+  final rol = ref.watch(rolProvider);
+  return rol == Rol.produccion ? columnasProduccion : columnasBodega;
+});
+
 // --------------------------------------------------------------- filtros
 
 class KardexFiltersNotifier extends Notifier<KardexFilters> {
   @override
   KardexFilters build() => const KardexFilters();
 
-  void setBusqueda(String v) => state = state.copyWith(busqueda: v);
-  void setCliente(String? v) => state = state.copyWith(cliente: v);
-  void setEstado(String? v) => state = state.copyWith(estado: v);
-  void setOps(Set<String> v) => state = state.copyWith(ops: v);
+  void setBusqueda(String v) => state = state.conBusqueda(v);
+  void setColumna(String columna, Set<String> valores) => state = state.conColumna(columna, valores);
   void limpiar() => state = const KardexFilters();
 }
 
@@ -72,8 +77,9 @@ final kardexFiltersProvider =
 final kardexFiltradoProvider = Provider<List<ItemKardex>>((ref) {
   final kardex = ref.watch(kardexProvider);
   final filtros = ref.watch(kardexFiltersProvider);
+  final extractores = ref.watch(extractoresColumnaProvider);
   if (!filtros.hayFiltros) return kardex;
-  return kardex.where(filtros.aplica).toList(growable: false);
+  return kardex.where((i) => filtros.aplica(i, extractores)).toList(growable: false);
 });
 
 final kardexResumenProvider = Provider<KardexResumen>((ref) {
@@ -83,12 +89,12 @@ final kardexResumenProvider = Provider<KardexResumen>((ref) {
 
 final opcionesFiltroProvider = Provider<OpcionesFiltro>((ref) {
   final kardex = ref.watch(kardexProvider);
-  List<String> unicos(String Function(ItemKardex) f) => (kardex.map(f).toSet().toList()..sort());
-  return OpcionesFiltro(
-    clientes: unicos((i) => i.item.cliente),
-    estados: unicos((i) => i.estadoEtiqueta),
-    ops: unicos((i) => i.item.op),
-  );
+  final extractores = ref.watch(extractoresColumnaProvider);
+  final porColumna = <String, List<String>>{};
+  for (final entry in extractores.entries) {
+    porColumna[entry.key] = (kardex.map(entry.value).toSet().toList()..sort());
+  }
+  return OpcionesFiltro(porColumna);
 });
 
 // ----------------------------------------------------------- paginación
