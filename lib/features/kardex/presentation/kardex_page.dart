@@ -11,6 +11,7 @@ import '../../importacion/presentation/importar_ordenes_dialog.dart';
 import '../../no_conforme/presentation/no_conforme_dialog.dart';
 import '../../produccion/presentation/entrega_produccion_dialog.dart';
 import '../../recepcion/presentation/recepcion_dialog.dart';
+import '../../reproceso/presentation/reproceso_dialog.dart';
 import '../../ubicaciones/presentation/ubicaciones_dialog.dart';
 import 'kardex_filters_bar.dart';
 import 'kardex_summary_cards.dart';
@@ -291,13 +292,18 @@ class _Cabecera extends StatelessWidget {
           spacing: 10,
           runSpacing: 10,
           children: [
-            if (rol == Rol.produccion)
+            if (rol == Rol.produccion) ...[
               _BotonAccion(
                 icono: Icons.history,
                 texto: 'Entregar lote y ver historial',
                 onPressed: () => showEntregaProduccionDialog(context),
-              )
-            else ...[
+              ),
+              _BotonAccion(
+                icono: Icons.report_gmailerrorred_outlined,
+                texto: 'Productos no conforme',
+                onPressed: () => showReprocesoDialog(context),
+              ),
+            ] else ...[
               _BotonAccion(
                 icono: Icons.move_to_inbox_outlined,
                 texto: 'Recibir lote ($enTransito)',

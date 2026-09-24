@@ -357,4 +357,54 @@ class SupabaseWmsRepository implements WmsRepository {
       return Err<void>('Error inesperado al registrar el no conforme: $e');
     }
   }
+
+  @override
+  Future<Result<void>> liberarNoConforme({
+    required String itemId,
+    required int cantidad,
+    required String operario,
+    String nota = '',
+  }) async {
+    try {
+      await _client.rpc('liberar_no_conforme', params: {
+        'p_item_orden_id': itemId,
+        'p_cantidad': cantidad,
+        'p_operario_nombre': operario,
+        'p_nota': nota,
+      });
+      await refrescar();
+      return const Ok<void>(null);
+    } on PostgrestException catch (e) {
+      return Err<void>(e.message);
+    } catch (e) {
+      return Err<void>('Error inesperado al liberar: $e');
+    }
+  }
+
+  @override
+  Future<List<Liberacion>> cargarLiberaciones() async {
+    final filas = await _traerTodo(
+      (desde, hasta) => _client.from('vista_liberaciones').select().order('creado_en', ascending: false).range(desde, hasta),
+    );
+    return [
+      for (final row in filas)
+        Liberacion(
+          id: row['id'] as String,
+          item: ItemOrden(
+            id: row['item_orden_id'] as String,
+            op: row['op_numero'] as String,
+            cliente: row['item_cliente'] as String,
+            oc: '',
+            codigo: row['item_codigo'] as String,
+            descripcion: row['item_descripcion'] as String,
+            talla: row['item_talla'] as String,
+            cantidadPedida: 0,
+          ),
+          cantidad: (row['cantidad'] as num).toInt(),
+          operario: row['operario_nombre'] as String,
+          fecha: DateTime.parse(row['creado_en'] as String).toLocal(),
+          nota: (row['nota'] as String?) ?? '',
+        ),
+    ];
+  }
 }

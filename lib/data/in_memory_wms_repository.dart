@@ -28,6 +28,8 @@ class InMemoryWmsRepository implements WmsRepository {
   final Map<String, ItemOrden> _items = {};
   final List<Movimiento> _movimientos = [];
   final List<Lote> _lotes = []; // más recientes primero
+  final List<Liberacion> _liberaciones = []; // más recientes primero
+  int _correlativoLiberacion = 0;
   final StreamController<WmsSnapshot> _controller = StreamController.broadcast();
 
   // ---------------------------------------------------------------- lectura
@@ -70,6 +72,9 @@ class InMemoryWmsRepository implements WmsRepository {
         case TipoMovimiento.devolucionProduccion:
           a.producido -= m.cantidad;
           a.pendienteReproceso += m.cantidad;
+        case TipoMovimiento.liberacionNoConforme:
+          a.producido += m.cantidad;
+          a.pendienteReproceso -= m.cantidad;
       }
     }
 
@@ -251,6 +256,47 @@ class InMemoryWmsRepository implements WmsRepository {
     _emitir();
     return const Ok<void>(null);
   }
+
+  @override
+  Future<Result<void>> liberarNoConforme({
+    required String itemId,
+    required int cantidad,
+    required String operario,
+    String nota = '',
+  }) async {
+    final item = _items[itemId];
+    if (item == null) return Err<void>('El producto no existe en el kardex.');
+    if (cantidad <= 0) return Err<void>('La cantidad debe ser mayor a 0.');
+    final pendienteReproceso = _snapshot().kardexPorId(itemId)?.pendienteReproceso ?? 0;
+    if (cantidad > pendienteReproceso) {
+      return Err<void>('LÍMITE EXCEDIDO: solo hay $pendienteReproceso Uds pendientes por reprocesar.');
+    }
+
+    final fecha = DateTime.now();
+    _liberaciones.insert(
+      0,
+      Liberacion(
+        id: 'LIB-${_correlativoLiberacion++}',
+        item: item,
+        cantidad: cantidad,
+        operario: operario,
+        fecha: fecha,
+        nota: nota,
+      ),
+    );
+    _movimientos.add(Movimiento(
+      tipo: TipoMovimiento.liberacionNoConforme,
+      itemId: item.id,
+      cantidad: cantidad,
+      fecha: fecha,
+      nota: nota,
+    ));
+    _emitir();
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<List<Liberacion>> cargarLiberaciones() async => List.unmodifiable(_liberaciones);
 
   // ------------------------------------------------ mutaciones sin validar
   // (usadas por los comandos y por la siembra de datos)

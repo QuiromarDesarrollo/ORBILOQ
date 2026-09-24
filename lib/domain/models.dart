@@ -31,7 +31,7 @@ enum EstadoLineaLote {
   final String etiqueta;
 }
 
-enum TipoMovimiento { entregaProduccion, recepcion, despacho, devolucionProduccion }
+enum TipoMovimiento { entregaProduccion, recepcion, despacho, devolucionProduccion, liberacionNoConforme }
 
 enum EstadoItem {
   enProduccion('EN PRODUCCIÓN'),
@@ -73,6 +73,25 @@ class Causal {
   const Causal({required this.id, required this.nombre});
   final String id;
   final String nombre;
+}
+
+/// Registro de haber liberado (reprocesado) unidades no conformes.
+class Liberacion {
+  const Liberacion({
+    required this.id,
+    required this.item,
+    required this.cantidad,
+    required this.operario,
+    required this.fecha,
+    this.nota = '',
+  });
+
+  final String id;
+  final ItemOrden item;
+  final int cantidad;
+  final String operario;
+  final DateTime fecha;
+  final String nota;
 }
 
 /// Clave única de una línea de orden (OP + OC + código + talla).

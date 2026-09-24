@@ -24,15 +24,15 @@ const List<String?> _kColumnasProduccion = [
 ];
 
 // Columnas para el rol Logística (Bodega). Solo OP tiene filtro (igual que antes).
-const List<double> _kAnchosBodega = [100, 190, 150, 75, 110, 110, 75, 95, 110, 120, 100, 100, 95, 115, 100];
+const List<double> _kAnchosBodega = [100, 190, 150, 75, 110, 110, 75, 95, 110, 120, 100, 100, 95, 130];
 const List<String> _kEtiquetasBodega = [
   'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'PEDIDAS',
   'ENTREGADO POR PRODUCCIÓN', 'PENDIENTE POR PRODUCCIÓN', 'BODEGA', 'DESPACHADAS',
   'PRODUCTO NO CONFORME', 'ESTADOS', 'FECHA DE ENTREGA', 'FECHA ESPERADA', 'DÍAS FALTANTES',
-  'AVANCE', 'ENTREGA',
+  'ENTREGA',
 ];
 const List<String?> _kColumnasBodega = [
-  ColKardex.op, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ColKardex.op, null, null, null, null, null, null, null, null, null, null, null, null, null,
 ];
 
 const _kPaletaProducto = [
@@ -443,7 +443,6 @@ class _KardexRow extends StatelessWidget {
 
   List<Widget> _celdasBodega() {
     final completado = item.cantidadPedida > 0 && item.despachado >= item.cantidadPedida;
-    final avance = item.cantidadPedida == 0 ? 0.0 : (item.recibido / item.cantidadPedida).clamp(0.0, 1.0);
     final noConforme = item.pendienteReproceso;
     return [
       _Celda(3, anchos, Text('${item.cantidadPedida}', style: const TextStyle(fontSize: 13, color: AppColors.darkTextPrimary)),
@@ -484,8 +483,7 @@ class _KardexRow extends StatelessWidget {
       // quedan como marcador visual hasta conectarlas.
       _Celda(11, anchos, _chipFecha(null)),
       _Celda(12, anchos, _chip('Sin fecha', AppColors.darkTextMuted, AppColors.chipNeutralBgDark, Icons.hourglass_empty)),
-      _Celda(13, anchos, _Avance(porcentaje: avance, completado: completado)),
-      _Celda(14, anchos, _ChipEntrega(item: item, completado: completado)),
+      _Celda(13, anchos, _ChipEntrega(item: item, completado: completado)),
     ];
   }
 
@@ -528,38 +526,6 @@ class _KardexRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Avance extends StatelessWidget {
-  const _Avance({required this.porcentaje, required this.completado});
-
-  final double porcentaje;
-  final bool completado;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = completado ? AppColors.chipGreenDark : AppColors.tealAccent;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: completado ? 1 : porcentaje,
-            minHeight: 6,
-            backgroundColor: AppColors.darkCardBorder,
-            valueColor: AlwaysStoppedAnimation(color),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          completado ? 'Completado' : '${(porcentaje * 100).toStringAsFixed(0)}% recibido',
-          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
-        ),
-      ],
     );
   }
 }

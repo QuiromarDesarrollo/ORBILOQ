@@ -48,5 +48,17 @@ abstract interface class WmsRepository {
     String nota = '',
   });
 
+  /// Producción libera (reprocesó) unidades no conformes: vuelven a sumar a
+  /// lo entregado y bajan de "Producto no conforme". Puede ser parcial.
+  Future<Result<void>> liberarNoConforme({
+    required String itemId,
+    required int cantidad,
+    required String operario,
+    String nota = '',
+  });
+
+  /// Historial de liberaciones (más recientes primero), para control.
+  Future<List<Liberacion>> cargarLiberaciones();
+
   void dispose();
 }
