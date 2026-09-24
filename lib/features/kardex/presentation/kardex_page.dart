@@ -8,6 +8,7 @@ import '../../../domain/models.dart';
 import '../../../domain/sesion.dart';
 import '../../despacho/presentation/despacho_dialog.dart';
 import '../../importacion/presentation/importar_ordenes_dialog.dart';
+import '../../no_conforme/presentation/no_conforme_dialog.dart';
 import '../../produccion/presentation/entrega_produccion_dialog.dart';
 import '../../recepcion/presentation/recepcion_dialog.dart';
 import '../../ubicaciones/presentation/ubicaciones_dialog.dart';
@@ -301,6 +302,11 @@ class _Cabecera extends StatelessWidget {
                 icono: Icons.move_to_inbox_outlined,
                 texto: 'Recibir lote ($enTransito)',
                 onPressed: () => showRecepcionDialog(context),
+              ),
+              _BotonAccion(
+                icono: Icons.report_gmailerrorred_outlined,
+                texto: 'Producto no conforme',
+                onPressed: () => showNoConformeDialog(context),
               ),
               _BotonAccion(
                 icono: Icons.local_shipping_outlined,

@@ -19,9 +19,13 @@ abstract final class ColKardex {
   // Vista Bodega
   static const pedidas = 'pedidas';
   static const produccion = 'produccion';
+  static const pendienteProduccionBodega = 'pendienteProduccionBodega';
   static const bodega = 'bodega';
   static const despachadas = 'despachadas';
+  static const noConformeBodega = 'noConformeBodega';
   static const estadoBodega = 'estadoBodega';
+  static const fechaEntregaBodega = 'fechaEntregaBodega';
+  static const fechaEsperadaBodega = 'fechaEsperadaBodega';
 }
 
 /// Filtros del kardex: búsqueda libre + filtros por columna (multi-selección

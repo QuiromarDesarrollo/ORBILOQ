@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Encabezados de tabla se ajustan en 2 lineas (v26)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_encabezados_2lineas_v26.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando el ajuste de encabezados..."
+
+echo "  - lib/features/kardex/presentation/kardex_table.dart"
+mkdir -p "$(dirname 'lib/features/kardex/presentation/kardex_table.dart')"
+cat > 'lib/features/kardex/presentation/kardex_table.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,7 +40,7 @@ const List<String?> _kColumnasProduccion = [
 ];
 
 // Columnas para el rol Logística (Bodega). Solo OP tiene filtro (igual que antes).
-const List<double> _kAnchosBodega = [100, 190, 150, 75, 110, 110, 75, 95, 110, 120, 100, 100, 95, 115, 100];
+const List<double> _kAnchosBodega = [110, 220, 170, 85, 170, 160, 90, 100, 150, 160, 120, 120, 120, 140, 130];
 const List<String> _kEtiquetasBodega = [
   'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'PEDIDAS',
   'ENTREGADO POR PRODUCCIÓN', 'PENDIENTE POR PRODUCCIÓN', 'BODEGA', 'DESPACHADAS',
@@ -261,7 +277,7 @@ class _Celda extends StatelessWidget {
     return SizedBox(
       width: anchos[col],
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Align(alignment: alignment, child: child),
       ),
     );
@@ -513,18 +529,18 @@ class _KardexRow extends StatelessWidget {
 
   Widget _chip(String texto, Color color, Color fondo, IconData icono) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(6)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 11, color: color),
-          const SizedBox(width: 3),
+          Icon(icono, size: 12, color: color),
+          const SizedBox(width: 4),
           Flexible(
             child: Text(texto,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+                style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -603,3 +619,7 @@ class _ChipEntrega extends StatelessWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

@@ -31,7 +31,7 @@ enum EstadoLineaLote {
   final String etiqueta;
 }
 
-enum TipoMovimiento { entregaProduccion, recepcion, despacho }
+enum TipoMovimiento { entregaProduccion, recepcion, despacho, devolucionProduccion }
 
 enum EstadoItem {
   enProduccion('EN PRODUCCIÓN'),
@@ -56,6 +56,23 @@ enum EstadoProduccion {
 
   const EstadoProduccion(this.etiqueta);
   final String etiqueta;
+}
+
+/// Estado para la vista de Bodega (Logística).
+enum EstadoLogistica {
+  completado('Completado'),
+  pendienteRecibir('Por recibir'),
+  pendientePorDespachar('Por despachar');
+
+  const EstadoLogistica(this.etiqueta);
+  final String etiqueta;
+}
+
+/// Motivo de una devolución a Producción por no conformidad.
+class Causal {
+  const Causal({required this.id, required this.nombre});
+  final String id;
+  final String nombre;
 }
 
 /// Clave única de una línea de orden (OP + OC + código + talla).
@@ -255,6 +272,16 @@ class ItemKardex {
     // TODO: activar "parcialPorRetardo" cuando exista una fecha esperada de
     // entrega real contra la cual comparar la fecha de hoy.
     return EstadoProduccion.parcialPorEntregar;
+  }
+
+  /// Estado para la vista de Bodega. Prioridad: si ya se despachó todo,
+  /// completado; si todavía falta recibir (venga de producción o esté en
+  /// tránsito), pendiente por recibir; si ya está todo recibido pero falta
+  /// despachar, pendiente por despachar.
+  EstadoLogistica get estadoLogistica {
+    if (cantidadPedida > 0 && despachado >= cantidadPedida) return EstadoLogistica.completado;
+    if (recibido < cantidadPedida) return EstadoLogistica.pendienteRecibir;
+    return EstadoLogistica.pendientePorDespachar;
   }
 
   String get ubicacionesFormateadas {

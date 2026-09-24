@@ -25,14 +25,18 @@ final Map<String, ExtractorColumna> columnasProduccion = {
   ColKardex.fechaEsperada: (i) => 'Sin fecha',
 };
 
-/// Igual, pero para la vista Bodega (columnas que ya existían).
+/// Igual, pero para la vista Bodega.
 final Map<String, ExtractorColumna> columnasBodega = {
   ColKardex.op: (i) => i.item.op,
   ColKardex.producto: (i) => i.item.descripcion,
   ColKardex.cliente: (i) => i.item.cliente,
   ColKardex.pedidas: (i) => '${i.cantidadPedida}',
   ColKardex.produccion: (i) => '${i.producido}',
+  ColKardex.pendienteProduccionBodega: (i) => '${i.pendienteProduccion}',
   ColKardex.bodega: (i) => '${i.recibido}',
   ColKardex.despachadas: (i) => '${i.despachado}',
-  ColKardex.estadoBodega: (i) => i.estadoEtiqueta,
+  ColKardex.noConformeBodega: (i) => '${i.pendienteReproceso}',
+  ColKardex.estadoBodega: (i) => i.estadoLogistica.etiqueta,
+  ColKardex.fechaEntregaBodega: (i) => _fechaOTexto(i.fechaEntrega),
+  ColKardex.fechaEsperadaBodega: (i) => 'Sin fecha',
 };

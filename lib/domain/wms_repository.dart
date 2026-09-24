@@ -34,5 +34,19 @@ abstract interface class WmsRepository {
     required String ubicacion,
   });
 
+  /// Causales disponibles para marcar un producto como no conforme.
+  Future<List<Causal>> cargarCausales();
+
+  /// Logística marca unidades como no conformes: se restan de lo entregado
+  /// por Producción (independiente de cualquier lote) y quedan reflejadas
+  /// en "Producto no conforme" hasta que se reprocesen.
+  Future<Result<void>> registrarNoConforme({
+    required String itemId,
+    required int cantidad,
+    required String causalId,
+    required String operario,
+    String nota = '',
+  });
+
   void dispose();
 }

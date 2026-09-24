@@ -9,6 +9,7 @@ class _Acumulado {
   int producido = 0;
   int recibido = 0;
   int despachado = 0;
+  int pendienteReproceso = 0;
   final Map<String, int> ubicaciones = {};
   DateTime? fechaEntrega;
   DateTime? fechaRecepcion;
@@ -66,6 +67,9 @@ class InMemoryWmsRepository implements WmsRepository {
         case TipoMovimiento.despacho:
           a.despachado += m.cantidad;
           a.ubicaciones.update(m.ubicacion!, (v) => v - m.cantidad, ifAbsent: () => -m.cantidad);
+        case TipoMovimiento.devolucionProduccion:
+          a.producido -= m.cantidad;
+          a.pendienteReproceso += m.cantidad;
       }
     }
 
@@ -91,6 +95,7 @@ class InMemoryWmsRepository implements WmsRepository {
       }),
       fechaEntrega: a.fechaEntrega,
       fechaRecepcion: a.fechaRecepcion,
+      pendienteReproceso: a.pendienteReproceso,
     );
   }
 
@@ -211,6 +216,38 @@ class InMemoryWmsRepository implements WmsRepository {
     }
 
     _aplicarDespacho(item, cantidad, ubicacion, DateTime.now());
+    _emitir();
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<List<Causal>> cargarCausales() async => [
+        for (final nombre in WmsConstantes.causales) Causal(id: nombre, nombre: nombre),
+      ];
+
+  @override
+  Future<Result<void>> registrarNoConforme({
+    required String itemId,
+    required int cantidad,
+    required String causalId,
+    required String operario,
+    String nota = '',
+  }) async {
+    final item = _items[itemId];
+    if (item == null) return Err<void>('El producto no existe en el kardex.');
+    if (cantidad <= 0) return Err<void>('La cantidad debe ser mayor a 0.');
+    final producido = _snapshot().kardexPorId(itemId)?.producido ?? 0;
+    if (cantidad > producido) {
+      return Err<void>('LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.');
+    }
+
+    _movimientos.add(Movimiento(
+      tipo: TipoMovimiento.devolucionProduccion,
+      itemId: item.id,
+      cantidad: cantidad,
+      fecha: DateTime.now(),
+      nota: '$causalId${nota.trim().isEmpty ? '' : ' - ${nota.trim()}'}',
+    ));
     _emitir();
     return const Ok<void>(null);
   }

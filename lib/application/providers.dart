@@ -25,6 +25,11 @@ final kardexProvider = Provider<List<ItemKardex>>(
   (ref) => ref.watch(wmsSnapshotProvider).value?.kardex ?? const <ItemKardex>[],
 );
 
+/// Causales disponibles para reportar un producto como no conforme.
+final causalesProvider = FutureProvider<List<Causal>>(
+  (ref) => ref.watch(wmsRepositoryProvider).cargarCausales(),
+);
+
 // ------------------------------------------------------------------- rol
 
 class RolNotifier extends Notifier<Rol> {

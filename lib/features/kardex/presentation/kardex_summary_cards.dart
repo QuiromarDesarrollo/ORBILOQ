@@ -22,21 +22,20 @@ class KardexSummaryCards extends ConsumerWidget {
         icono: Icons.bar_chart_rounded,
       ),
       _SummaryCard(
-        titulo: esProduccion ? 'ENTREGADO A LOGÍSTICA' : 'EN PRODUCCIÓN',
+        titulo: esProduccion ? 'ENTREGADO A LOGÍSTICA' : 'ENTREGADO POR PRODUCCIÓN',
         valor: '${r.enProduccion}',
         subtitulo: '${r.porcentajeProduccion.toStringAsFixed(1)}% del total',
         subtituloColor: AppColors.darkTextSecondary,
         icono: Icons.autorenew_rounded,
       ),
-      if (esProduccion)
-        _SummaryCard(
-          titulo: 'PENDIENTE POR ENTREGAR',
-          valor: '${r.pendientePorEntregar}',
-          subtitulo: r.pendientePorEntregar > 0 ? 'Requiere seguimiento' : 'Al día',
-          subtituloColor: r.pendientePorEntregar > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
-          icono: Icons.local_shipping_rounded,
-        )
-      else ...[
+      _SummaryCard(
+        titulo: esProduccion ? 'PENDIENTE POR ENTREGAR' : 'PENDIENTE POR PRODUCCIÓN',
+        valor: '${r.pendientePorEntregar}',
+        subtitulo: r.pendientePorEntregar > 0 ? 'Requiere seguimiento' : 'Al día',
+        subtituloColor: r.pendientePorEntregar > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
+        icono: Icons.local_shipping_rounded,
+      ),
+      if (!esProduccion) ...[
         _SummaryCard(
           titulo: 'RECIBIDO EN BODEGA',
           valor: '${r.recibidoEnBodega}',

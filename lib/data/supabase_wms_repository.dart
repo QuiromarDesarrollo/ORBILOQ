@@ -323,4 +323,38 @@ class SupabaseWmsRepository implements WmsRepository {
       return Err<void>('Error inesperado al despachar: $e');
     }
   }
+
+  @override
+  Future<List<Causal>> cargarCausales() async {
+    final filas = await _client.from('causales_devolucion').select('id, nombre').eq('activa', true).order('nombre');
+    return [
+      for (final f in (filas as List).cast<Map<String, dynamic>>())
+        Causal(id: f['id'] as String, nombre: f['nombre'] as String),
+    ];
+  }
+
+  @override
+  Future<Result<void>> registrarNoConforme({
+    required String itemId,
+    required int cantidad,
+    required String causalId,
+    required String operario,
+    String nota = '',
+  }) async {
+    try {
+      await _client.rpc('registrar_no_conforme', params: {
+        'p_item_orden_id': itemId,
+        'p_cantidad': cantidad,
+        'p_causal_id': causalId,
+        'p_operario_nombre': operario,
+        'p_nota': nota,
+      });
+      await refrescar();
+      return const Ok<void>(null);
+    } on PostgrestException catch (e) {
+      return Err<void>(e.message);
+    } catch (e) {
+      return Err<void>('Error inesperado al registrar el no conforme: $e');
+    }
+  }
 }

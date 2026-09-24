@@ -13,4 +13,14 @@ abstract final class WmsConstantes {
     'PISO BODEGA',
     'RACK C3',
   ];
+
+  static const causales = <String>[
+    'TELA DEFECTUOSA',
+    'COSTURA SUELTA',
+    'TALLA INCORRECTA',
+    'MANCHA O SUCIEDAD',
+    'BORDADO/ESTAMPADO MAL UBICADO',
+    'MEDIDAS FUERA DE TOLERANCIA',
+    'OTRO',
+  ];
 }
