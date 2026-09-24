@@ -191,6 +191,7 @@ class LoteLinea {
     this.ubicacionDestino,
     this.novedad = '',
     this.fechaRecepcion,
+    this.esReproceso = false,
   });
 
   final String id;
@@ -201,6 +202,10 @@ class LoteLinea {
   final String? ubicacionDestino;
   final String novedad;
   final DateTime? fechaRecepcion;
+
+  /// true si esta línea viene de liberar un producto no conforme (en vez de
+  /// una entrega normal de Producción) — para distinguirla en Recepción.
+  final bool esReproceso;
 
   bool get enTransito => estado == EstadoLineaLote.enTransito;
 
@@ -220,6 +225,7 @@ class LoteLinea {
       ubicacionDestino: ubicacionDestino ?? this.ubicacionDestino,
       novedad: novedad ?? this.novedad,
       fechaRecepcion: fechaRecepcion ?? this.fechaRecepcion,
+      esReproceso: esReproceso,
     );
   }
 }

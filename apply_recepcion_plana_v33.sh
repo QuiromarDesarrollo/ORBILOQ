@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Recepcion sin agrupar por lote (tarjetas planas, escanear
+# trae al tope) + loader de pantalla completa (v33)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_recepcion_plana_v33.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando recepcion plana + loader de pantalla completa..."
+
+echo "  - lib/features/recepcion/presentation/recepcion_dialog.dart"
+mkdir -p "$(dirname 'lib/features/recepcion/presentation/recepcion_dialog.dart')"
+cat > 'lib/features/recepcion/presentation/recepcion_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,10 +60,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
   final List<String> _ordenManual = [];
 
   String? _lineaAbiertaId;
-
-  /// Cuántas unidades se han pistoleado por línea (sube de a 1 en cada
-  /// escaneo, hasta el máximo declarado).
-  final Map<String, int> _conteos = {};
   String _ubicacion = WmsConstantes.ubicaciones.first;
   bool _confirmando = false;
   FeedbackMessage? _msg;
@@ -86,7 +99,7 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
   void _abrirValidacion(LoteLinea linea) {
     setState(() {
       _lineaAbiertaId = linea.id;
-      _cantidadCtrl.text = '${_conteos[linea.id] ?? 0}';
+      _cantidadCtrl.text = '${linea.cantidadEnviada}';
       _notaCtrl.clear();
       _ubicacion = WmsConstantes.ubicaciones.first;
       _msg = null;
@@ -114,32 +127,10 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
           .firstOrNull;
       if (encontrada == null) {
         setState(() => _msg = const FeedbackMessage.error('No hay ninguna línea pendiente por recibir para esta prenda.'));
-        _scanFocus.requestFocus();
         return;
       }
-
-      final actual = _conteos[encontrada.id] ?? 0;
-      if (actual >= encontrada.cantidadEnviada) {
-        setState(() => _msg = FeedbackMessage.error(
-              'LÍMITE ALCANZADO: ya se contaron las ${encontrada.cantidadEnviada} Uds declaradas de esta prenda.',
-            ));
-        _scanFocus.requestFocus();
-        return;
-      }
-
-      final mismaLineaYaAbierta = _lineaAbiertaId == encontrada.id;
-      setState(() {
-        _msg = null;
-        _conteos[encontrada.id] = actual + 1;
-        _subirAlTope(encontrada.id);
-        _lineaAbiertaId = encontrada.id;
-        _cantidadCtrl.text = '${_conteos[encontrada.id]}';
-        if (!mismaLineaYaAbierta) {
-          _notaCtrl.clear();
-          _ubicacion = WmsConstantes.ubicaciones.first;
-        }
-      });
-      _scanFocus.requestFocus();
+      setState(() => _subirAlTope(encontrada.id));
+      _abrirValidacion(encontrada);
       return;
     }
 
@@ -148,7 +139,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     final coincidencias = todas.where((e) => e.linea.item.op == op).toList();
     if (coincidencias.isEmpty) {
       setState(() => _msg = FeedbackMessage.error('No hay líneas pendientes por recibir para la OP $op.'));
-      _scanFocus.requestFocus();
       return;
     }
     setState(() {
@@ -160,7 +150,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
-    _scanFocus.requestFocus();
   }
 
   Future<void> _confirmar(LoteLinea linea) async {
@@ -191,7 +180,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
           );
           _lineaAbiertaId = null;
           _ordenManual.remove(linea.id);
-          _conteos.remove(linea.id);
         });
       case Err(:final message):
         setState(() {
@@ -509,3 +497,7 @@ class _LogoLoaderState extends State<_LogoLoader> with SingleTickerProviderState
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

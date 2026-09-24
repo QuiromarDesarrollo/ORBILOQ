@@ -209,6 +209,7 @@ class SupabaseWmsRepository implements WmsRepository {
       ubicacionDestino: row['ubicacion_destino_codigo'] as String?,
       novedad: (row['novedad'] as String?) ?? '',
       fechaRecepcion: _fecha(row['fecha_recepcion']),
+      esReproceso: row['origen'] == 'reproceso',
     );
   }
 

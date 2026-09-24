@@ -302,11 +302,19 @@ class InMemoryWmsRepository implements WmsRepository {
         nota: nota,
       ),
     );
+
+    // Crea un lote real (igual que una entrega normal) para que Bodega lo
+    // reciba explícitamente por "Recibir lote", marcado como reproceso.
+    final numero = _proximoNumero();
+    final linea = LoteLinea(id: _nuevoIdLinea(), item: item, cantidadEnviada: cantidad, esReproceso: true);
+    _lotes.insert(0, Lote(id: numero, operario: operario, fechaEnvio: fecha, lineas: [linea]));
+
     _movimientos.add(Movimiento(
       tipo: TipoMovimiento.liberacionNoConforme,
       itemId: item.id,
       cantidad: cantidad,
       fecha: fecha,
+      loteId: numero,
       nota: nota,
     ));
     _emitir();

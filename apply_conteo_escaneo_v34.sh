@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Escanear cuenta de a 1 hasta el maximo, en vez de precargarlo (v34)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_conteo_escaneo_v34.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando conteo por escaneo..."
+
+echo "  - lib/features/recepcion/presentation/recepcion_dialog.dart"
+mkdir -p "$(dirname 'lib/features/recepcion/presentation/recepcion_dialog.dart')"
+cat > 'lib/features/recepcion/presentation/recepcion_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -114,7 +130,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
           .firstOrNull;
       if (encontrada == null) {
         setState(() => _msg = const FeedbackMessage.error('No hay ninguna línea pendiente por recibir para esta prenda.'));
-        _scanFocus.requestFocus();
         return;
       }
 
@@ -123,7 +138,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
         setState(() => _msg = FeedbackMessage.error(
               'LÍMITE ALCANZADO: ya se contaron las ${encontrada.cantidadEnviada} Uds declaradas de esta prenda.',
             ));
-        _scanFocus.requestFocus();
         return;
       }
 
@@ -139,7 +153,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
           _ubicacion = WmsConstantes.ubicaciones.first;
         }
       });
-      _scanFocus.requestFocus();
       return;
     }
 
@@ -148,7 +161,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     final coincidencias = todas.where((e) => e.linea.item.op == op).toList();
     if (coincidencias.isEmpty) {
       setState(() => _msg = FeedbackMessage.error('No hay líneas pendientes por recibir para la OP $op.'));
-      _scanFocus.requestFocus();
       return;
     }
     setState(() {
@@ -160,7 +172,6 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
-    _scanFocus.requestFocus();
   }
 
   Future<void> _confirmar(LoteLinea linea) async {
@@ -509,3 +520,7 @@ class _LogoLoaderState extends State<_LogoLoader> with SingleTickerProviderState
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

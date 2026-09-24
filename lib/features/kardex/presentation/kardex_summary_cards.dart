@@ -35,6 +35,13 @@ class KardexSummaryCards extends ConsumerWidget {
         subtituloColor: r.pendientePorEntregar > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
         icono: Icons.local_shipping_rounded,
       ),
+      _SummaryCard(
+        titulo: 'PRODUCTO NO CONFORME',
+        valor: '${r.totalNoConforme}',
+        subtitulo: r.totalNoConforme > 0 ? 'Pendiente por reprocesar' : 'Al día',
+        subtituloColor: r.totalNoConforme > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
+        icono: Icons.report_problem_rounded,
+      ),
       if (!esProduccion) ...[
         _SummaryCard(
           titulo: 'RECIBIDO EN BODEGA',

@@ -90,6 +90,7 @@ class KardexResumen {
     required this.recibidoEnBodega,
     required this.pendientePorDespachar,
     required this.pendientePorEntregar,
+    required this.totalNoConforme,
   });
 
   final int unidadesPedidas;
@@ -103,11 +104,15 @@ class KardexResumen {
   /// que es un concepto de Bodega).
   final int pendientePorEntregar;
 
+  /// Suma de [ItemKardex.pendienteReproceso] — unidades marcadas como no
+  /// conformes que todavía no se han liberado.
+  final int totalNoConforme;
+
   double get porcentajeProduccion => unidadesPedidas == 0 ? 0 : enProduccion / unidadesPedidas * 100;
   double get porcentajeBodega => unidadesPedidas == 0 ? 0 : recibidoEnBodega / unidadesPedidas * 100;
 
   factory KardexResumen.desde(List<ItemKardex> items) {
-    var pedidas = 0, prod = 0, bodega = 0, pendienteDespacho = 0, pendienteEntrega = 0;
+    var pedidas = 0, prod = 0, bodega = 0, pendienteDespacho = 0, pendienteEntrega = 0, noConforme = 0;
     final ops = <String>{};
     for (final i in items) {
       pedidas += i.cantidadPedida;
@@ -115,6 +120,7 @@ class KardexResumen {
       bodega += i.recibido;
       pendienteDespacho += i.pendienteDespacho;
       pendienteEntrega += i.pendienteProduccion;
+      noConforme += i.pendienteReproceso;
       ops.add(i.item.op);
     }
     return KardexResumen(
@@ -124,6 +130,7 @@ class KardexResumen {
       recibidoEnBodega: bodega,
       pendientePorDespachar: pendienteDespacho,
       pendientePorEntregar: pendienteEntrega,
+      totalNoConforme: noConforme,
     );
   }
 }

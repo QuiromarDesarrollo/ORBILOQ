@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - El campo de escaneo recupera el foco tras cada lectura (v35)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_foco_escaner_v35.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando arreglo del foco..."
+
+echo "  - lib/features/recepcion/presentation/recepcion_dialog.dart"
+mkdir -p "$(dirname 'lib/features/recepcion/presentation/recepcion_dialog.dart')"
+cat > 'lib/features/recepcion/presentation/recepcion_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -509,3 +525,7 @@ class _LogoLoaderState extends State<_LogoLoader> with SingleTickerProviderState
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"
