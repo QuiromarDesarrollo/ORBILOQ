@@ -21,12 +21,12 @@ class InMemoryWmsRepository implements WmsRepository {
 
   factory InMemoryWmsRepository.seeded() => InMemoryWmsRepository._().._sembrar();
 
-  /// Base de numeración automática de remisiones (en Supabase: secuencia de Postgres).
-  static const _baseSecuencia = 104;
+  /// Base de numeración automática de lotes (en Supabase: secuencia de Postgres).
+  static const _baseSecuencia = 101;
 
   final Map<String, ItemOrden> _items = {};
   final List<Movimiento> _movimientos = [];
-  final List<Remision> _remisiones = []; // más recientes primero
+  final List<Lote> _lotes = []; // más recientes primero
   final StreamController<WmsSnapshot> _controller = StreamController.broadcast();
 
   // ---------------------------------------------------------------- lectura
@@ -75,8 +75,7 @@ class InMemoryWmsRepository implements WmsRepository {
 
     return WmsSnapshot(
       kardex: List.unmodifiable(kardex),
-      remisiones: List.unmodifiable(_remisiones),
-      proximaRemision: _proximoNumero(),
+      lotes: List.unmodifiable(_lotes),
     );
   }
 
@@ -100,80 +99,94 @@ class InMemoryWmsRepository implements WmsRepository {
 
   String _proximoNumero() {
     var n = _baseSecuencia;
-    while (_remisiones.any((r) => r.id == 'REM-$n')) {
+    while (_lotes.any((l) => l.id == 'LOTE-$n')) {
       n++;
     }
-    return 'REM-$n';
+    return 'LOTE-$n';
   }
+
+  int _pendienteProduccion(String itemId) => _snapshot().kardexPorId(itemId)?.pendienteProduccion ?? 0;
 
   // -------------------------------------------------------------- comandos
 
   @override
-  Future<Result<Remision>> entregarLote({
-    required String itemId,
-    required int cantidad,
+  Future<Result<Lote>> crearLote({
+    required List<ItemCantidad> items,
     required String operario,
-    String? numeroRemision,
+    String? numeroLote,
   }) async {
-    final item = _items[itemId];
-    if (item == null) {
-      return Err<Remision>('El producto no existe en el kardex.');
-    }
-    if (cantidad <= 0) {
-      return Err<Remision>('La cantidad debe ser mayor a 0.');
-    }
-    final kardex = _snapshot().kardexPorId(itemId)!;
-    if (cantidad > kardex.pendienteProduccion) {
-      return Err<Remision>(
-        'LÍMITE EXCEDIDO: solo faltan ${kardex.pendienteProduccion} Uds por producir.',
-      );
+    if (items.isEmpty) return Err<Lote>('El lote no tiene productos.');
+
+    // Validar TODO antes de crear nada (todo o nada).
+    for (final linea in items) {
+      final item = _items[linea.itemId];
+      if (item == null) return Err<Lote>('Uno de los productos del lote no existe en el kardex.');
+      if (linea.cantidad <= 0) return Err<Lote>('Cantidad inválida en uno de los productos del lote.');
+      final pendiente = _pendienteProduccion(linea.itemId);
+      if (linea.cantidad > pendiente) {
+        return Err<Lote>('LÍMITE EXCEDIDO en uno de los productos: solo faltan $pendiente Uds por producir.');
+      }
     }
 
-    var numero = (numeroRemision ?? '').trim().toUpperCase();
+    var numero = (numeroLote ?? '').trim().toUpperCase();
     if (numero.isEmpty) {
       numero = _proximoNumero();
-    } else if (_remisiones.any((r) => r.id == numero)) {
-      return Err<Remision>('La remisión $numero ya existe.');
+    } else if (_lotes.any((l) => l.id == numero)) {
+      return Err<Lote>('El lote $numero ya existe.');
     }
 
-    final remision = _aplicarEntrega(item, cantidad, operario, numero, DateTime.now());
+    final lote = _aplicarEntregaLote(items, operario, numero, DateTime.now());
     _emitir();
-    return Ok<Remision>(remision);
+    return Ok<Lote>(lote);
   }
 
   @override
-  Future<Result<Remision>> recibirLote({
-    required String remisionId,
+  Future<Result<LoteLinea>> recibirLoteLinea({
+    required String loteLineaId,
     required int cantidad,
     required String ubicacion,
     String nota = '',
   }) async {
-    final idx = _remisiones.indexWhere((r) => r.id == remisionId);
-    if (idx == -1) return Err<Remision>('La remisión $remisionId no existe.');
-    final remision = _remisiones[idx];
-    if (!remision.enTransito) {
-      return Err<Remision>('La remisión ${remision.id} ya fue procesada.');
+    Lote? loteEncontrado;
+    LoteLinea? lineaEncontrada;
+    for (final lote in _lotes) {
+      for (final linea in lote.lineas) {
+        if (linea.id == loteLineaId) {
+          loteEncontrado = lote;
+          lineaEncontrada = linea;
+          break;
+        }
+      }
+      if (lineaEncontrada != null) break;
     }
-    if (cantidad < 0) return Err<Remision>('La cantidad no puede ser negativa.');
+    if (loteEncontrado == null || lineaEncontrada == null) {
+      return Err<LoteLinea>('La línea del lote no existe.');
+    }
+    if (!lineaEncontrada.enTransito) {
+      return Err<LoteLinea>('Esta línea ya fue recibida.');
+    }
+    if (cantidad < 0) return Err<LoteLinea>('La cantidad no puede ser negativa.');
     if (!WmsConstantes.ubicaciones.contains(ubicacion)) {
-      return Err<Remision>('Ubicación no válida: $ubicacion.');
+      return Err<LoteLinea>('Ubicación no válida: $ubicacion.');
     }
 
-    final diff = cantidad - remision.cantidadEnviada;
+    final diff = cantidad - lineaEncontrada.cantidadEnviada;
     var novedad = '';
     if (diff < 0) {
-      novedad = 'FALTANTE: Se recibieron $cantidad de ${remision.cantidadEnviada} Uds (faltaron ${-diff}).';
+      novedad = 'FALTANTE: Se recibieron $cantidad de ${lineaEncontrada.cantidadEnviada} Uds (faltaron ${-diff}).';
     } else if (diff > 0) {
-      novedad = 'SOBRANTE: Se recibieron $cantidad de ${remision.cantidadEnviada} Uds (+$diff).';
+      novedad = 'SOBRANTE: Se recibieron $cantidad de ${lineaEncontrada.cantidadEnviada} Uds (+$diff).';
     }
     final obs = nota.trim();
     if (obs.isNotEmpty) {
       novedad = novedad.isEmpty ? 'Obs: $obs' : '$novedad Obs: $obs';
     }
 
-    _aplicarRecepcion(remision, cantidad, ubicacion, novedad, DateTime.now());
+    final lineaActualizada = _aplicarRecepcionLinea(
+      loteEncontrado, lineaEncontrada, cantidad, ubicacion, novedad, DateTime.now(),
+    );
     _emitir();
-    return Ok<Remision>(_remisiones[idx]);
+    return Ok<LoteLinea>(lineaActualizada);
   }
 
   @override
@@ -205,45 +218,64 @@ class InMemoryWmsRepository implements WmsRepository {
   // ------------------------------------------------ mutaciones sin validar
   // (usadas por los comandos y por la siembra de datos)
 
-  Remision _aplicarEntrega(ItemOrden item, int cantidad, String operario, String numero, DateTime fecha) {
-    final remision = Remision(
-      id: numero,
-      item: item,
-      operario: operario,
-      fechaEnvio: fecha,
-      cantidadEnviada: cantidad,
-    );
-    _remisiones.insert(0, remision);
-    _movimientos.add(Movimiento(
-      tipo: TipoMovimiento.entregaProduccion,
-      itemId: item.id,
-      cantidad: cantidad,
-      fecha: fecha,
-      remisionId: numero,
-    ));
-    return remision;
+  int _correlativoLinea = 0;
+  String _nuevoIdLinea() => 'LI-${_correlativoLinea++}';
+
+  Lote _aplicarEntregaLote(List<ItemCantidad> items, String operario, String numero, DateTime fecha) {
+    final lineas = <LoteLinea>[];
+    for (final linea in items) {
+      final item = _items[linea.itemId]!;
+      lineas.add(LoteLinea(id: _nuevoIdLinea(), item: item, cantidadEnviada: linea.cantidad));
+      _movimientos.add(Movimiento(
+        tipo: TipoMovimiento.entregaProduccion,
+        itemId: item.id,
+        cantidad: linea.cantidad,
+        fecha: fecha,
+        loteId: numero,
+      ));
+    }
+    final lote = Lote(id: numero, operario: operario, fechaEnvio: fecha, lineas: lineas);
+    _lotes.insert(0, lote);
+    return lote;
   }
 
-  void _aplicarRecepcion(Remision remision, int cantidad, String ubicacion, String novedad, DateTime fecha) {
-    final idx = _remisiones.indexWhere((r) => r.id == remision.id);
-    _remisiones[idx] = remision.copyWith(
-      estado: novedad.isEmpty ? EstadoRemision.recibidoConforme : EstadoRemision.recibidoConNovedad,
+  LoteLinea _aplicarRecepcionLinea(
+    Lote lote, LoteLinea linea, int cantidad, String ubicacion, String novedad, DateTime fecha,
+  ) {
+    final lineaActualizada = linea.copyWith(
+      estado: novedad.isEmpty ? EstadoLineaLote.recibidoConforme : EstadoLineaLote.recibidoConNovedad,
       cantidadRecibida: cantidad,
       ubicacionDestino: ubicacion,
       novedad: novedad,
       fechaRecepcion: fecha,
     );
+
+    final idxLote = _lotes.indexWhere((l) => l.id == lote.id);
+    final nuevasLineas = [
+      for (final l in _lotes[idxLote].lineas) l.id == linea.id ? lineaActualizada : l,
+    ];
+    final pendientes = nuevasLineas.where((l) => l.enTransito).length;
+    _lotes[idxLote] = Lote(
+      id: lote.id,
+      operario: lote.operario,
+      fechaEnvio: lote.fechaEnvio,
+      lineas: nuevasLineas,
+      estado: pendientes == 0 ? EstadoLote.recibidoCompleto : EstadoLote.recibidoParcial,
+    );
+
     if (cantidad > 0) {
       _movimientos.add(Movimiento(
         tipo: TipoMovimiento.recepcion,
-        itemId: remision.item.id,
+        itemId: linea.item.id,
         cantidad: cantidad,
         fecha: fecha,
         ubicacion: ubicacion,
-        remisionId: remision.id,
+        loteId: lote.id,
+        loteLineaId: linea.id,
         nota: novedad,
       ));
     }
+    return lineaActualizada;
   }
 
   void _aplicarDespacho(ItemOrden item, int cantidad, String ubicacion, DateTime fecha) {
@@ -296,26 +328,35 @@ class InMemoryWmsRepository implements WmsRepository {
     const op = 'OPERARIO CONFECCIÓN 1';
 
     // MEDICALL: 160 producidas, recibidas y despachadas por completo.
-    final r095 = _aplicarEntrega(blusa, 160, op, 'REM-095', DateTime(2026, 8, 15, 10));
-    _aplicarRecepcion(r095, 160, 'ESTANTE A1', '', DateTime(2026, 8, 16, 11, 20));
+    final lote095 = _aplicarEntregaLote(
+      [ItemCantidad(itemId: blusa.id, cantidad: 160)], op, 'LOTE-095', DateTime(2026, 8, 15, 10),
+    );
+    _aplicarRecepcionLinea(lote095, lote095.lineas.first, 160, 'ESTANTE A1', '', DateTime(2026, 8, 16, 11, 20));
     _aplicarDespacho(blusa, 160, 'ESTANTE A1', DateTime(2026, 8, 16, 15));
 
-    // ENEL M: 841 recibidas en B2.
-    final r096 = _aplicarEntrega(m, 841, op, 'REM-096', DateTime(2026, 8, 17, 15));
-    _aplicarRecepcion(r096, 841, 'ESTANTE B2', '', DateTime(2026, 8, 17, 16));
-
-    // ENEL S: 100 producidas (50 recibidas + 50 en tránsito), 20 despachadas.
-    final r097 = _aplicarEntrega(s, 50, op, 'REM-097', DateTime(2026, 8, 17, 17));
-    _aplicarRecepcion(r097, 50, 'ESTANTE A1', '', DateTime(2026, 8, 17, 19, 15));
+    // ENEL M + ENEL S (100 producidas de golpe): un lote con 2 productos,
+    // para que el modo demo también muestre un lote agrupado.
+    final lote096 = _aplicarEntregaLote(
+      [ItemCantidad(itemId: m.id, cantidad: 841), ItemCantidad(itemId: s.id, cantidad: 50)],
+      op, 'LOTE-096', DateTime(2026, 8, 17, 15),
+    );
+    _aplicarRecepcionLinea(
+      lote096, lote096.lineas[0], 841, 'ESTANTE B2', '', DateTime(2026, 8, 17, 16),
+    );
+    _aplicarRecepcionLinea(
+      lote096, lote096.lineas[1], 50, 'ESTANTE A1', '', DateTime(2026, 8, 17, 19, 15),
+    );
     _aplicarDespacho(s, 20, 'ESTANTE A1', DateTime(2026, 8, 17, 20));
-    _aplicarEntrega(s, 50, op, 'REM-102', DateTime(2026, 8, 18, 9));
+    _aplicarEntregaLote([ItemCantidad(itemId: s.id, cantidad: 50)], op, 'LOTE-102', DateTime(2026, 8, 18, 9));
 
     // ENEL XS: 9 producidas (5 recibidas + 4 en tránsito).
-    final r098 = _aplicarEntrega(xs, 5, op, 'REM-098', DateTime(2026, 8, 17, 17, 30));
-    _aplicarRecepcion(r098, 5, 'ESTANTE A1', '', DateTime(2026, 8, 17, 18, 30));
-    _aplicarEntrega(xs, 4, op, 'REM-101', DateTime(2026, 8, 17, 18, 30));
+    final lote098 = _aplicarEntregaLote(
+      [ItemCantidad(itemId: xs.id, cantidad: 5)], op, 'LOTE-098', DateTime(2026, 8, 17, 17, 30),
+    );
+    _aplicarRecepcionLinea(lote098, lote098.lineas.first, 5, 'ESTANTE A1', '', DateTime(2026, 8, 17, 18, 30));
+    _aplicarEntregaLote([ItemCantidad(itemId: xs.id, cantidad: 4)], op, 'LOTE-101', DateTime(2026, 8, 17, 18, 30));
 
     // COLSUBSIDIO: 20 producidas, en tránsito.
-    _aplicarEntrega(bata, 20, op, 'REM-103', DateTime(2026, 8, 20, 8));
+    _aplicarEntregaLote([ItemCantidad(itemId: bata.id, cantidad: 20)], op, 'LOTE-103', DateTime(2026, 8, 20, 8));
   }
 }

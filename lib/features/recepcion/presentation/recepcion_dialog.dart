@@ -24,20 +24,21 @@ class RecepcionDialog extends ConsumerStatefulWidget {
 }
 
 class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
-  final _scanRemisionCtrl = TextEditingController();
+  final _scanLoteCtrl = TextEditingController();
   final _scanPrendaCtrl = TextEditingController();
   final _cantidadCtrl = TextEditingController();
   final _notaCtrl = TextEditingController();
   final _scanPrendaFocus = FocusNode();
 
-  String? _remisionId;
+  String? _loteId;
+  String? _lineaId;
   String _ubicacion = WmsConstantes.ubicaciones.first;
   int _conteo = 0;
   FeedbackMessage? _msg;
 
   @override
   void dispose() {
-    _scanRemisionCtrl.dispose();
+    _scanLoteCtrl.dispose();
     _scanPrendaCtrl.dispose();
     _cantidadCtrl.dispose();
     _notaCtrl.dispose();
@@ -45,39 +46,57 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     super.dispose();
   }
 
-  List<Remision> get _enTransito =>
-      (ref.read(wmsSnapshotProvider).value?.remisiones ?? const <Remision>[]).where((r) => r.enTransito).toList();
+  List<Lote> get _lotesEnTransito =>
+      (ref.read(wmsSnapshotProvider).value?.lotes ?? const <Lote>[]).where((l) => l.tienePendientes).toList();
 
-  void _seleccionar(Remision r) {
+  void _seleccionarLote(Lote l) {
     setState(() {
-      _remisionId = r.id;
-      _cantidadCtrl.text = '${r.cantidadEnviada}';
+      _loteId = l.id;
+      _lineaId = null;
+      _msg = null;
+    });
+  }
+
+  void _volverALotes() {
+    setState(() {
+      _loteId = null;
+      _lineaId = null;
+      _msg = null;
+    });
+  }
+
+  void _seleccionarLinea(LoteLinea l) {
+    setState(() {
+      _lineaId = l.id;
+      _cantidadCtrl.text = '${l.cantidadEnviada}';
       _conteo = 0;
       _notaCtrl.clear();
       _msg = null;
     });
   }
 
-  void _procesarScanRemision(String raw) {
+  void _procesarScanLote(String raw) {
     final query = raw.trim().toUpperCase();
-    _scanRemisionCtrl.clear();
+    _scanLoteCtrl.clear();
     if (query.isEmpty) return;
-    final coincidencias = _enTransito.where((r) => r.id.toUpperCase() == query || r.item.op == query);
+    final coincidencias = _lotesEnTransito.where(
+      (l) => l.id.toUpperCase() == query || l.lineas.any((linea) => linea.item.op == query),
+    );
     if (coincidencias.isEmpty) {
       setState(() => _msg = const FeedbackMessage.error('Lote no encontrado en tránsito.'));
       return;
     }
-    _seleccionar(coincidencias.first);
+    _seleccionarLote(coincidencias.first);
   }
 
-  void _procesarScanPrenda(String raw, Remision remision) {
+  void _procesarScanPrenda(String raw, LoteLinea linea) {
     _scanPrendaCtrl.clear();
     if (raw.trim().isEmpty) return;
     final qr = QrPrenda.tryParse(raw);
     if (qr == null) {
       setState(() => _msg = FeedbackMessage.error('QR inválido. Formato esperado: ${QrPrenda.formato}'));
-    } else if (qr.op != remision.item.op || qr.codigo != remision.item.codigo) {
-      setState(() => _msg = const FeedbackMessage.error('La prenda NO corresponde a esta remisión.'));
+    } else if (qr.op != linea.item.op || qr.codigo != linea.item.codigo) {
+      setState(() => _msg = const FeedbackMessage.error('La prenda NO corresponde a esta línea.'));
     } else {
       setState(() {
         _conteo++;
@@ -88,15 +107,15 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     _scanPrendaFocus.requestFocus();
   }
 
-  Future<void> _confirmar(Remision remision) async {
+  Future<void> _confirmar(LoteLinea linea) async {
     final cantidad = int.tryParse(_cantidadCtrl.text.trim());
     if (cantidad == null) {
       setState(() => _msg = const FeedbackMessage.error('Ingresa una cantidad válida.'));
       return;
     }
 
-    final res = await ref.read(wmsRepositoryProvider).recibirLote(
-          remisionId: remision.id,
+    final res = await ref.read(wmsRepositoryProvider).recibirLoteLinea(
+          loteLineaId: linea.id,
           cantidad: cantidad,
           ubicacion: _ubicacion,
           nota: _notaCtrl.text,
@@ -106,8 +125,10 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     switch (res) {
       case Ok(:final value):
         setState(() {
-          _msg = FeedbackMessage.ok('${value.id}: ${value.estado.etiqueta}. Ingresada a $_ubicacion.');
-          _remisionId = null;
+          _msg = FeedbackMessage.ok(
+            '${linea.item.codigo} (${linea.item.talla}): ${value.estado.etiqueta}. Ingresada a $_ubicacion.',
+          );
+          _lineaId = null;
           _conteo = 0;
         });
       case Err(:final message):
@@ -117,15 +138,18 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Se observa el snapshot para reconstruir cuando cambian las remisiones.
+    // Se observa el snapshot para reconstruir cuando cambian los lotes.
     ref.watch(wmsSnapshotProvider);
-    final enTransito = _enTransito;
-    final seleccionada = enTransito.where((r) => r.id == _remisionId).firstOrNull;
+    final lotesEnTransito = _lotesEnTransito;
+    final loteSeleccionado = lotesEnTransito.where((l) => l.id == _loteId).firstOrNull;
+    final lineasPendientes = loteSeleccionado?.lineas.where((l) => l.enTransito).toList() ?? const [];
+    final lineaSeleccionada = lineasPendientes.where((l) => l.id == _lineaId).firstOrNull;
 
     return WmsDialogShell(
       title: 'RECEPCIÓN DE LOTES Y REPORTE DE NOVEDADES',
       icon: Icons.move_to_inbox,
       iconColor: AppColors.primaryNavy,
+      maxWidth: 1000,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -133,64 +157,118 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
             FeedbackBanner(message: _msg!),
             const SizedBox(height: 12),
           ],
-          TextField(
-            controller: _scanRemisionCtrl,
-            autofocus: true,
-            decoration: wmsInput('ESCANEAR REMISIÓN O BUSCAR OP (Ej. REM-101)', icon: Icons.qr_code_scanner),
-            onSubmitted: _procesarScanRemision,
-          ),
-          const SizedBox(height: 12),
-          if (enTransito.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: Text('No hay transferencias pendientes.', style: TextStyle(color: Colors.grey))),
-            )
-          else
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: enTransito.length,
-                itemBuilder: (_, i) {
-                  final r = enTransito[i];
-                  final sel = r.id == _remisionId;
-                  return Card(
-                    color: sel ? Colors.blue.shade50 : Colors.white,
-                    shape: RoundedRectangleBorder(
-                      side: BorderSide(color: sel ? AppColors.primaryNavy : Colors.grey.shade300, width: sel ? 2 : 1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: ListTile(
-                      dense: true,
-                      title: Text(
-                        '${r.id} — ${r.item.codigo} (${r.item.talla}) - ${r.item.descripcion}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text('OP: ${r.item.op} | OC: ${r.item.oc} | Envía: ${r.operario} | ${r.cantidadEnviada} Uds'),
-                      trailing: ActionButton(
-                        icon: Icons.qr_code,
-                        label: 'VALIDAR',
-                        color: AppColors.primaryNavy,
-                        onPressed: () => _seleccionar(r),
-                      ),
-                    ),
-                  );
-                },
-              ),
+          if (loteSeleccionado == null) ...[
+            TextField(
+              controller: _scanLoteCtrl,
+              autofocus: true,
+              decoration: wmsInput('ESCANEAR LOTE O BUSCAR OP (Ej. LOTE-101)', icon: Icons.qr_code_scanner),
+              onSubmitted: _procesarScanLote,
             ),
-          if (seleccionada != null) ...[
             const SizedBox(height: 12),
-            _Validacion(
-              remision: seleccionada,
-              scanCtrl: _scanPrendaCtrl,
-              scanFocus: _scanPrendaFocus,
-              cantidadCtrl: _cantidadCtrl,
-              notaCtrl: _notaCtrl,
-              ubicacion: _ubicacion,
-              onUbicacion: (v) => setState(() => _ubicacion = v),
-              onScan: (raw) => _procesarScanPrenda(raw, seleccionada),
-              onConfirmar: () => _confirmar(seleccionada),
+            if (lotesEnTransito.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: Text('No hay lotes pendientes.', style: TextStyle(color: Colors.grey))),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 320),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: lotesEnTransito.length,
+                  itemBuilder: (_, i) {
+                    final l = lotesEnTransito[i];
+                    return Card(
+                      shape: RoundedRectangleBorder(
+                        side: BorderSide(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        title: Text('${l.id} — ${l.totalLineas} producto(s)',
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('Envía: ${l.operario} | ${l.lineasPendientes} pendiente(s) por recibir'),
+                        trailing: ActionButton(
+                          icon: Icons.qr_code,
+                          label: 'ABRIR',
+                          color: AppColors.primaryNavy,
+                          onPressed: () => _seleccionarLote(l),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ] else ...[
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Volver a la lista de lotes',
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _volverALotes,
+                ),
+                Expanded(
+                  child: Text(
+                    '${loteSeleccionado.id} — ${loteSeleccionado.operario}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryNavy),
+                  ),
+                ),
+              ],
             ),
+            const Divider(),
+            if (lineasPendientes.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: Text('Ya se recibieron todas las líneas de este lote.',
+                    style: TextStyle(color: Colors.grey))),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: lineasPendientes.length,
+                  itemBuilder: (_, i) {
+                    final linea = lineasPendientes[i];
+                    final sel = linea.id == _lineaId;
+                    return Card(
+                      color: sel ? Colors.blue.shade50 : Colors.white,
+                      shape: RoundedRectangleBorder(
+                        side: BorderSide(color: sel ? AppColors.primaryNavy : Colors.grey.shade300, width: sel ? 2 : 1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        title: Text(
+                          '${linea.item.codigo} (${linea.item.talla}) - ${linea.item.descripcion}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text('OP: ${linea.item.op} | OC: ${linea.item.oc} | ${linea.cantidadEnviada} Uds'),
+                        trailing: ActionButton(
+                          icon: Icons.qr_code,
+                          label: 'VALIDAR',
+                          color: AppColors.primaryNavy,
+                          onPressed: () => _seleccionarLinea(linea),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            if (lineaSeleccionada != null) ...[
+              const SizedBox(height: 12),
+              _Validacion(
+                linea: lineaSeleccionada,
+                scanCtrl: _scanPrendaCtrl,
+                scanFocus: _scanPrendaFocus,
+                cantidadCtrl: _cantidadCtrl,
+                notaCtrl: _notaCtrl,
+                ubicacion: _ubicacion,
+                onUbicacion: (v) => setState(() => _ubicacion = v),
+                onScan: (raw) => _procesarScanPrenda(raw, lineaSeleccionada),
+                onConfirmar: () => _confirmar(lineaSeleccionada),
+              ),
+            ],
           ],
         ],
       ),
@@ -198,9 +276,13 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
   }
 }
 
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}
+
 class _Validacion extends StatelessWidget {
   const _Validacion({
-    required this.remision,
+    required this.linea,
     required this.scanCtrl,
     required this.scanFocus,
     required this.cantidadCtrl,
@@ -211,7 +293,7 @@ class _Validacion extends StatelessWidget {
     required this.onConfirmar,
   });
 
-  final Remision remision;
+  final LoteLinea linea;
   final TextEditingController scanCtrl;
   final FocusNode scanFocus;
   final TextEditingController cantidadCtrl;
@@ -231,7 +313,7 @@ class _Validacion extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'VALIDACIÓN: ${remision.id} (Declarado: ${remision.cantidadEnviada} Uds)',
+              'VALIDACIÓN: ${linea.item.codigo} (Declarado: ${linea.cantidadEnviada} Uds)',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryNavy),
             ),
             const Divider(),

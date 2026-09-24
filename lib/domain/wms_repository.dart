@@ -9,17 +9,19 @@ abstract interface class WmsRepository {
 
   Future<void> refrescar();
 
-  /// Producción entrega un lote a bodega (crea remisión en tránsito).
-  Future<Result<Remision>> entregarLote({
-    required String itemId,
-    required int cantidad,
+  /// Producción entrega VARIOS productos de una sola vez, agrupados bajo un
+  /// mismo lote (todo o nada: si uno de los productos no pasa validación,
+  /// no se crea nada).
+  Future<Result<Lote>> crearLote({
+    required List<ItemCantidad> items,
     required String operario,
-    String? numeroRemision,
+    String? numeroLote,
   });
 
-  /// Logística recibe una remisión y la ubica en un estante.
-  Future<Result<Remision>> recibirLote({
-    required String remisionId,
+  /// Logística recibe UNA línea (producto) dentro de un lote y la ubica en
+  /// un estante.
+  Future<Result<LoteLinea>> recibirLoteLinea({
+    required String loteLineaId,
     required int cantidad,
     required String ubicacion,
     String nota = '',

@@ -60,7 +60,7 @@ class EntregaProduccionDialog extends StatelessWidget {
 
 /// Estado de UNA tarjeta de producto/talla dentro de la sesión de entrega
 /// (por escaneo o manual). Varias pueden coexistir, cada una con su propio
-/// conteo, sin perderse entre sí.
+/// conteo — pero se despachan TODAS JUNTAS bajo un mismo lote.
 class _TarjetaEntrega {
   _TarjetaEntrega({required this.itemId}) : cantidadCtrl = TextEditingController(text: '1');
 
@@ -69,54 +69,40 @@ class _TarjetaEntrega {
   int conteo = 1;
   bool enviando = false;
   bool enviada = false;
-  String? remisionId;
-  FeedbackMessage? mensaje;
+  String? loteId;
 
   void dispose() => cantidadCtrl.dispose();
 }
 
-/// Ejecuta el despacho de una tarjeta contra el repositorio y actualiza su
-/// estado. Compartido entre la pestaña de escaneo y la de entrega manual.
-Future<void> _despacharTarjeta({
+/// Valida todas las tarjetas pendientes y, si todas pasan, crea UN solo lote
+/// con todas ellas (todo o nada — así también funciona la base de datos).
+Future<Result<Lote>> _validarYCrearLote({
   required WidgetRef ref,
-  required _TarjetaEntrega t,
+  required List<_TarjetaEntrega> pendientes,
   required String operario,
-  required void Function(void Function()) setStateFn,
-  required bool Function() estaMontado,
 }) async {
-  final kardex = ref.read(wmsSnapshotProvider).value?.kardexPorId(t.itemId);
-  if (kardex == null) return;
-  final cantidad = int.tryParse(t.cantidadCtrl.text.trim()) ?? 0;
-
-  if (cantidad <= 0) {
-    setStateFn(() => t.mensaje = const FeedbackMessage.error('Ingresa una cantidad mayor a 0.'));
-    return;
-  }
-  if (cantidad > kardex.pendienteProduccion) {
-    setStateFn(() => t.mensaje = FeedbackMessage.error(
-          'LÍMITE EXCEDIDO: solo faltan ${kardex.pendienteProduccion} Uds por producir.',
-        ));
-    return;
-  }
-
-  setStateFn(() => t.enviando = true);
-  final res = await ref.read(wmsRepositoryProvider).entregarLote(
-        itemId: t.itemId,
-        cantidad: cantidad,
-        operario: operario,
+  for (final t in pendientes) {
+    final kardex = ref.read(wmsSnapshotProvider).value?.kardexPorId(t.itemId);
+    if (kardex == null) continue;
+    final cantidad = int.tryParse(t.cantidadCtrl.text.trim()) ?? 0;
+    if (cantidad <= 0) {
+      return Err<Lote>(
+        'La cantidad de "${kardex.item.descripcion} (${kardex.item.talla})" debe ser mayor a 0.',
       );
-  if (!estaMontado()) return;
-  setStateFn(() {
-    t.enviando = false;
-    switch (res) {
-      case Ok(:final value):
-        t.enviada = true;
-        t.remisionId = value.id;
-        t.mensaje = FeedbackMessage.ok('Remisión ${value.id} de ${value.cantidadEnviada} Uds despachada a bodega.');
-      case Err(:final message):
-        t.mensaje = FeedbackMessage.error(message);
     }
-  });
+    if (cantidad > kardex.pendienteProduccion) {
+      return Err<Lote>(
+        'LÍMITE EXCEDIDO en "${kardex.item.descripcion} (${kardex.item.talla})": '
+        'solo faltan ${kardex.pendienteProduccion} Uds por producir.',
+      );
+    }
+  }
+
+  final items = [
+    for (final t in pendientes)
+      ItemCantidad(itemId: t.itemId, cantidad: int.tryParse(t.cantidadCtrl.text.trim()) ?? 0),
+  ];
+  return ref.read(wmsRepositoryProvider).crearLote(items: items, operario: operario);
 }
 
 // ============================================================ pestaña 1: QR
@@ -185,13 +171,12 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
         _tarjetas.remove(existente);
         _tarjetas.insert(0, existente);
         if (existente.conteo >= kardex.pendienteProduccion) {
-          existente.mensaje = FeedbackMessage.error(
+          _msgGeneral = FeedbackMessage.error(
             'LÍMITE ALCANZADO: esta OP ya cumplió la cantidad pedida (${kardex.pendienteProduccion} Uds por entregar).',
           );
         } else {
           existente.conteo++;
           existente.cantidadCtrl.text = '${existente.conteo}';
-          existente.mensaje = null;
         }
       } else if (kardex.pendienteProduccion <= 0) {
         _msgGeneral = FeedbackMessage.error(
@@ -208,7 +193,6 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
     setState(() {
       t.conteo = 0;
       t.cantidadCtrl.text = '1';
-      t.mensaje = null;
     });
     _qrFocus.requestFocus();
   }
@@ -220,25 +204,37 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
     });
   }
 
-  /// Despacha TODAS las tarjetas activas (no enviadas) del lote, una tras
-  /// otra, como un solo grupo — en vez de tener que hacerlo tarjeta por
-  /// tarjeta. Cada una sigue generando su propia remisión (así es como
-  /// funciona la base de datos hoy), pero desde la interfaz es una sola acción.
+  /// Despacha TODAS las tarjetas activas (no enviadas) como UN solo lote.
   Future<void> _despacharTodo() async {
     final pendientes = _tarjetas.where((t) => !t.enviada).toList();
     if (pendientes.isEmpty) return;
-    setState(() => _despachandoTodo = true);
-    for (final t in pendientes) {
-      await _despacharTarjeta(
-        ref: ref,
-        t: t,
-        operario: _operario,
-        setStateFn: setState,
-        estaMontado: () => mounted,
-      );
-    }
+    setState(() {
+      _despachandoTodo = true;
+      _msgGeneral = null;
+      for (final t in pendientes) {
+        t.enviando = true;
+      }
+    });
+    final res = await _validarYCrearLote(ref: ref, pendientes: pendientes, operario: _operario);
     if (!mounted) return;
-    setState(() => _despachandoTodo = false);
+    setState(() {
+      _despachandoTodo = false;
+      for (final t in pendientes) {
+        t.enviando = false;
+      }
+      switch (res) {
+        case Ok(:final value):
+          for (final t in pendientes) {
+            t.enviada = true;
+            t.loteId = value.id;
+          }
+          _msgGeneral = FeedbackMessage.ok(
+            'Lote ${value.id} despachado a bodega (${pendientes.length} producto(s)).',
+          );
+        case Err(:final message):
+          _msgGeneral = FeedbackMessage.error(message);
+      }
+    });
   }
 
   @override
@@ -276,7 +272,7 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
               child: Center(
                 child: Text(
                   'Escanea una prenda para empezar. Puedes tener varias tallas u OP\n'
-                  'abiertas a la vez — cada una lleva su propio conteo.',
+                  'abiertas a la vez — todas se despachan juntas, en un mismo lote.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey),
                 ),
@@ -287,12 +283,14 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  pendientes > 0 ? '$pendientes tarjeta(s) lista(s) para despachar' : 'Todas las tarjetas ya se enviaron',
+                  pendientes > 0
+                      ? '$pendientes producto(s) listo(s) para el lote'
+                      : 'Todas las tarjetas ya se enviaron',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 ActionButton(
                   icon: Icons.local_shipping,
-                  label: 'DESPACHAR TODO A LOGÍSTICA',
+                  label: 'DESPACHAR LOTE A LOGÍSTICA',
                   color: AppColors.actionGreen,
                   busy: _despachandoTodo,
                   onPressed: pendientes == 0 ? null : _despacharTodo,
@@ -332,6 +330,7 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
   final Set<String> _seleccionados = {};
   final List<_TarjetaEntrega> _tarjetas = [];
   String? _errorBusqueda;
+  FeedbackMessage? _msgGeneral;
   bool _despachandoTodo = false;
 
   @override
@@ -373,7 +372,7 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
   void _agregarSeleccionadas() {
     setState(() {
       for (final id in _seleccionados) {
-        if (_tarjetaActivaPara(id) != null) continue; // ya está agregada y activa
+        if (_tarjetaActivaPara(id) != null) continue;
         _tarjetas.insert(0, _TarjetaEntrega(itemId: id));
       }
       _seleccionados.clear();
@@ -386,7 +385,6 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
     setState(() {
       t.conteo = 0;
       t.cantidadCtrl.text = '1';
-      t.mensaje = null;
     });
   }
 
@@ -400,18 +398,33 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
   Future<void> _despacharTodo() async {
     final pendientes = _tarjetas.where((t) => !t.enviada).toList();
     if (pendientes.isEmpty) return;
-    setState(() => _despachandoTodo = true);
-    for (final t in pendientes) {
-      await _despacharTarjeta(
-        ref: ref,
-        t: t,
-        operario: _operario,
-        setStateFn: setState,
-        estaMontado: () => mounted,
-      );
-    }
+    setState(() {
+      _despachandoTodo = true;
+      _msgGeneral = null;
+      for (final t in pendientes) {
+        t.enviando = true;
+      }
+    });
+    final res = await _validarYCrearLote(ref: ref, pendientes: pendientes, operario: _operario);
     if (!mounted) return;
-    setState(() => _despachandoTodo = false);
+    setState(() {
+      _despachandoTodo = false;
+      for (final t in pendientes) {
+        t.enviando = false;
+      }
+      switch (res) {
+        case Ok(:final value):
+          for (final t in pendientes) {
+            t.enviada = true;
+            t.loteId = value.id;
+          }
+          _msgGeneral = FeedbackMessage.ok(
+            'Lote ${value.id} despachado a bodega (${pendientes.length} producto(s)).',
+          );
+        case Err(:final message):
+          _msgGeneral = FeedbackMessage.error(message);
+      }
+    });
   }
 
   @override
@@ -424,6 +437,10 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_msgGeneral != null) ...[
+            FeedbackBanner(message: _msgGeneral!),
+            const SizedBox(height: 12),
+          ],
           LabeledDropdown<String>(
             label: 'Operario de Producción',
             value: _operario,
@@ -506,12 +523,14 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  pendientes > 0 ? '$pendientes tarjeta(s) lista(s) para despachar' : 'Todas las tarjetas ya se enviaron',
+                  pendientes > 0
+                      ? '$pendientes producto(s) listo(s) para el lote'
+                      : 'Todas las tarjetas ya se enviaron',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 ActionButton(
                   icon: Icons.local_shipping,
-                  label: 'DESPACHAR TODO A LOGÍSTICA',
+                  label: 'DESPACHAR LOTE A LOGÍSTICA',
                   color: AppColors.actionGreen,
                   busy: _despachandoTodo,
                   onPressed: pendientes == 0 ? null : _despacharTodo,
@@ -583,7 +602,7 @@ class _TarjetaWidget extends StatelessWidget {
                             ),
                           ),
                           if (enviada)
-                            StatusChip(label: 'ENVIADA · ${tarjeta.remisionId}', color: AppColors.actionGreen)
+                            StatusChip(label: 'ENVIADA · ${tarjeta.loteId}', color: AppColors.actionGreen)
                           else if (tarjeta.enviando)
                             const StatusChip(label: 'ENVIANDO…', color: AppColors.accentCyan),
                         ],
@@ -611,10 +630,6 @@ class _TarjetaWidget extends StatelessWidget {
               ],
             ),
             const Divider(),
-            if (tarjeta.mensaje != null) ...[
-              FeedbackBanner(message: tarjeta.mensaje!),
-              const SizedBox(height: 10),
-            ],
             MetricWrap(children: [
               MetricCard(title: 'META OP', value: '${k.cantidadPedida} Uds', color: Colors.blueGrey, icon: Icons.flag),
               MetricCard(title: 'ENTREGADAS', value: '${k.producido} Uds', color: AppColors.actionGreen, icon: Icons.check_circle),
@@ -654,38 +669,65 @@ class _HistorialTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final remisiones = ref.watch(wmsSnapshotProvider).value?.remisiones ?? const [];
-    if (remisiones.isEmpty) {
-      return const Center(child: Text('Aún no hay remisiones.', style: TextStyle(color: Colors.grey)));
+    final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const [];
+    if (lotes.isEmpty) {
+      return const Center(child: Text('Aún no hay lotes.', style: TextStyle(color: Colors.grey)));
     }
     return ListView.builder(
-      itemCount: remisiones.length,
-      itemBuilder: (_, i) {
-        final r = remisiones[i];
-        return Card(
-          child: ListTile(
-            dense: true,
-            leading: CircleAvatar(
-              backgroundColor: AppColors.primaryNavy,
-              child: Text('#${remisiones.length - i}', style: const TextStyle(color: Colors.white, fontSize: 11)),
+      itemCount: lotes.length,
+      itemBuilder: (_, i) => _LoteExpandible(lote: lotes[i], indice: lotes.length - i),
+    );
+  }
+}
+
+Color _colorEstadoLote(EstadoLote e) => switch (e) {
+      EstadoLote.enTransito => Colors.amber.shade800,
+      EstadoLote.recibidoParcial => AppColors.accentCyan,
+      EstadoLote.recibidoCompleto => AppColors.actionGreen,
+    };
+
+class _LoteExpandible extends StatelessWidget {
+  const _LoteExpandible({required this.lote, required this.indice});
+
+  final Lote lote;
+  final int indice;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ExpansionTile(
+        leading: CircleAvatar(
+          backgroundColor: AppColors.primaryNavy,
+          child: Text('#$indice', style: const TextStyle(color: Colors.white, fontSize: 11)),
+        ),
+        title: Text(
+          '${lote.id} — ${lote.totalLineas} producto(s)',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text('Operario: ${lote.operario} | Fecha: ${formatFechaHora(lote.fechaEnvio)}'),
+        trailing: StatusChip(label: lote.estado.etiqueta, color: _colorEstadoLote(lote.estado)),
+        children: [
+          for (final linea in lote.lineas)
+            ListTile(
+              dense: true,
+              title: Text(
+                '${linea.item.codigo} — ${linea.item.descripcion} (${linea.item.talla})',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('OP: ${linea.item.op} | Enviadas: ${linea.cantidadEnviada} Uds'
+                      '${linea.cantidadRecibida != null ? ' | Recibidas: ${linea.cantidadRecibida}' : ''}'),
+                  if (linea.novedad.isNotEmpty)
+                    Text('Novedad: ${linea.novedad}',
+                        style: const TextStyle(color: AppColors.alertRed, fontWeight: FontWeight.bold, fontSize: 12)),
+                ],
+              ),
+              trailing: StatusChip(label: linea.estado.etiqueta, color: colorDeEstadoLinea(linea.estado)),
             ),
-            title: Text(
-              '${r.id} — OP: ${r.item.op} | ${r.item.codigo} (${r.item.talla})',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Enviadas: ${r.cantidadEnviada} Uds | Fecha: ${formatFechaHora(r.fechaEnvio)}'
-                    '${r.cantidadRecibida != null ? ' | Recibidas: ${r.cantidadRecibida}' : ''}'),
-                if (r.novedad.isNotEmpty)
-                  Text('Novedad: ${r.novedad}', style: const TextStyle(color: AppColors.alertRed, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            trailing: StatusChip(label: r.estado.etiqueta, color: colorDeEstadoRemision(r.estado)),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

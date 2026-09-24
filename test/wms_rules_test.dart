@@ -11,6 +11,7 @@ import 'package:orbiloq_wms/domain/qr_prenda.dart';
 
 const _xs = '19249|ORD-001-ENE|2025289514|XS'; // pedida 9, producido 9 (límite alcanzado)
 const _s = '19249|ORD-001-ENE|2025289515|S'; // pedida 264, producido 100, stock A1 = 30
+const _bata = '18353|OC-9920|CLSBAOCD20|L'; // pedida 45, producido 20, pendiente 25
 
 void main() {
   group('QrPrenda', () {
@@ -55,41 +56,81 @@ void main() {
         (await repo.watch().first).kardexPorId(id)!;
 
     test('producción no puede superar la cantidad pedida', () async {
-      expect(await repo.entregarLote(itemId: _xs, cantidad: 1, operario: 'X'), isA<Err>());
-      expect(await repo.entregarLote(itemId: _s, cantidad: 165, operario: 'X'), isA<Err>());
-      expect(await repo.entregarLote(itemId: _s, cantidad: 164, operario: 'X'), isA<Ok>());
+      expect(await repo.crearLote(items: [ItemCantidad(itemId: _xs, cantidad: 1)], operario: 'X'), isA<Err>());
+      expect(await repo.crearLote(items: [ItemCantidad(itemId: _s, cantidad: 165)], operario: 'X'), isA<Err>());
+      expect(await repo.crearLote(items: [ItemCantidad(itemId: _s, cantidad: 164)], operario: 'X'), isA<Ok>());
     });
 
     test('no se entrega un producto inexistente ni cantidades <= 0', () async {
-      expect(await repo.entregarLote(itemId: 'nope', cantidad: 1, operario: 'X'), isA<Err>());
-      expect(await repo.entregarLote(itemId: _s, cantidad: 0, operario: 'X'), isA<Err>());
+      expect(await repo.crearLote(items: [ItemCantidad(itemId: 'nope', cantidad: 1)], operario: 'X'), isA<Err>());
+      expect(await repo.crearLote(items: [ItemCantidad(itemId: _s, cantidad: 0)], operario: 'X'), isA<Err>());
     });
 
-    test('no permite remisiones duplicadas', () async {
-      final r = await repo.entregarLote(itemId: _s, cantidad: 1, operario: 'X', numeroRemision: 'REM-097');
+    test('no permite lotes duplicados', () async {
+      final r = await repo.crearLote(
+        items: [ItemCantidad(itemId: _s, cantidad: 1)], operario: 'X', numeroLote: 'LOTE-096',
+      );
       expect(r, isA<Err>());
     });
 
+    test('crear_lote es todo o nada: si un producto falla, no se crea ninguna línea', () async {
+      final antes = await kardex(_xs);
+      final res = await repo.crearLote(
+        items: [
+          ItemCantidad(itemId: _s, cantidad: 1), // válido por sí solo
+          ItemCantidad(itemId: _xs, cantidad: 999), // excede el límite
+        ],
+        operario: 'X',
+      );
+      expect(res, isA<Err>());
+      final despues = await kardex(_xs);
+      expect(despues.producido, antes.producido); // nada cambió, ni siquiera lo válido
+    });
+
     test('la numeración automática no colisiona', () async {
-      final a = await repo.entregarLote(itemId: _s, cantidad: 1, operario: 'X');
-      final b = await repo.entregarLote(itemId: _s, cantidad: 1, operario: 'X');
-      expect((a as Ok<Remision>).value.id, isNot((b as Ok<Remision>).value.id));
+      final a = await repo.crearLote(items: [ItemCantidad(itemId: _s, cantidad: 1)], operario: 'X');
+      final b = await repo.crearLote(items: [ItemCantidad(itemId: _s, cantidad: 1)], operario: 'X');
+      expect((a as Ok<Lote>).value.id, isNot((b as Ok<Lote>).value.id));
+    });
+
+    test('un lote con varias líneas queda parcial hasta que se reciben todas sus líneas', () async {
+      final creado = await repo.crearLote(
+        items: [ItemCantidad(itemId: _s, cantidad: 5), ItemCantidad(itemId: _bata, cantidad: 5)],
+        operario: 'X',
+      );
+      final lote = (creado as Ok<Lote>).value;
+      expect(lote.lineas.length, 2);
+      expect(lote.lineasPendientes, 2);
+
+      await repo.recibirLoteLinea(loteLineaId: lote.lineas[0].id, cantidad: 5, ubicacion: 'ESTANTE A1');
+      final snap1 = await repo.watch().first;
+      expect(snap1.lotes.firstWhere((l) => l.id == lote.id).estado, EstadoLote.recibidoParcial);
+
+      await repo.recibirLoteLinea(loteLineaId: lote.lineas[1].id, cantidad: 5, ubicacion: 'ESTANTE A1');
+      final snap2 = await repo.watch().first;
+      expect(snap2.lotes.firstWhere((l) => l.id == lote.id).estado, EstadoLote.recibidoCompleto);
     });
 
     test('la recepción con faltante genera novedad y actualiza el stock', () async {
-      final res = await repo.recibirLote(remisionId: 'REM-101', cantidad: 3, ubicacion: 'RACK C3');
-      final remision = (res as Ok<Remision>).value;
-      expect(remision.estado, EstadoRemision.recibidoConNovedad);
-      expect(remision.novedad, contains('FALTANTE'));
+      final snap = await repo.watch().first;
+      final linea = snap.lotes.firstWhere((l) => l.id == 'LOTE-101').lineas.first;
+
+      final res = await repo.recibirLoteLinea(loteLineaId: linea.id, cantidad: 3, ubicacion: 'RACK C3');
+      final actualizada = (res as Ok<LoteLinea>).value;
+      expect(actualizada.estado, EstadoLineaLote.recibidoConNovedad);
+      expect(actualizada.novedad, contains('FALTANTE'));
 
       final k = await kardex(_xs);
       expect(k.recibido, 8);
       expect(k.stockEn('RACK C3'), 3);
     });
 
-    test('una remisión no se puede recibir dos veces', () async {
-      await repo.recibirLote(remisionId: 'REM-101', cantidad: 4, ubicacion: 'RACK C3');
-      final again = await repo.recibirLote(remisionId: 'REM-101', cantidad: 4, ubicacion: 'RACK C3');
+    test('una línea de lote no se puede recibir dos veces', () async {
+      final snap = await repo.watch().first;
+      final linea = snap.lotes.firstWhere((l) => l.id == 'LOTE-101').lineas.first;
+
+      await repo.recibirLoteLinea(loteLineaId: linea.id, cantidad: 4, ubicacion: 'RACK C3');
+      final again = await repo.recibirLoteLinea(loteLineaId: linea.id, cantidad: 4, ubicacion: 'RACK C3');
       expect(again, isA<Err>());
     });
 

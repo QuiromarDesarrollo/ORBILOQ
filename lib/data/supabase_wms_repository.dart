@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/result.dart';
@@ -9,7 +8,7 @@ import '../domain/wms_repository.dart';
 
 /// Implementación real contra Supabase. Las reglas de negocio (límites de
 /// producción, validación de stock) viven en funciones RPC de Postgres
-/// (`entregar_lote`, `recibir_lote`, `despachar`), no aquí — así quedan
+/// (`crear_lote`, `recibir_lote_item`, `despachar`), no aquí — así quedan
 /// protegidas por transacciones del lado del servidor, sin condiciones de
 /// carrera entre usuarios concurrentes.
 class SupabaseWmsRepository implements WmsRepository {
@@ -25,7 +24,13 @@ class SupabaseWmsRepository implements WmsRepository {
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
-          table: 'remisiones',
+          table: 'lotes',
+          callback: (_) => refrescar(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'lote_items',
           callback: (_) => refrescar(),
         )
         .subscribe();
@@ -64,24 +69,16 @@ class SupabaseWmsRepository implements WmsRepository {
 
   /// Supabase limita cada respuesta a un máximo de filas (por defecto 1000).
   /// Esta función pide "páginas" sucesivas hasta traer TODAS las filas —
-  /// sin esto, tablas grandes (como el kardex con miles de líneas) se
-  /// cortan en silencio y la app termina sin ver datos que sí existen.
+  /// sin esto, tablas grandes se cortan en silencio.
   Future<List<Map<String, dynamic>>> _traerTodo(
-    dynamic Function(int desde, int hasta) construirConsulta, {
-    String etiqueta = '',
-  }) async {
+    dynamic Function(int desde, int hasta) construirConsulta,
+  ) async {
     const tamPagina = 1000;
     final todas = <Map<String, dynamic>>[];
     var desde = 0;
-    var vuelta = 0;
     while (true) {
-      vuelta++;
       final resultado = await construirConsulta(desde, desde + tamPagina - 1);
       final lote = (resultado as List).cast<Map<String, dynamic>>();
-      debugPrint(
-        '[ORBILOQ][$etiqueta] vuelta $vuelta: pedí rango $desde-${desde + tamPagina - 1}, '
-        'llegaron ${lote.length} filas',
-      );
       if (lote.isEmpty) break;
       todas.addAll(lote);
       // Avanza según lo que realmente llegó (no según lo pedido): si el
@@ -89,7 +86,6 @@ class SupabaseWmsRepository implements WmsRepository {
       // evita saltarse filas en la siguiente página.
       desde += lote.length;
     }
-    debugPrint('[ORBILOQ][$etiqueta] TOTAL acumulado: ${todas.length} filas');
     return todas;
   }
 
@@ -101,25 +97,18 @@ class SupabaseWmsRepository implements WmsRepository {
           .order('numero_op')
           .order('codigo')
           .range(desde, hasta),
-      etiqueta: 'vista_kardex',
-    );
-    debugPrint(
-      '[ORBILOQ][vista_kardex] ¿contiene OP 25079? '
-      '${kardexRows.any((r) => r['numero_op']?.toString() == '25079')}',
     );
 
     final stockRows = await _traerTodo(
       (desde, hasta) => _client.from('vista_stock_ubicacion_detalle').select().range(desde, hasta),
-      etiqueta: 'vista_stock_ubicacion_detalle',
     );
 
-    final remisionesRows = await _traerTodo(
+    final loteItemsRows = await _traerTodo(
       (desde, hasta) => _client
-          .from('vista_remisiones')
+          .from('vista_lote_items_detalle')
           .select()
           .order('fecha_envio', ascending: false)
           .range(desde, hasta),
-      etiqueta: 'vista_remisiones',
     );
 
     final stockPorItem = <String, Map<String, int>>{};
@@ -134,17 +123,7 @@ class SupabaseWmsRepository implements WmsRepository {
       for (final row in kardexRows) _kardexDesdeFila(row, stockPorItem),
     ];
 
-    final remisiones = [
-      for (final row in remisionesRows) _remisionDesdeFila(row),
-    ];
-
-    return WmsSnapshot(
-      kardex: kardex,
-      remisiones: remisiones,
-      // El número lo genera el servidor (secuencia de Postgres); no hace
-      // falta calcularlo en el cliente.
-      proximaRemision: 'Automático',
-    );
+    return WmsSnapshot(kardex: kardex, lotes: _agruparLotes(loteItemsRows));
   }
 
   ItemKardex _kardexDesdeFila(
@@ -176,7 +155,40 @@ class SupabaseWmsRepository implements WmsRepository {
     );
   }
 
-  Remision _remisionDesdeFila(Map<String, dynamic> row) {
+  /// `vista_lote_items_detalle` trae una fila por CADA línea; aquí se
+  /// agrupan por lote (ya vienen ordenadas por fecha_envio desc, así que el
+  /// orden de agrupación preserva "más recientes primero").
+  List<Lote> _agruparLotes(List<Map<String, dynamic>> filas) {
+    final porNumero = <String, List<Map<String, dynamic>>>{};
+    final orden = <String>[];
+    for (final fila in filas) {
+      final numero = fila['lote_numero'] as String;
+      if (!porNumero.containsKey(numero)) orden.add(numero);
+      porNumero.putIfAbsent(numero, () => []).add(fila);
+    }
+
+    return [
+      for (final numero in orden) _loteDesdeFilas(numero, porNumero[numero]!),
+    ];
+  }
+
+  Lote _loteDesdeFilas(String numero, List<Map<String, dynamic>> filas) {
+    final primera = filas.first;
+    final lineas = [for (final f in filas) _lineaDesdeFila(f)];
+    final pendientes = lineas.where((l) => l.enTransito).length;
+    final estado = pendientes == 0
+        ? EstadoLote.recibidoCompleto
+        : (pendientes == lineas.length ? EstadoLote.enTransito : EstadoLote.recibidoParcial);
+    return Lote(
+      id: numero,
+      operario: primera['operario_nombre'] as String,
+      fechaEnvio: DateTime.parse(primera['fecha_envio'] as String).toLocal(),
+      estado: estado,
+      lineas: lineas,
+    );
+  }
+
+  LoteLinea _lineaDesdeFila(Map<String, dynamic> row) {
     final item = ItemOrden(
       id: row['item_orden_id'] as String,
       op: row['op_numero'] as String,
@@ -188,13 +200,11 @@ class SupabaseWmsRepository implements WmsRepository {
       cantidadPedida: (row['cantidad_pedida'] as num).toInt(),
       observacionOp: (row['observacion_op'] as String?) ?? '',
     );
-    return Remision(
-      id: row['numero'] as String,
+    return LoteLinea(
+      id: row['lote_item_id'] as String,
       item: item,
-      operario: row['operario_nombre'] as String,
-      fechaEnvio: DateTime.parse(row['fecha_envio'] as String).toLocal(),
       cantidadEnviada: (row['cantidad_enviada'] as num).toInt(),
-      estado: _estadoDesde(row['estado'] as String),
+      estado: _estadoLineaDesde(row['estado'] as String),
       cantidadRecibida: (row['cantidad_recibida'] as num?)?.toInt(),
       ubicacionDestino: row['ubicacion_destino_codigo'] as String?,
       novedad: (row['novedad'] as String?) ?? '',
@@ -202,10 +212,10 @@ class SupabaseWmsRepository implements WmsRepository {
     );
   }
 
-  EstadoRemision _estadoDesde(String v) => switch (v) {
-        'recibido_conforme' => EstadoRemision.recibidoConforme,
-        'recibido_con_novedad' => EstadoRemision.recibidoConNovedad,
-        _ => EstadoRemision.enTransito,
+  EstadoLineaLote _estadoLineaDesde(String v) => switch (v) {
+        'recibido_conforme' => EstadoLineaLote.recibidoConforme,
+        'recibido_con_novedad' => EstadoLineaLote.recibidoConNovedad,
+        _ => EstadoLineaLote.enTransito,
       };
 
   DateTime? _fecha(dynamic v) => v == null ? null : DateTime.parse(v as String).toLocal();
@@ -219,41 +229,47 @@ class SupabaseWmsRepository implements WmsRepository {
     return fila?['id'] as String?;
   }
 
+  Lote? _buscarLotePorNumero(String numero) {
+    for (final l in _ultimo?.lotes ?? const <Lote>[]) {
+      if (l.id == numero) return l;
+    }
+    return null;
+  }
+
   // -------------------------------------------------------------- comandos
 
   @override
-  Future<Result<Remision>> entregarLote({
-    required String itemId,
-    required int cantidad,
+  Future<Result<Lote>> crearLote({
+    required List<ItemCantidad> items,
     required String operario,
-    String? numeroRemision,
+    String? numeroLote,
   }) async {
+    if (items.isEmpty) return Err<Lote>('El lote no tiene productos.');
     try {
-      final res = await _client.rpc('entregar_lote', params: {
-        'p_item_orden_id': itemId,
-        'p_cantidad': cantidad,
+      final res = await _client.rpc('crear_lote', params: {
+        'p_items': [
+          for (final i in items) {'item_orden_id': i.itemId, 'cantidad': i.cantidad},
+        ],
         'p_operario_nombre': operario,
-        'p_numero_remision': (numeroRemision == null || numeroRemision.trim().isEmpty)
-            ? null
-            : numeroRemision.trim(),
+        'p_numero_lote': (numeroLote == null || numeroLote.trim().isEmpty) ? null : numeroLote.trim(),
       });
       final numero = (res as Map)['numero'] as String;
       await refrescar();
-      final remision = _ultimo?.remisiones.where((r) => r.id == numero).firstOrNull;
-      if (remision == null) {
-        return Err<Remision>('La remisión $numero se creó, pero no se pudo leer de vuelta.');
+      final lote = _buscarLotePorNumero(numero);
+      if (lote == null) {
+        return Err<Lote>('El lote $numero se creó, pero no se pudo leer de vuelta.');
       }
-      return Ok<Remision>(remision);
+      return Ok<Lote>(lote);
     } on PostgrestException catch (e) {
-      return Err<Remision>(e.message);
+      return Err<Lote>(e.message);
     } catch (e) {
-      return Err<Remision>('Error inesperado al entregar el lote: $e');
+      return Err<Lote>('Error inesperado al crear el lote: $e');
     }
   }
 
   @override
-  Future<Result<Remision>> recibirLote({
-    required String remisionId,
+  Future<Result<LoteLinea>> recibirLoteLinea({
+    required String loteLineaId,
     required int cantidad,
     required String ubicacion,
     String nota = '',
@@ -261,24 +277,25 @@ class SupabaseWmsRepository implements WmsRepository {
     try {
       final ubicacionId = await _idDeUbicacion(ubicacion);
       if (ubicacionId == null) {
-        return Err<Remision>('Ubicación no válida: $ubicacion.');
+        return Err<LoteLinea>('Ubicación no válida: $ubicacion.');
       }
-      await _client.rpc('recibir_lote', params: {
-        'p_remision_numero': remisionId,
+      await _client.rpc('recibir_lote_item', params: {
+        'p_lote_item_id': loteLineaId,
         'p_cantidad': cantidad,
         'p_ubicacion_id': ubicacionId,
         'p_nota': nota,
       });
       await refrescar();
-      final remision = _ultimo?.remisiones.where((r) => r.id == remisionId).firstOrNull;
-      if (remision == null) {
-        return Err<Remision>('La remisión se actualizó, pero no se pudo leer de vuelta.');
+      for (final lote in _ultimo?.lotes ?? const <Lote>[]) {
+        for (final linea in lote.lineas) {
+          if (linea.id == loteLineaId) return Ok<LoteLinea>(linea);
+        }
       }
-      return Ok<Remision>(remision);
+      return Err<LoteLinea>('La línea se actualizó, pero no se pudo leer de vuelta.');
     } on PostgrestException catch (e) {
-      return Err<Remision>(e.message);
+      return Err<LoteLinea>(e.message);
     } catch (e) {
-      return Err<Remision>('Error inesperado al recibir el lote: $e');
+      return Err<LoteLinea>('Error inesperado al recibir: $e');
     }
   }
 
@@ -306,8 +323,4 @@ class SupabaseWmsRepository implements WmsRepository {
       return Err<void>('Error inesperado al despachar: $e');
     }
   }
-}
-
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }

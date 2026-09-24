@@ -10,12 +10,24 @@ enum Rol {
   final String etiqueta;
 }
 
-enum EstadoRemision {
+/// Estado del LOTE completo (el encabezado). Depende de cuántas de sus
+/// líneas siguen en tránsito.
+enum EstadoLote {
+  enTransito('EN TRÁNSITO'),
+  recibidoParcial('RECIBIDO PARCIAL'),
+  recibidoCompleto('RECIBIDO COMPLETO');
+
+  const EstadoLote(this.etiqueta);
+  final String etiqueta;
+}
+
+/// Estado de UNA línea (producto) dentro de un lote.
+enum EstadoLineaLote {
   enTransito('EN TRÁNSITO'),
   recibidoConforme('RECIBIDO CONFORME'),
   recibidoConNovedad('RECIBIDO CON NOVEDAD');
 
-  const EstadoRemision(this.etiqueta);
+  const EstadoLineaLote(this.etiqueta);
   final String etiqueta;
 }
 
@@ -79,6 +91,13 @@ class ItemOrden {
   final String observacionOp;
 }
 
+/// Un producto + cantidad, usado al armar un lote nuevo (antes de enviarlo).
+class ItemCantidad {
+  const ItemCantidad({required this.itemId, required this.cantidad});
+  final String itemId;
+  final int cantidad;
+}
+
 /// Movimiento inmutable del libro de movimientos (ledger). Es la única fuente
 /// de verdad: producido, recibido, despachado y stock por ubicación se derivan de aquí.
 class Movimiento {
@@ -88,7 +107,8 @@ class Movimiento {
     required this.cantidad,
     required this.fecha,
     this.ubicacion,
-    this.remisionId,
+    this.loteId,
+    this.loteLineaId,
     this.nota = '',
   });
 
@@ -97,19 +117,19 @@ class Movimiento {
   final int cantidad;
   final DateTime fecha;
   final String? ubicacion;
-  final String? remisionId;
+  final String? loteId;
+  final String? loteLineaId;
   final String nota;
 }
 
-/// Lote enviado por producción hacia bodega.
-class Remision {
-  const Remision({
+/// Una línea (producto) dentro de un lote — cada una se recibe por separado,
+/// con su propia ubicación, cantidad y novedad.
+class LoteLinea {
+  const LoteLinea({
     required this.id,
     required this.item,
-    required this.operario,
-    required this.fechaEnvio,
     required this.cantidadEnviada,
-    this.estado = EstadoRemision.enTransito,
+    this.estado = EstadoLineaLote.enTransito,
     this.cantidadRecibida,
     this.ubicacionDestino,
     this.novedad = '',
@@ -118,29 +138,25 @@ class Remision {
 
   final String id;
   final ItemOrden item;
-  final String operario;
-  final DateTime fechaEnvio;
   final int cantidadEnviada;
-  final EstadoRemision estado;
+  final EstadoLineaLote estado;
   final int? cantidadRecibida;
   final String? ubicacionDestino;
   final String novedad;
   final DateTime? fechaRecepcion;
 
-  bool get enTransito => estado == EstadoRemision.enTransito;
+  bool get enTransito => estado == EstadoLineaLote.enTransito;
 
-  Remision copyWith({
-    EstadoRemision? estado,
+  LoteLinea copyWith({
+    EstadoLineaLote? estado,
     int? cantidadRecibida,
     String? ubicacionDestino,
     String? novedad,
     DateTime? fechaRecepcion,
   }) {
-    return Remision(
+    return LoteLinea(
       id: id,
       item: item,
-      operario: operario,
-      fechaEnvio: fechaEnvio,
       cantidadEnviada: cantidadEnviada,
       estado: estado ?? this.estado,
       cantidadRecibida: cantidadRecibida ?? this.cantidadRecibida,
@@ -149,6 +165,30 @@ class Remision {
       fechaRecepcion: fechaRecepcion ?? this.fechaRecepcion,
     );
   }
+}
+
+/// Lote enviado por Producción hacia Bodega — puede traer varios productos
+/// (líneas) de una sola vez, bajo un mismo número.
+class Lote {
+  const Lote({
+    required this.id,
+    required this.operario,
+    required this.fechaEnvio,
+    required this.lineas,
+    this.estado = EstadoLote.enTransito,
+  });
+
+  /// Número del lote (ej. "LOTE-101"). Es la clave que usa la app para
+  /// referenciarlo — no hay un UUID de lote expuesto en el dominio.
+  final String id;
+  final String operario;
+  final DateTime fechaEnvio;
+  final EstadoLote estado;
+  final List<LoteLinea> lineas;
+
+  int get totalLineas => lineas.length;
+  int get lineasPendientes => lineas.where((l) => l.enTransito).length;
+  bool get tienePendientes => lineasPendientes > 0;
 }
 
 /// Fila del kardex: línea de orden + saldos derivados de los movimientos.
@@ -227,21 +267,19 @@ class ItemKardex {
 class WmsSnapshot {
   WmsSnapshot({
     required this.kardex,
-    required this.remisiones,
-    required this.proximaRemision,
+    required this.lotes,
   });
 
   final List<ItemKardex> kardex;
 
   /// Más recientes primero.
-  final List<Remision> remisiones;
-  final String proximaRemision;
+  final List<Lote> lotes;
 
   late final Map<String, ItemKardex> _porId = {for (final k in kardex) k.id: k};
   late final Map<String, ItemKardex> _porOpCodigo = {
     for (final k in kardex) '${k.item.op}|${k.item.codigo}': k,
   };
-  late final int remisionesEnTransito = remisiones.where((r) => r.enTransito).length;
+  late final int lotesConPendientes = lotes.where((l) => l.tienePendientes).length;
 
   ItemKardex? kardexPorId(String id) => _porId[id];
 

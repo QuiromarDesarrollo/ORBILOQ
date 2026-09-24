@@ -125,7 +125,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Cabecera(rol: rol, enTransito: s.remisionesEnTransito),
+              _Cabecera(rol: rol, enTransito: s.lotesConPendientes),
               const SizedBox(height: 20),
               const KardexSummaryCards(),
               const SizedBox(height: 20),
@@ -299,7 +299,7 @@ class _Cabecera extends StatelessWidget {
             else ...[
               _BotonAccion(
                 icono: Icons.move_to_inbox_outlined,
-                texto: 'Recibir remisión ($enTransito)',
+                texto: 'Recibir lote ($enTransito)',
                 onPressed: () => showRecepcionDialog(context),
               ),
               _BotonAccion(

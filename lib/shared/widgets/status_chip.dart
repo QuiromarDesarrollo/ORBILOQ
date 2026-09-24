@@ -28,8 +28,8 @@ class StatusChip extends StatelessWidget {
   }
 }
 
-Color colorDeEstadoRemision(EstadoRemision e) => switch (e) {
-      EstadoRemision.enTransito => Colors.amber.shade800,
-      EstadoRemision.recibidoConforme => AppColors.actionGreen,
-      EstadoRemision.recibidoConNovedad => AppColors.alertRed,
+Color colorDeEstadoLinea(EstadoLineaLote e) => switch (e) {
+      EstadoLineaLote.enTransito => Colors.amber.shade800,
+      EstadoLineaLote.recibidoConforme => AppColors.actionGreen,
+      EstadoLineaLote.recibidoConNovedad => AppColors.alertRed,
     };
