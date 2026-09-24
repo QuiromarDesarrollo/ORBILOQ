@@ -26,6 +26,7 @@ abstract final class ColKardex {
   static const estadoBodega = 'estadoBodega';
   static const fechaEntregaBodega = 'fechaEntregaBodega';
   static const fechaEsperadaBodega = 'fechaEsperadaBodega';
+  static const diasFaltantesBodega = 'diasFaltantesBodega';
 }
 
 /// Filtros del kardex: búsqueda libre + filtros por columna (multi-selección

@@ -23,16 +23,18 @@ const List<String?> _kColumnasProduccion = [
   ColKardex.estadoProduccion, ColKardex.fechaEntrega, ColKardex.fechaEsperada,
 ];
 
-// Columnas para el rol Logística (Bodega). Solo OP tiene filtro (igual que antes).
-const List<double> _kAnchosBodega = [100, 190, 150, 75, 110, 110, 75, 95, 110, 120, 100, 100, 95, 130];
+// Columnas para el rol Logística (Bodega). Todas tienen filtro por columna.
+const List<double> _kAnchosBodega = [100, 190, 150, 75, 110, 110, 75, 95, 110, 120, 100, 100, 110];
 const List<String> _kEtiquetasBodega = [
   'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'PEDIDAS',
   'ENTREGADO POR PRODUCCIÓN', 'PENDIENTE POR PRODUCCIÓN', 'BODEGA', 'DESPACHADAS',
   'PRODUCTO NO CONFORME', 'ESTADOS', 'FECHA DE ENTREGA', 'FECHA ESPERADA', 'DÍAS FALTANTES',
-  'ENTREGA',
 ];
 const List<String?> _kColumnasBodega = [
-  ColKardex.op, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ColKardex.op, ColKardex.producto, ColKardex.cliente, ColKardex.pedidas,
+  ColKardex.produccion, ColKardex.pendienteProduccionBodega, ColKardex.bodega, ColKardex.despachadas,
+  ColKardex.noConformeBodega, ColKardex.estadoBodega, ColKardex.fechaEntregaBodega,
+  ColKardex.fechaEsperadaBodega, ColKardex.diasFaltantesBodega,
 ];
 
 const _kPaletaProducto = [
@@ -404,9 +406,7 @@ class _KardexRow extends StatelessWidget {
       ),
       _Celda(7, anchos, _celdaEstado()),
       _Celda(8, anchos, _chipFecha(item.fechaEntrega)),
-      // "Fecha esperada": aún sin fuente de datos definida — placeholder
-      // visual hasta que se conecte (el usuario indicará el origen luego).
-      _Celda(9, anchos, _chipFecha(null)),
+      _Celda(9, anchos, _chipFecha(item.fechaEntregaLogistica)),
     ];
   }
 
@@ -442,7 +442,6 @@ class _KardexRow extends StatelessWidget {
   // ------------------------------------------------------- vista Bodega
 
   List<Widget> _celdasBodega() {
-    final completado = item.cantidadPedida > 0 && item.despachado >= item.cantidadPedida;
     final noConforme = item.pendienteReproceso;
     return [
       _Celda(3, anchos, Text('${item.cantidadPedida}', style: const TextStyle(fontSize: 13, color: AppColors.darkTextPrimary)),
@@ -479,12 +478,26 @@ class _KardexRow extends StatelessWidget {
       ),
       _Celda(9, anchos, _celdaEstadoLogistica()),
       _Celda(10, anchos, _chipFecha(item.fechaEntrega)),
-      // "Fecha esperada" y "Días faltantes": aún sin fuente de datos real —
-      // quedan como marcador visual hasta conectarlas.
-      _Celda(11, anchos, _chipFecha(null)),
-      _Celda(12, anchos, _chip('Sin fecha', AppColors.darkTextMuted, AppColors.chipNeutralBgDark, Icons.hourglass_empty)),
-      _Celda(13, anchos, _ChipEntrega(item: item, completado: completado)),
+      _Celda(11, anchos, _chipFecha(item.fechaEntregaLogistica)),
+      _Celda(12, anchos, _chipDiasFaltantes(item.fechaEntregaLogistica)),
     ];
+  }
+
+  Widget _chipDiasFaltantes(DateTime? esperada) {
+    if (esperada == null) {
+      return _chip('Sin fecha', AppColors.darkTextMuted, AppColors.chipNeutralBgDark, Icons.hourglass_empty);
+    }
+    final hoy = DateTime.now();
+    final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
+    final soloEsperada = DateTime(esperada.year, esperada.month, esperada.day);
+    final dias = soloEsperada.difference(soloHoy).inDays;
+    if (dias < 0) {
+      return _chip('Vencido ${-dias}d', AppColors.chipRedDark, AppColors.chipRedBgDark, Icons.warning_amber_outlined);
+    }
+    if (dias == 0) {
+      return _chip('HOY', const Color(0xFFFBBF24), AppColors.chipNeutralBgDark, Icons.today_outlined);
+    }
+    return _chip('Faltan ${dias}d', AppColors.darkTextSecondary, AppColors.chipNeutralBgDark, Icons.hourglass_bottom);
   }
 
   Widget _celdaEstadoLogistica() {
@@ -524,46 +537,6 @@ class _KardexRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChipEntrega extends StatelessWidget {
-  const _ChipEntrega({required this.item, required this.completado});
-
-  final ItemKardex item;
-  final bool completado;
-
-  @override
-  Widget build(BuildContext context) {
-    if (completado) {
-      return _chipEstatico('ENTREGADO', AppColors.chipGreenDark, AppColors.chipGreenBgDark, Icons.check_circle_outline);
-    }
-    final fecha = item.fechaEntregaLogistica;
-    if (fecha == null) {
-      return _chipEstatico('Sin fecha', AppColors.darkTextMuted, AppColors.chipNeutralBgDark, Icons.event_outlined);
-    }
-    final vencida = fecha.isBefore(DateTime.now());
-    return _chipEstatico(
-      _fechaCorta(fecha),
-      vencida ? AppColors.chipRedDark : AppColors.darkTextSecondary,
-      vencida ? AppColors.chipRedBgDark : AppColors.chipNeutralBgDark,
-      Icons.event_outlined,
-    );
-  }
-
-  Widget _chipEstatico(String texto, Color color, Color fondo, IconData icono) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(6)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icono, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(texto, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
     );

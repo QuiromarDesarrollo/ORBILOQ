@@ -30,6 +30,8 @@ class InMemoryWmsRepository implements WmsRepository {
   final List<Lote> _lotes = []; // más recientes primero
   final List<Liberacion> _liberaciones = []; // más recientes primero
   int _correlativoLiberacion = 0;
+  final List<Devolucion> _devoluciones = []; // más recientes primero
+  int _correlativoDevolucion = 0;
   final StreamController<WmsSnapshot> _controller = StreamController.broadcast();
 
   // ---------------------------------------------------------------- lectura
@@ -246,16 +248,32 @@ class InMemoryWmsRepository implements WmsRepository {
       return Err<void>('LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.');
     }
 
+    final fecha = DateTime.now();
+    _devoluciones.insert(
+      0,
+      Devolucion(
+        id: 'DEV-${_correlativoDevolucion++}',
+        item: item,
+        cantidad: cantidad,
+        causal: causalId, // en modo memoria, el id de la causal ES su nombre
+        operario: operario,
+        fecha: fecha,
+        nota: nota,
+      ),
+    );
     _movimientos.add(Movimiento(
       tipo: TipoMovimiento.devolucionProduccion,
       itemId: item.id,
       cantidad: cantidad,
-      fecha: DateTime.now(),
+      fecha: fecha,
       nota: '$causalId${nota.trim().isEmpty ? '' : ' - ${nota.trim()}'}',
     ));
     _emitir();
     return const Ok<void>(null);
   }
+
+  @override
+  Future<List<Devolucion>> cargarDevoluciones() async => List.unmodifiable(_devoluciones);
 
   @override
   Future<Result<void>> liberarNoConforme({

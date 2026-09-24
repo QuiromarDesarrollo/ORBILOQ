@@ -20,9 +20,7 @@ final Map<String, ExtractorColumna> columnasProduccion = {
   ColKardex.noConforme: (i) => '${i.pendienteReproceso}',
   ColKardex.estadoProduccion: (i) => i.estadoProduccion.etiqueta,
   ColKardex.fechaEntrega: (i) => _fechaOTexto(i.fechaEntrega),
-  // Aún sin fuente de datos real: todas las filas muestran lo mismo hasta
-  // que se conecte de dónde sale esta fecha.
-  ColKardex.fechaEsperada: (i) => 'Sin fecha',
+  ColKardex.fechaEsperada: (i) => _fechaOTexto(i.fechaEntregaLogistica),
 };
 
 /// Igual, pero para la vista Bodega.
@@ -38,5 +36,17 @@ final Map<String, ExtractorColumna> columnasBodega = {
   ColKardex.noConformeBodega: (i) => '${i.pendienteReproceso}',
   ColKardex.estadoBodega: (i) => i.estadoLogistica.etiqueta,
   ColKardex.fechaEntregaBodega: (i) => _fechaOTexto(i.fechaEntrega),
-  ColKardex.fechaEsperadaBodega: (i) => 'Sin fecha',
+  ColKardex.fechaEsperadaBodega: (i) => _fechaOTexto(i.fechaEntregaLogistica),
+  ColKardex.diasFaltantesBodega: (i) => _diasFaltantesTexto(i.fechaEntregaLogistica),
 };
+
+String _diasFaltantesTexto(DateTime? esperada) {
+  if (esperada == null) return 'Sin fecha';
+  final hoy = DateTime.now();
+  final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
+  final soloEsperada = DateTime(esperada.year, esperada.month, esperada.day);
+  final dias = soloEsperada.difference(soloHoy).inDays;
+  if (dias < 0) return 'Vencido ${-dias}d';
+  if (dias == 0) return 'HOY';
+  return 'Faltan ${dias}d';
+}

@@ -6,6 +6,7 @@ import '../../../application/providers.dart';
 import '../../../core/constants.dart';
 import '../../../core/result.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
@@ -29,7 +30,7 @@ class NoConformeDialog extends StatelessWidget {
       expand: true,
       maxWidth: 1100,
       child: DefaultTabController(
-        length: 2,
+        length: 3,
         child: Column(
           children: [
             const TabBar(
@@ -42,11 +43,12 @@ class NoConformeDialog extends StatelessWidget {
               tabs: [
                 Tab(height: 38, icon: Icon(Icons.qr_code_scanner, size: 16), text: 'ESCANEAR QR'),
                 Tab(height: 38, icon: Icon(Icons.edit_note, size: 16), text: 'BÚSQUEDA MANUAL'),
+                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
               ],
             ),
             const SizedBox(height: 8),
             const Expanded(
-              child: TabBarView(children: [_EscanearTab(), _ManualTab()]),
+              child: TabBarView(children: [_EscanearTab(), _ManualTab(), _HistorialTab()]),
             ),
           ],
         ),
@@ -625,6 +627,69 @@ class _TarjetaWidgetState extends State<_TarjetaWidget> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ==================================================== pestaña 3: historial
+
+class _HistorialTab extends ConsumerStatefulWidget {
+  const _HistorialTab();
+
+  @override
+  ConsumerState<_HistorialTab> createState() => _HistorialTabState();
+}
+
+class _HistorialTabState extends ConsumerState<_HistorialTab> {
+  late Future<List<Devolucion>> _futuro;
+
+  @override
+  void initState() {
+    super.initState();
+    _futuro = ref.read(wmsRepositoryProvider).cargarDevoluciones();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Devolucion>>(
+      future: _futuro,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('No se pudo cargar el historial: ${snapshot.error}'));
+        }
+        final devoluciones = snapshot.data ?? const [];
+        if (devoluciones.isEmpty) {
+          return const Center(
+            child: Text('Aún no hay productos no conformes reportados.', style: TextStyle(color: Colors.grey)),
+          );
+        }
+        return ListView.builder(
+          itemCount: devoluciones.length,
+          itemBuilder: (_, i) {
+            final d = devoluciones[i];
+            return Card(
+              child: ListTile(
+                dense: true,
+                leading: const CircleAvatar(
+                  backgroundColor: AppColors.alertRed,
+                  child: Icon(Icons.report_problem_outlined, color: Colors.white, size: 18),
+                ),
+                title: Text(
+                  '${d.item.codigo} (${d.item.talla}) — ${d.cantidad} Uds — ${d.causal}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  'OP: ${d.item.op} | Reportado por: ${d.operario} | ${formatFechaHora(d.fecha)}'
+                  '${d.nota.isNotEmpty ? ' | ${d.nota}' : ''}',
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

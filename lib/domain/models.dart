@@ -94,6 +94,27 @@ class Liberacion {
   final String nota;
 }
 
+/// Registro de haber reportado un producto como no conforme.
+class Devolucion {
+  const Devolucion({
+    required this.id,
+    required this.item,
+    required this.cantidad,
+    required this.causal,
+    required this.operario,
+    required this.fecha,
+    this.nota = '',
+  });
+
+  final String id;
+  final ItemOrden item;
+  final int cantidad;
+  final String causal;
+  final String operario;
+  final DateTime fecha;
+  final String nota;
+}
+
 /// Clave única de una línea de orden (OP + OC + código + talla).
 String buildItemId(String op, String oc, String codigo, String talla) =>
     '$op|$oc|$codigo|$talla';
@@ -288,8 +309,13 @@ class ItemKardex {
   /// mientras tanto, nunca se activa.
   EstadoProduccion get estadoProduccion {
     if (pendienteProduccion <= 0 && cantidadPedida > 0) return EstadoProduccion.completado;
-    // TODO: activar "parcialPorRetardo" cuando exista una fecha esperada de
-    // entrega real contra la cual comparar la fecha de hoy.
+    final esperada = fechaEntregaLogistica;
+    if (esperada != null) {
+      final hoy = DateTime.now();
+      final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
+      final soloEsperada = DateTime(esperada.year, esperada.month, esperada.day);
+      if (soloEsperada.isBefore(soloHoy)) return EstadoProduccion.parcialPorRetardo;
+    }
     return EstadoProduccion.parcialPorEntregar;
   }
 

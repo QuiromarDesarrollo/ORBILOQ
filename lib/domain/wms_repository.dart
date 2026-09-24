@@ -60,5 +60,8 @@ abstract interface class WmsRepository {
   /// Historial de liberaciones (más recientes primero), para control.
   Future<List<Liberacion>> cargarLiberaciones();
 
+  /// Historial de reportes de producto no conforme (más recientes primero).
+  Future<List<Devolucion>> cargarDevoluciones();
+
   void dispose();
 }

@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Mostrar el motivo en cada tarjeta de producto no conforme (v30)
+# Requiere haber corrido antes orbiloq_wms_fix_ubicacion.sql en Supabase.
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_motivo_reproceso_v30.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Agregando el motivo a cada tarjeta..."
+
+echo "  - lib/features/reproceso/presentation/reproceso_dialog.dart"
+mkdir -p "$(dirname 'lib/features/reproceso/presentation/reproceso_dialog.dart')"
+cat > 'lib/features/reproceso/presentation/reproceso_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -409,3 +426,7 @@ class _HistorialTabState extends ConsumerState<_HistorialTab> {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

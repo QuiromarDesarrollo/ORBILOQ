@@ -407,4 +407,32 @@ class SupabaseWmsRepository implements WmsRepository {
         ),
     ];
   }
+
+  @override
+  Future<List<Devolucion>> cargarDevoluciones() async {
+    final filas = await _traerTodo(
+      (desde, hasta) => _client.from('vista_devoluciones').select().order('creado_en', ascending: false).range(desde, hasta),
+    );
+    return [
+      for (final row in filas)
+        Devolucion(
+          id: row['id'] as String,
+          item: ItemOrden(
+            id: row['item_orden_id'] as String,
+            op: row['op_numero'] as String,
+            cliente: row['item_cliente'] as String,
+            oc: '',
+            codigo: row['item_codigo'] as String,
+            descripcion: row['item_descripcion'] as String,
+            talla: row['item_talla'] as String,
+            cantidadPedida: 0,
+          ),
+          cantidad: (row['cantidad'] as num).toInt(),
+          causal: row['causal_nombre'] as String,
+          operario: row['operario_nombre'] as String,
+          fecha: DateTime.parse(row['creado_en'] as String).toLocal(),
+          nota: (row['nota'] as String?) ?? '',
+        ),
+    ];
+  }
 }
