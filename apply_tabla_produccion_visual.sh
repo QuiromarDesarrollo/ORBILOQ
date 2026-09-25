@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Mejoras visuales tabla Produccion (encabezados + nombre clickeable)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_tabla_produccion_visual.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Aplicando mejoras visuales de la tabla de Produccion..."
+
+echo "  - lib/features/kardex/presentation/kardex_table.dart"
+mkdir -p "$(dirname 'lib/features/kardex/presentation/kardex_table.dart')"
+cat > 'lib/features/kardex/presentation/kardex_table.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,7 +41,7 @@ const List<String?> _kColumnasProduccion = [
 ];
 
 // Columnas para el rol Logística (Bodega). Todas tienen filtro por columna.
-const List<double> _kAnchosBodega = [100, 150, 150, 90, 135, 135, 85, 120, 120, 95, 100, 100, 105];
+const List<double> _kAnchosBodega = [100, 190, 150, 75, 110, 110, 75, 95, 110, 120, 100, 100, 110];
 const List<String> _kEtiquetasBodega = [
   'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'PEDIDAS',
   'ENTREGADO POR PRODUCCIÓN', 'PENDIENTE POR PRODUCCIÓN', 'BODEGA', 'DESPACHADAS',
@@ -94,13 +111,12 @@ class KardexTable extends ConsumerWidget {
                                 ? Text(
                                     etiquetas[i],
                                     maxLines: 2,
-                                    softWrap: true,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       color: AppColors.darkTextSecondary,
                                       fontWeight: FontWeight.w700,
-                                      fontSize: 10,
-                                      letterSpacing: 0.1,
+                                      fontSize: 11,
+                                      letterSpacing: 0.3,
                                       height: 1.2,
                                     ),
                                   )
@@ -158,13 +174,12 @@ class _EncabezadoConFiltro extends ConsumerWidget {
           child: Text(
             etiqueta,
             maxLines: 2,
-            softWrap: true,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.darkTextSecondary,
               fontWeight: FontWeight.w700,
-              fontSize: 10,
-              letterSpacing: 0.1,
+              fontSize: 11,
+              letterSpacing: 0.3,
               height: 1.2,
             ),
           ),
@@ -608,3 +623,6 @@ class _KardexRow extends StatelessWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo "Listo. Revisa el diff con: git diff --stat"

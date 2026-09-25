@@ -359,6 +359,29 @@ class SupabaseWmsRepository implements WmsRepository {
   }
 
   @override
+  Future<List<String>> cargarPersonalProduccion() async {
+    final filas = await _client
+        .from('personal_produccion')
+        .select('nombre')
+        .eq('activo', true)
+        .order('nombre');
+    return [for (final f in (filas as List).cast<Map<String, dynamic>>()) f['nombre'] as String];
+  }
+
+  @override
+  Future<Result<String>> agregarPersonalProduccion(String nombre) async {
+    try {
+      final res = await _client.rpc('agregar_personal_produccion', params: {'p_nombre': nombre});
+      final fila = res as Map<String, dynamic>;
+      return Ok<String>(fila['nombre'] as String);
+    } on PostgrestException catch (e) {
+      return Err<String>(e.message);
+    } catch (e) {
+      return Err<String>('Error inesperado al agregar el nombre: $e');
+    }
+  }
+
+  @override
   Future<Result<void>> registrarNoConforme({
     required String itemId,
     required int cantidad,

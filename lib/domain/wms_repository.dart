@@ -46,6 +46,15 @@ abstract interface class WmsRepository {
   /// Logística, devolviendo el nombre normalizado guardado.
   Future<Result<String>> agregarPersonalLogistica(String nombre);
 
+  /// Lista ampliable de personas de Producción que pueden entregar una
+  /// prenda no conforme a Logística. Se puede agregar un nombre nuevo con
+  /// [agregarPersonalProduccion].
+  Future<List<String>> cargarPersonalProduccion();
+
+  /// Agrega (o reutiliza si ya existe) un nombre en la lista de personal de
+  /// Producción, devolviendo el nombre normalizado guardado.
+  Future<Result<String>> agregarPersonalProduccion(String nombre);
+
   /// Logística marca unidades como no conformes: se restan de lo entregado
   /// por Producción (independiente de cualquier lote) y quedan reflejadas
   /// en "Producto no conforme" hasta que se reprocesen.

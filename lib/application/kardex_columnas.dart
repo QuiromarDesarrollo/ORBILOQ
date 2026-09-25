@@ -21,6 +21,7 @@ final Map<String, ExtractorColumna> columnasProduccion = {
   ColKardex.estadoProduccion: (i) => i.estadoProduccion.etiqueta,
   ColKardex.fechaEntrega: (i) => _fechaOTexto(i.fechaEntrega),
   ColKardex.fechaEsperada: (i) => _fechaOTexto(i.fechaEsperadaProduccion),
+  ColKardex.diasFaltantes: (i) => _diasFaltantesTexto(i.fechaEsperadaProduccion),
 };
 
 /// Igual, pero para la vista Bodega.

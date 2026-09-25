@@ -10,6 +10,7 @@ import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
+import '../../../shared/widgets/addable_person_dropdown.dart';
 import '../../../shared/widgets/feedback_banner.dart';
 import '../../../shared/widgets/labeled_dropdown.dart';
 import '../../../shared/widgets/metric_card.dart';
@@ -165,23 +166,6 @@ class _CausalDropdown extends ConsumerWidget {
         items: [for (final c in lista) DropdownMenuItem(value: c.id, child: Text(c.nombre))],
         onChanged: onChanged,
       ),
-    );
-  }
-}
-
-class _RecibidoDeProduccionDropdown extends StatelessWidget {
-  const _RecibidoDeProduccionDropdown({required this.valor, required this.onChanged});
-
-  final String? valor;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      initialValue: valor,
-      decoration: wmsInput('Quién de Producción entregó la prenda', icon: Icons.person_outline),
-      items: [for (final n in WmsConstantes.operarios) DropdownMenuItem(value: n, child: Text(n))],
-      onChanged: onChanged,
     );
   }
 }
@@ -626,9 +610,13 @@ class _TarjetaWidgetState extends State<_TarjetaWidget> {
                 onChanged: (v) => setState(() => t.causalId = v),
               ),
               const SizedBox(height: 10),
-              _RecibidoDeProduccionDropdown(
+              AddablePersonDropdown(
+                label: 'Quién de Producción entregó la prenda',
                 valor: t.recibidoDeProduccion,
                 onChanged: (v) => setState(() => t.recibidoDeProduccion = v),
+                itemsProvider: personalProduccionProvider,
+                onAgregar: (ref, nombre) => ref.read(wmsRepositoryProvider).agregarPersonalProduccion(nombre),
+                tituloDialogo: 'Agregar persona de Producción',
               ),
               const SizedBox(height: 10),
               Row(

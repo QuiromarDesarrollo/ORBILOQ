@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Encabezados de la tabla de Logistica sin cortar
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_encabezados_logistica.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Ajustando encabezados de la tabla de Logistica..."
+
+echo "  - lib/features/kardex/presentation/kardex_table.dart"
+mkdir -p "$(dirname 'lib/features/kardex/presentation/kardex_table.dart')"
+cat > 'lib/features/kardex/presentation/kardex_table.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -608,3 +625,6 @@ class _KardexRow extends StatelessWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo "Listo. Revisa el diff con: git diff --stat"

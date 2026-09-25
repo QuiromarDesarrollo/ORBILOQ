@@ -1,3 +1,222 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Columna DIAS FALTANTES en la vista de Produccion
+# Agrega la columna que ya existia en Bodega, calculada contra la fecha
+# esperada de Produccion.
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_dias_faltantes_produccion.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Agregando columna DIAS FALTANTES a Produccion..."
+
+echo "  - lib/application/kardex_filters.dart"
+mkdir -p "$(dirname 'lib/application/kardex_filters.dart')"
+cat > 'lib/application/kardex_filters.dart' << 'ORBILOQ_EOF'
+import '../domain/models.dart';
+
+/// Identificadores de columna: la misma llave se usa para guardar el filtro
+/// activo, para pedir sus opciones disponibles, y para saber qué valor de
+/// cada [ItemKardex] le corresponde (ver `kardex_columnas.dart`).
+abstract final class ColKardex {
+  // Comunes a ambas vistas
+  static const op = 'op';
+  static const producto = 'producto';
+  static const cliente = 'cliente';
+  // Vista Producción
+  static const cantidad = 'cantidad';
+  static const entregado = 'entregado';
+  static const pendiente = 'pendiente';
+  static const noConforme = 'noConforme';
+  static const estadoProduccion = 'estadoProduccion';
+  static const fechaEntrega = 'fechaEntrega';
+  static const fechaEsperada = 'fechaEsperada';
+  static const diasFaltantes = 'diasFaltantes';
+  // Vista Bodega
+  static const pedidas = 'pedidas';
+  static const produccion = 'produccion';
+  static const pendienteProduccionBodega = 'pendienteProduccionBodega';
+  static const bodega = 'bodega';
+  static const despachadas = 'despachadas';
+  static const noConformeBodega = 'noConformeBodega';
+  static const estadoBodega = 'estadoBodega';
+  static const fechaEntregaBodega = 'fechaEntregaBodega';
+  static const fechaEsperadaBodega = 'fechaEsperadaBodega';
+  static const diasFaltantesBodega = 'diasFaltantesBodega';
+}
+
+/// Filtros del kardex: búsqueda libre + filtros por columna (multi-selección
+/// por cada una). Sirve para cualquiera de las dos vistas — cada vista solo
+/// usa las columnas que le aplican (ver los mapas de extractores).
+class KardexFilters {
+  const KardexFilters({this.busqueda = '', this.columnas = const {}});
+
+  final String busqueda;
+  final Map<String, Set<String>> columnas;
+
+  bool get hayFiltros => busqueda.trim().isNotEmpty || columnas.values.any((v) => v.isNotEmpty);
+
+  Set<String> valoresDe(String columna) => columnas[columna] ?? const {};
+
+  KardexFilters conBusqueda(String v) => KardexFilters(busqueda: v, columnas: columnas);
+
+  KardexFilters conColumna(String columna, Set<String> valores) {
+    final nuevo = Map<String, Set<String>>.from(columnas);
+    if (valores.isEmpty) {
+      nuevo.remove(columna);
+    } else {
+      nuevo[columna] = valores;
+    }
+    return KardexFilters(busqueda: busqueda, columnas: nuevo);
+  }
+
+  bool aplica(ItemKardex i, Map<String, String Function(ItemKardex)> extractores) {
+    for (final entry in columnas.entries) {
+      if (entry.value.isEmpty) continue;
+      final extractor = extractores[entry.key];
+      if (extractor == null) continue; // columna no aplicable a esta vista: se ignora
+      if (!entry.value.contains(extractor(i))) return false;
+    }
+    final q = busqueda.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      final texto = '${i.item.op} ${i.item.cliente} ${i.item.oc} ${i.item.codigo} '
+              '${i.item.descripcion} ${i.item.talla}'
+          .toLowerCase();
+      if (!texto.contains(q)) return false;
+    }
+    return true;
+  }
+}
+
+/// Valores distintos disponibles para cada columna, según los datos actuales.
+class OpcionesFiltro {
+  const OpcionesFiltro(this.porColumna);
+  final Map<String, List<String>> porColumna;
+  List<String> de(String columna) => porColumna[columna] ?? const [];
+}
+
+/// Totales agregados para las tarjetas de resumen, calculados sobre la lista
+/// que se le pase (normalmente la ya filtrada, para que reaccionen a los
+/// filtros activos).
+class KardexResumen {
+  const KardexResumen({
+    required this.unidadesPedidas,
+    required this.cantidadOrdenes,
+    required this.enProduccion,
+    required this.recibidoEnBodega,
+    required this.pendientePorDespachar,
+    required this.pendientePorEntregar,
+    required this.totalNoConforme,
+  });
+
+  final int unidadesPedidas;
+  final int cantidadOrdenes;
+  final int enProduccion;
+  final int recibidoEnBodega;
+  final int pendientePorDespachar;
+
+  /// Suma de [ItemKardex.pendienteProduccion] — lo que a Producción aún le
+  /// falta entregar a Logística (distinto de "pendiente por despachar",
+  /// que es un concepto de Bodega).
+  final int pendientePorEntregar;
+
+  /// Suma de [ItemKardex.pendienteReproceso] — unidades marcadas como no
+  /// conformes que todavía no se han liberado.
+  final int totalNoConforme;
+
+  double get porcentajeProduccion => unidadesPedidas == 0 ? 0 : enProduccion / unidadesPedidas * 100;
+  double get porcentajeBodega => unidadesPedidas == 0 ? 0 : recibidoEnBodega / unidadesPedidas * 100;
+
+  factory KardexResumen.desde(List<ItemKardex> items) {
+    var pedidas = 0, prod = 0, bodega = 0, pendienteDespacho = 0, pendienteEntrega = 0, noConforme = 0;
+    final ops = <String>{};
+    for (final i in items) {
+      pedidas += i.cantidadPedida;
+      prod += i.producido;
+      bodega += i.recibido;
+      pendienteDespacho += i.pendienteDespacho;
+      pendienteEntrega += i.pendienteProduccion;
+      noConforme += i.pendienteReproceso;
+      ops.add(i.item.op);
+    }
+    return KardexResumen(
+      unidadesPedidas: pedidas,
+      cantidadOrdenes: ops.length,
+      enProduccion: prod,
+      recibidoEnBodega: bodega,
+      pendientePorDespachar: pendienteDespacho,
+      pendientePorEntregar: pendienteEntrega,
+      totalNoConforme: noConforme,
+    );
+  }
+}
+ORBILOQ_EOF
+
+echo "  - lib/application/kardex_columnas.dart"
+mkdir -p "$(dirname 'lib/application/kardex_columnas.dart')"
+cat > 'lib/application/kardex_columnas.dart' << 'ORBILOQ_EOF'
+import '../domain/models.dart';
+import 'kardex_filters.dart';
+
+typedef ExtractorColumna = String Function(ItemKardex);
+
+String _fechaOTexto(DateTime? d) {
+  if (d == null) return 'Sin fecha';
+  return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+}
+
+/// Qué valor de texto le corresponde a cada columna de la vista Producción,
+/// tanto para filtrar como para listar las opciones disponibles.
+final Map<String, ExtractorColumna> columnasProduccion = {
+  ColKardex.op: (i) => i.item.op,
+  ColKardex.producto: (i) => i.item.descripcion,
+  ColKardex.cliente: (i) => i.item.cliente,
+  ColKardex.cantidad: (i) => '${i.cantidadPedida}',
+  ColKardex.entregado: (i) => '${i.producido}',
+  ColKardex.pendiente: (i) => '${i.pendienteProduccion}',
+  ColKardex.noConforme: (i) => '${i.pendienteReproceso}',
+  ColKardex.estadoProduccion: (i) => i.estadoProduccion.etiqueta,
+  ColKardex.fechaEntrega: (i) => _fechaOTexto(i.fechaEntrega),
+  ColKardex.fechaEsperada: (i) => _fechaOTexto(i.fechaEsperadaProduccion),
+  ColKardex.diasFaltantes: (i) => _diasFaltantesTexto(i.fechaEsperadaProduccion),
+};
+
+/// Igual, pero para la vista Bodega.
+final Map<String, ExtractorColumna> columnasBodega = {
+  ColKardex.op: (i) => i.item.op,
+  ColKardex.producto: (i) => i.item.descripcion,
+  ColKardex.cliente: (i) => i.item.cliente,
+  ColKardex.pedidas: (i) => '${i.cantidadPedida}',
+  ColKardex.produccion: (i) => '${i.producido}',
+  ColKardex.pendienteProduccionBodega: (i) => '${i.pendienteProduccion}',
+  ColKardex.bodega: (i) => '${i.recibido}',
+  ColKardex.despachadas: (i) => '${i.despachado}',
+  ColKardex.noConformeBodega: (i) => '${i.pendienteReproceso}',
+  ColKardex.estadoBodega: (i) => i.estadoLogistica.etiqueta,
+  ColKardex.fechaEntregaBodega: (i) => _fechaOTexto(i.fechaEntrega),
+  ColKardex.fechaEsperadaBodega: (i) => _fechaOTexto(i.fechaEsperadaLogistica),
+  ColKardex.diasFaltantesBodega: (i) => _diasFaltantesTexto(i.fechaEsperadaLogistica),
+};
+
+String _diasFaltantesTexto(DateTime? esperada) {
+  if (esperada == null) return 'Sin fecha';
+  final hoy = DateTime.now();
+  final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
+  final soloEsperada = DateTime(esperada.year, esperada.month, esperada.day);
+  final dias = soloEsperada.difference(soloHoy).inDays;
+  if (dias < 0) return 'Vencido ${-dias}d';
+  if (dias == 0) return 'HOY';
+  return 'Faltan ${dias}d';
+}
+ORBILOQ_EOF
+
+echo "  - lib/features/kardex/presentation/kardex_table.dart"
+mkdir -p "$(dirname 'lib/features/kardex/presentation/kardex_table.dart')"
+cat > 'lib/features/kardex/presentation/kardex_table.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,7 +228,7 @@ import '../../../shared/widgets/multi_select_filter.dart';
 import 'observacion_dialog.dart';
 
 // Columnas para el rol Producción (Taller). Todas tienen filtro por columna.
-const List<double> _kAnchosProduccion = [100, 160, 150, 95, 140, 95, 140, 170, 110, 110, 115];
+const List<double> _kAnchosProduccion = [110, 220, 170, 85, 160, 100, 150, 190, 120, 120, 110];
 const List<String> _kEtiquetasProduccion = [
   'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'CANTIDAD',
   'ENTREGADO A LOGÍSTICA', 'PENDIENTE', 'PRODUCTO NO CONFORME',
@@ -24,7 +243,7 @@ const List<String?> _kColumnasProduccion = [
 ];
 
 // Columnas para el rol Logística (Bodega). Todas tienen filtro por columna.
-const List<double> _kAnchosBodega = [100, 150, 150, 90, 135, 135, 85, 120, 120, 95, 100, 100, 105];
+const List<double> _kAnchosBodega = [100, 190, 150, 75, 110, 110, 75, 95, 110, 120, 100, 100, 110];
 const List<String> _kEtiquetasBodega = [
   'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'PEDIDAS',
   'ENTREGADO POR PRODUCCIÓN', 'PENDIENTE POR PRODUCCIÓN', 'BODEGA', 'DESPACHADAS',
@@ -94,13 +313,12 @@ class KardexTable extends ConsumerWidget {
                                 ? Text(
                                     etiquetas[i],
                                     maxLines: 2,
-                                    softWrap: true,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       color: AppColors.darkTextSecondary,
                                       fontWeight: FontWeight.w700,
-                                      fontSize: 10,
-                                      letterSpacing: 0.1,
+                                      fontSize: 11,
+                                      letterSpacing: 0.3,
                                       height: 1.2,
                                     ),
                                   )
@@ -158,13 +376,12 @@ class _EncabezadoConFiltro extends ConsumerWidget {
           child: Text(
             etiqueta,
             maxLines: 2,
-            softWrap: true,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.darkTextSecondary,
               fontWeight: FontWeight.w700,
-              fontSize: 10,
-              letterSpacing: 0.1,
+              fontSize: 11,
+              letterSpacing: 0.3,
               height: 1.2,
             ),
           ),
@@ -337,82 +554,19 @@ class _KardexRow extends StatelessWidget {
             decoration: BoxDecoration(color: _colorProducto(o.codigo), borderRadius: BorderRadius.circular(3)),
           ),
           Flexible(
-            child: Builder(
-              builder: (context) => InkWell(
-                borderRadius: BorderRadius.circular(4),
-                onTap: () => _mostrarProductoCompleto(context, o),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(o.descripcion,
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.darkTextPrimary)),
-                    Text('Talla ${o.talla}', style: const TextStyle(fontSize: 11, color: AppColors.darkTextMuted)),
-                  ],
-                ),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(o.descripcion,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.darkTextPrimary)),
+                Text('Talla ${o.talla}', style: const TextStyle(fontSize: 11, color: AppColors.darkTextMuted)),
+              ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _mostrarProductoCompleto(BuildContext context, ItemOrden o) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.darkCard,
-        title: Row(
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(color: _colorProducto(o.codigo), borderRadius: BorderRadius.circular(3)),
-            ),
-            const Expanded(
-              child: Text('Producto', style: TextStyle(color: AppColors.darkTextPrimary)),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              o.descripcion,
-              style: const TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.darkTextPrimary),
-            ),
-            const SizedBox(height: 12),
-            _filaDato('Código', o.codigo),
-            _filaDato('Talla', o.talla),
-            _filaDato('OP', o.op),
-            if (o.oc.isNotEmpty) _filaDato('OC', o.oc),
-            _filaDato('Cliente', o.cliente),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('CERRAR')),
-        ],
-      ),
-    );
-  }
-
-  Widget _filaDato(String etiqueta, String valor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(fontSize: 13, color: AppColors.darkTextSecondary),
-          children: [
-            TextSpan(text: '$etiqueta: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-            TextSpan(text: valor, style: const TextStyle(color: AppColors.darkTextPrimary)),
-          ],
-        ),
       ),
     );
   }
@@ -608,3 +762,6 @@ class _KardexRow extends StatelessWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo "Listo. Revisa el diff con: git diff --stat"

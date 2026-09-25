@@ -40,6 +40,12 @@ final personalLogisticaProvider = FutureProvider<List<String>>(
   (ref) => ref.watch(wmsRepositoryProvider).cargarPersonalLogistica(),
 );
 
+/// Lista ampliable de personas de Producción que pueden entregar una prenda
+/// no conforme a Logística. Se invalida tras agregar un nombre nuevo.
+final personalProduccionProvider = FutureProvider<List<String>>(
+  (ref) => ref.watch(wmsRepositoryProvider).cargarPersonalProduccion(),
+);
+
 // ------------------------------------------------------------------- rol
 
 class RolNotifier extends Notifier<Rol> {

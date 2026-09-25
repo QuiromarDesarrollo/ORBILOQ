@@ -16,6 +16,7 @@ abstract final class ColKardex {
   static const estadoProduccion = 'estadoProduccion';
   static const fechaEntrega = 'fechaEntrega';
   static const fechaEsperada = 'fechaEsperada';
+  static const diasFaltantes = 'diasFaltantes';
   // Vista Bodega
   static const pedidas = 'pedidas';
   static const produccion = 'produccion';

@@ -33,6 +33,7 @@ class InMemoryWmsRepository implements WmsRepository {
   final List<Devolucion> _devoluciones = []; // más recientes primero
   int _correlativoDevolucion = 0;
   final List<String> _personalLogistica = ['RECEPCIÓN BODEGA'];
+  final List<String> _personalProduccion = ['SUPERVISOR PLANTA'];
   final StreamController<WmsSnapshot> _controller = StreamController.broadcast();
 
   // ---------------------------------------------------------------- lectura
@@ -246,6 +247,22 @@ class InMemoryWmsRepository implements WmsRepository {
     );
     if (existente.isNotEmpty) return Ok<String>(existente);
     _personalLogistica.add(limpio);
+    return Ok<String>(limpio);
+  }
+
+  @override
+  Future<List<String>> cargarPersonalProduccion() async => List.unmodifiable(_personalProduccion);
+
+  @override
+  Future<Result<String>> agregarPersonalProduccion(String nombre) async {
+    final limpio = nombre.trim();
+    if (limpio.isEmpty) return Err<String>('El nombre no puede estar vacío.');
+    final existente = _personalProduccion.firstWhere(
+      (n) => n.toLowerCase() == limpio.toLowerCase(),
+      orElse: () => '',
+    );
+    if (existente.isNotEmpty) return Ok<String>(existente);
+    _personalProduccion.add(limpio);
     return Ok<String>(limpio);
   }
 
