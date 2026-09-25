@@ -70,6 +70,7 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
   final _qrCtrl = TextEditingController();
   final Map<String, TextEditingController> _cantidadCtrls = {};
   final Map<String, bool> _liberando = {};
+  final Map<String, String?> _recibidoPorLogistica = {};
   String _operario = WmsConstantes.operarios.first;
   String _filtroOp = '';
   FeedbackMessage? _msgGeneral;
@@ -151,6 +152,12 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
           FeedbackMessage.error('LÍMITE EXCEDIDO: solo hay ${k.pendienteReproceso} Uds pendientes por reprocesar.'));
       return;
     }
+    final recibidoPor = _recibidoPorLogistica[k.id]?.trim() ?? '';
+    if (recibidoPor.isEmpty) {
+      setState(() => _msgGeneral =
+          const FeedbackMessage.error('Indica quién de Logística recibió esta prenda antes de liberar.'));
+      return;
+    }
 
     setState(() {
       _msgGeneral = null;
@@ -160,6 +167,7 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
           itemId: k.id,
           cantidad: cantidad,
           operario: _operario,
+          recibidoPorLogistica: recibidoPor,
         );
     if (!mounted) return;
     setState(() {
@@ -170,6 +178,7 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
             '${cantidad}u de ${k.item.descripcion} (${k.item.talla}) liberadas — vuelven a Entregado a Logística.',
           );
           _cantidadCtrls.remove(k.id)?.dispose();
+          _recibidoPorLogistica.remove(k.id);
         case Err(:final message):
           _msgGeneral = FeedbackMessage.error(message);
       }
@@ -246,6 +255,9 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
                           cantidadCtrl: _ctrlPara(visibles[i]),
                           liberando: _liberando[visibles[i].id] ?? false,
                           motivos: motivos[visibles[i].id] ?? const [],
+                          recibidoPorLogistica: _recibidoPorLogistica[visibles[i].id],
+                          onRecibidoPorLogisticaChanged: (v) =>
+                              setState(() => _recibidoPorLogistica[visibles[i].id] = v),
                           onLiberar: () => _liberar(visibles[i]),
                         ),
                       ),
@@ -258,12 +270,89 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
   }
 }
 
+/// Desplegable ampliable: además de la lista de personal de Logística ya
+/// registrada, permite agregar un nombre nuevo directo desde la tarjeta.
+class _PersonalLogisticaDropdown extends ConsumerWidget {
+  const _PersonalLogisticaDropdown({required this.valor, required this.onChanged});
+
+  static const _valorAgregar = '__agregar_nuevo__';
+
+  final String? valor;
+  final ValueChanged<String?> onChanged;
+
+  Future<void> _agregarNuevo(BuildContext context, WidgetRef ref) async {
+    final ctrl = TextEditingController();
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Agregar persona de Logística'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: wmsInput('Nombre completo'),
+          onSubmitted: (v) => Navigator.of(dialogContext).pop(v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('CANCELAR')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(ctrl.text.trim()),
+            child: const Text('AGREGAR'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (nombre == null || nombre.isEmpty) return;
+
+    final res = await ref.read(wmsRepositoryProvider).agregarPersonalLogistica(nombre);
+    switch (res) {
+      case Ok(:final value):
+        ref.invalidate(personalLogisticaProvider);
+        onChanged(value);
+      case Err(:final message):
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final personal = ref.watch(personalLogisticaProvider);
+    return personal.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (e, _) => Text('No se pudo cargar el personal de Logística: $e',
+          style: const TextStyle(color: AppColors.alertRed)),
+      data: (lista) => DropdownButtonFormField<String>(
+        initialValue: valor,
+        decoration: wmsInput('Quién de Logística recibió la prenda', icon: Icons.person_outline),
+        items: [
+          for (final n in lista) DropdownMenuItem(value: n, child: Text(n)),
+          const DropdownMenuItem(
+            value: _valorAgregar,
+            child: Text('+ AGREGAR NUEVA PERSONA…', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+        onChanged: (v) {
+          if (v == _valorAgregar) {
+            _agregarNuevo(context, ref);
+            return;
+          }
+          onChanged(v);
+        },
+      ),
+    );
+  }
+}
+
 class _TarjetaNoConforme extends StatelessWidget {
   const _TarjetaNoConforme({
     required this.kardex,
     required this.cantidadCtrl,
     required this.liberando,
     required this.motivos,
+    required this.recibidoPorLogistica,
+    required this.onRecibidoPorLogisticaChanged,
     required this.onLiberar,
   });
 
@@ -271,6 +360,8 @@ class _TarjetaNoConforme extends StatelessWidget {
   final TextEditingController cantidadCtrl;
   final bool liberando;
   final List<String> motivos;
+  final String? recibidoPorLogistica;
+  final ValueChanged<String?> onRecibidoPorLogisticaChanged;
   final VoidCallback onLiberar;
 
   @override
@@ -322,6 +413,11 @@ class _TarjetaNoConforme extends StatelessWidget {
               ),
             ]),
             const SizedBox(height: 12),
+            _PersonalLogisticaDropdown(
+              valor: recibidoPorLogistica,
+              onChanged: onRecibidoPorLogisticaChanged,
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -398,7 +494,9 @@ class _HistorialTabState extends ConsumerState<_HistorialTab> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
-                  'OP: ${l.item.op} | Por: ${l.operario} | ${formatFechaHora(l.fecha)}'
+                  'OP: ${l.item.op} | Por: ${l.operario}'
+                  '${l.recibidoPorLogistica.isNotEmpty ? ' | Recibido por Logística: ${l.recibidoPorLogistica}' : ''}'
+                  ' | ${formatFechaHora(l.fecha)}'
                   '${l.nota.isNotEmpty ? ' | ${l.nota}' : ''}',
                 ),
               ),

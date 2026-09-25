@@ -32,6 +32,7 @@ class InMemoryWmsRepository implements WmsRepository {
   int _correlativoLiberacion = 0;
   final List<Devolucion> _devoluciones = []; // más recientes primero
   int _correlativoDevolucion = 0;
+  final List<String> _personalLogistica = ['RECEPCIÓN BODEGA'];
   final StreamController<WmsSnapshot> _controller = StreamController.broadcast();
 
   // ---------------------------------------------------------------- lectura
@@ -233,16 +234,36 @@ class InMemoryWmsRepository implements WmsRepository {
       ];
 
   @override
+  Future<List<String>> cargarPersonalLogistica() async => List.unmodifiable(_personalLogistica);
+
+  @override
+  Future<Result<String>> agregarPersonalLogistica(String nombre) async {
+    final limpio = nombre.trim();
+    if (limpio.isEmpty) return Err<String>('El nombre no puede estar vacío.');
+    final existente = _personalLogistica.firstWhere(
+      (n) => n.toLowerCase() == limpio.toLowerCase(),
+      orElse: () => '',
+    );
+    if (existente.isNotEmpty) return Ok<String>(existente);
+    _personalLogistica.add(limpio);
+    return Ok<String>(limpio);
+  }
+
+  @override
   Future<Result<void>> registrarNoConforme({
     required String itemId,
     required int cantidad,
     required String causalId,
     required String operario,
+    required String recibidoDeProduccion,
     String nota = '',
   }) async {
     final item = _items[itemId];
     if (item == null) return Err<void>('El producto no existe en el kardex.');
     if (cantidad <= 0) return Err<void>('La cantidad debe ser mayor a 0.');
+    if (recibidoDeProduccion.trim().isEmpty) {
+      return Err<void>('Debes indicar quién de Producción entregó esta prenda.');
+    }
     final producido = _snapshot().kardexPorId(itemId)?.producido ?? 0;
     if (cantidad > producido) {
       return Err<void>('LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.');
@@ -259,6 +280,7 @@ class InMemoryWmsRepository implements WmsRepository {
         operario: operario,
         fecha: fecha,
         nota: nota,
+        recibidoDeProduccion: recibidoDeProduccion.trim(),
       ),
     );
     _movimientos.add(Movimiento(
@@ -280,11 +302,15 @@ class InMemoryWmsRepository implements WmsRepository {
     required String itemId,
     required int cantidad,
     required String operario,
+    required String recibidoPorLogistica,
     String nota = '',
   }) async {
     final item = _items[itemId];
     if (item == null) return Err<void>('El producto no existe en el kardex.');
     if (cantidad <= 0) return Err<void>('La cantidad debe ser mayor a 0.');
+    if (recibidoPorLogistica.trim().isEmpty) {
+      return Err<void>('Debes indicar quién de Logística recibió esta prenda.');
+    }
     final pendienteReproceso = _snapshot().kardexPorId(itemId)?.pendienteReproceso ?? 0;
     if (cantidad > pendienteReproceso) {
       return Err<void>('LÍMITE EXCEDIDO: solo hay $pendienteReproceso Uds pendientes por reprocesar.');
@@ -300,6 +326,7 @@ class InMemoryWmsRepository implements WmsRepository {
         operario: operario,
         fecha: fecha,
         nota: nota,
+        recibidoPorLogistica: recibidoPorLogistica.trim(),
       ),
     );
 

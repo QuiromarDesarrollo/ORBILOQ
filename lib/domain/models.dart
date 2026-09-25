@@ -84,6 +84,7 @@ class Liberacion {
     required this.operario,
     required this.fecha,
     this.nota = '',
+    this.recibidoPorLogistica = '',
   });
 
   final String id;
@@ -92,6 +93,8 @@ class Liberacion {
   final String operario;
   final DateTime fecha;
   final String nota;
+  /// Quién de Logística recibió de vuelta la prenda liberada.
+  final String recibidoPorLogistica;
 }
 
 /// Registro de haber reportado un producto como no conforme.
@@ -104,6 +107,7 @@ class Devolucion {
     required this.operario,
     required this.fecha,
     this.nota = '',
+    this.recibidoDeProduccion = '',
   });
 
   final String id;
@@ -113,6 +117,8 @@ class Devolucion {
   final String operario;
   final DateTime fecha;
   final String nota;
+  /// Quién de Producción entregó la prenda reportada como no conforme.
+  final String recibidoDeProduccion;
 }
 
 /// Clave única de una línea de orden (OP + OC + código + talla).

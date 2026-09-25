@@ -37,6 +37,15 @@ abstract interface class WmsRepository {
   /// Causales disponibles para marcar un producto como no conforme.
   Future<List<Causal>> cargarCausales();
 
+  /// Lista ampliable de personas de Logística que pueden recibir una prenda
+  /// liberada por Producción. Se puede agregar un nombre nuevo con
+  /// [agregarPersonalLogistica].
+  Future<List<String>> cargarPersonalLogistica();
+
+  /// Agrega (o reutiliza si ya existe) un nombre en la lista de personal de
+  /// Logística, devolviendo el nombre normalizado guardado.
+  Future<Result<String>> agregarPersonalLogistica(String nombre);
+
   /// Logística marca unidades como no conformes: se restan de lo entregado
   /// por Producción (independiente de cualquier lote) y quedan reflejadas
   /// en "Producto no conforme" hasta que se reprocesen.
@@ -45,6 +54,7 @@ abstract interface class WmsRepository {
     required int cantidad,
     required String causalId,
     required String operario,
+    required String recibidoDeProduccion,
     String nota = '',
   });
 
@@ -54,6 +64,7 @@ abstract interface class WmsRepository {
     required String itemId,
     required int cantidad,
     required String operario,
+    required String recibidoPorLogistica,
     String nota = '',
   });
 

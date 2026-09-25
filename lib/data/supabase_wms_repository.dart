@@ -336,11 +336,35 @@ class SupabaseWmsRepository implements WmsRepository {
   }
 
   @override
+  Future<List<String>> cargarPersonalLogistica() async {
+    final filas = await _client
+        .from('personal_logistica')
+        .select('nombre')
+        .eq('activo', true)
+        .order('nombre');
+    return [for (final f in (filas as List).cast<Map<String, dynamic>>()) f['nombre'] as String];
+  }
+
+  @override
+  Future<Result<String>> agregarPersonalLogistica(String nombre) async {
+    try {
+      final res = await _client.rpc('agregar_personal_logistica', params: {'p_nombre': nombre});
+      final fila = res as Map<String, dynamic>;
+      return Ok<String>(fila['nombre'] as String);
+    } on PostgrestException catch (e) {
+      return Err<String>(e.message);
+    } catch (e) {
+      return Err<String>('Error inesperado al agregar el nombre: $e');
+    }
+  }
+
+  @override
   Future<Result<void>> registrarNoConforme({
     required String itemId,
     required int cantidad,
     required String causalId,
     required String operario,
+    required String recibidoDeProduccion,
     String nota = '',
   }) async {
     try {
@@ -350,6 +374,7 @@ class SupabaseWmsRepository implements WmsRepository {
         'p_causal_id': causalId,
         'p_operario_nombre': operario,
         'p_nota': nota,
+        'p_recibido_de_produccion': recibidoDeProduccion,
       });
       await refrescar();
       return const Ok<void>(null);
@@ -365,6 +390,7 @@ class SupabaseWmsRepository implements WmsRepository {
     required String itemId,
     required int cantidad,
     required String operario,
+    required String recibidoPorLogistica,
     String nota = '',
   }) async {
     try {
@@ -373,6 +399,7 @@ class SupabaseWmsRepository implements WmsRepository {
         'p_cantidad': cantidad,
         'p_operario_nombre': operario,
         'p_nota': nota,
+        'p_recibido_por_logistica': recibidoPorLogistica,
       });
       await refrescar();
       return const Ok<void>(null);
@@ -406,6 +433,7 @@ class SupabaseWmsRepository implements WmsRepository {
           operario: row['operario_nombre'] as String,
           fecha: DateTime.parse(row['creado_en'] as String).toLocal(),
           nota: (row['nota'] as String?) ?? '',
+          recibidoPorLogistica: (row['recibido_por_logistica'] as String?) ?? '',
         ),
     ];
   }
@@ -434,6 +462,7 @@ class SupabaseWmsRepository implements WmsRepository {
           operario: row['operario_nombre'] as String,
           fecha: DateTime.parse(row['creado_en'] as String).toLocal(),
           nota: (row['nota'] as String?) ?? '',
+          recibidoDeProduccion: (row['recibido_de_produccion'] as String?) ?? '',
         ),
     ];
   }

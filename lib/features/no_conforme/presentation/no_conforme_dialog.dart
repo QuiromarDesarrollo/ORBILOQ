@@ -69,6 +69,7 @@ class _TarjetaNoConforme {
   final TextEditingController notaCtrl;
   int conteo = 1;
   String? causalId;
+  String? recibidoDeProduccion;
   bool enviando = false;
   bool enviada = false;
 
@@ -89,6 +90,10 @@ Future<void> _reportarTodo({
   for (final t in pendientes) {
     if (t.causalId == null) {
       setMensaje(const FeedbackMessage.error('Hay una tarjeta sin causal seleccionada.'));
+      return;
+    }
+    if (t.recibidoDeProduccion == null || t.recibidoDeProduccion!.trim().isEmpty) {
+      setMensaje(const FeedbackMessage.error('Hay una tarjeta sin indicar quién de Producción entregó la prenda.'));
       return;
     }
     final cantidad = int.tryParse(t.cantidadCtrl.text.trim()) ?? 0;
@@ -114,6 +119,7 @@ Future<void> _reportarTodo({
           cantidad: cantidad,
           causalId: t.causalId!,
           operario: operario,
+          recibidoDeProduccion: t.recibidoDeProduccion!.trim(),
           nota: t.notaCtrl.text,
         );
     if (!estaMontado()) return;
@@ -159,6 +165,23 @@ class _CausalDropdown extends ConsumerWidget {
         items: [for (final c in lista) DropdownMenuItem(value: c.id, child: Text(c.nombre))],
         onChanged: onChanged,
       ),
+    );
+  }
+}
+
+class _RecibidoDeProduccionDropdown extends StatelessWidget {
+  const _RecibidoDeProduccionDropdown({required this.valor, required this.onChanged});
+
+  final String? valor;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      initialValue: valor,
+      decoration: wmsInput('Quién de Producción entregó la prenda', icon: Icons.person_outline),
+      items: [for (final n in WmsConstantes.operarios) DropdownMenuItem(value: n, child: Text(n))],
+      onChanged: onChanged,
     );
   }
 }
@@ -603,6 +626,11 @@ class _TarjetaWidgetState extends State<_TarjetaWidget> {
                 onChanged: (v) => setState(() => t.causalId = v),
               ),
               const SizedBox(height: 10),
+              _RecibidoDeProduccionDropdown(
+                valor: t.recibidoDeProduccion,
+                onChanged: (v) => setState(() => t.recibidoDeProduccion = v),
+              ),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -682,7 +710,9 @@ class _HistorialTabState extends ConsumerState<_HistorialTab> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
-                  'OP: ${d.item.op} | Reportado por: ${d.operario} | ${formatFechaHora(d.fecha)}'
+                  'OP: ${d.item.op} | Reportado por: ${d.operario}'
+                  '${d.recibidoDeProduccion.isNotEmpty ? ' | Recibido de Producción: ${d.recibidoDeProduccion}' : ''}'
+                  ' | ${formatFechaHora(d.fecha)}'
                   '${d.nota.isNotEmpty ? ' | ${d.nota}' : ''}',
                 ),
               ),
