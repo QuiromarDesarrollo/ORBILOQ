@@ -406,7 +406,7 @@ class _KardexRow extends StatelessWidget {
       ),
       _Celda(7, anchos, _celdaEstado()),
       _Celda(8, anchos, _chipFecha(item.fechaEntrega)),
-      _Celda(9, anchos, _chipFecha(item.fechaEntregaLogistica)),
+      _Celda(9, anchos, _chipFecha(item.fechaEsperadaProduccion)),
     ];
   }
 
@@ -478,8 +478,8 @@ class _KardexRow extends StatelessWidget {
       ),
       _Celda(9, anchos, _celdaEstadoLogistica()),
       _Celda(10, anchos, _chipFecha(item.fechaEntrega)),
-      _Celda(11, anchos, _chipFecha(item.fechaEntregaLogistica)),
-      _Celda(12, anchos, _chipDiasFaltantes(item.fechaEntregaLogistica)),
+      _Celda(11, anchos, _chipFecha(item.fechaEsperadaLogistica)),
+      _Celda(12, anchos, _chipDiasFaltantes(item.fechaEsperadaLogistica)),
     ];
   }
 

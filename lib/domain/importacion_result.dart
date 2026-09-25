@@ -29,3 +29,25 @@ class ResumenImportacion {
     );
   }
 }
+
+/// Resultado de importar el Excel de fechas esperadas (solo actualiza OP
+/// que ya existen — nunca crea nada nuevo).
+class ResumenImportacionFechas {
+  const ResumenImportacionFechas({
+    required this.actualizadas,
+    required this.noEncontradas,
+  });
+
+  final int actualizadas;
+  final List<String> noEncontradas;
+
+  bool get tuvoProblemas => noEncontradas.isNotEmpty;
+
+  factory ResumenImportacionFechas.fromJson(Map<String, dynamic> json) {
+    final noEncontradas = (json['no_encontradas'] as List?) ?? const [];
+    return ResumenImportacionFechas(
+      actualizadas: (json['actualizadas'] as num?)?.toInt() ?? 0,
+      noEncontradas: [for (final n in noEncontradas) n.toString()],
+    );
+  }
+}

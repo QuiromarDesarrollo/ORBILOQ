@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/supabase_importador_fechas.dart';
 import '../data/supabase_importador_ordenes.dart';
 import '../domain/models.dart';
 import '../domain/sesion.dart';
@@ -16,6 +17,9 @@ final wmsRepositoryProvider = Provider<WmsRepository>(
 /// Solo disponible cuando la app corre contra Supabase; `null` en modo memoria
 /// (la importación de Excel no tiene sentido sin una base de datos real detrás).
 final importadorOrdenesProvider = Provider<SupabaseImportadorOrdenes?>((ref) => null);
+
+/// Igual, para el Excel de fechas esperadas.
+final importadorFechasProvider = Provider<SupabaseImportadorFechas?>((ref) => null);
 
 final wmsSnapshotProvider = StreamProvider<WmsSnapshot>(
   (ref) => ref.watch(wmsRepositoryProvider).watch(),

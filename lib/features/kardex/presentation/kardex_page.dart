@@ -8,6 +8,7 @@ import '../../../domain/models.dart';
 import '../../../domain/sesion.dart';
 import '../../despacho/presentation/despacho_dialog.dart';
 import '../../importacion/presentation/importar_ordenes_dialog.dart';
+import '../../importacion_fechas/presentation/importar_fechas_dialog.dart';
 import '../../no_conforme/presentation/no_conforme_dialog.dart';
 import '../../produccion/presentation/entrega_produccion_dialog.dart';
 import '../../recepcion/presentation/recepcion_dialog.dart';
@@ -323,6 +324,11 @@ class _Cabecera extends StatelessWidget {
                 icono: Icons.domain_outlined,
                 texto: 'Estantes y tickets',
                 onPressed: () => showUbicacionesDialog(context),
+              ),
+              _BotonAccion(
+                icono: Icons.event_available_outlined,
+                texto: 'Importar fechas',
+                onPressed: () => showImportarFechasDialog(context),
               ),
             ],
           ],

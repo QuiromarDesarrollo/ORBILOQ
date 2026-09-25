@@ -264,7 +264,8 @@ class ItemKardex {
     required this.ubicaciones,
     this.fechaEntrega,
     this.fechaRecepcion,
-    this.fechaEntregaLogistica,
+    this.fechaEsperadaProduccion,
+    this.fechaEsperadaLogistica,
     this.pendienteReproceso = 0,
   });
 
@@ -278,9 +279,15 @@ class ItemKardex {
   final DateTime? fechaEntrega;
   final DateTime? fechaRecepcion;
 
-  /// Fecha comprometida de entrega al cliente final (viene del Excel de
-  /// fechas de entrega logística; puede no existir todavía).
-  final DateTime? fechaEntregaLogistica;
+  /// Fecha esperada de entrega desde Producción hacia Logística (viene del
+  /// Excel de fechas esperadas, columna "FECHA PROD"). Alimenta el estado
+  /// "Estado parcial por retardo" y la columna "Fecha esperada" de Producción.
+  final DateTime? fechaEsperadaProduccion;
+
+  /// Fecha esperada de despacho hacia el cliente final (viene del mismo
+  /// Excel, columna "FECHA LOG"). Alimenta "Fecha esperada" y "Días
+  /// faltantes" en la vista de Logística.
+  final DateTime? fechaEsperadaLogistica;
 
   /// Unidades devueltas a Producción por no conformidad, aún sin reprocesar.
   final int pendienteReproceso;
@@ -315,7 +322,7 @@ class ItemKardex {
   /// mientras tanto, nunca se activa.
   EstadoProduccion get estadoProduccion {
     if (pendienteProduccion <= 0 && cantidadPedida > 0) return EstadoProduccion.completado;
-    final esperada = fechaEntregaLogistica;
+    final esperada = fechaEsperadaProduccion;
     if (esperada != null) {
       final hoy = DateTime.now();
       final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);

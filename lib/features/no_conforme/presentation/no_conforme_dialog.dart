@@ -133,7 +133,7 @@ Future<void> _reportarTodo({
   setStateFn(() {
     if (primerError != null) {
       setMensaje(FeedbackMessage.error(
-        okCount == 0 ? primerError! : '$okCount reportado(s) — falló al menos uno: $primerError',
+        okCount == 0 ? primerError : '$okCount reportado(s) — falló al menos uno: $primerError',
       ));
     } else {
       setMensaje(FeedbackMessage.ok('$okCount producto(s) reportado(s) como no conforme.'));
@@ -154,7 +154,7 @@ class _CausalDropdown extends ConsumerWidget {
       loading: () => const LinearProgressIndicator(),
       error: (e, _) => Text('No se pudieron cargar las causales: $e', style: const TextStyle(color: AppColors.alertRed)),
       data: (lista) => DropdownButtonFormField<String>(
-        value: valor,
+        initialValue: valor,
         decoration: wmsInput('Causal de la no conformidad', icon: Icons.report_problem_outlined),
         items: [for (final c in lista) DropdownMenuItem(value: c.id, child: Text(c.nombre))],
         onChanged: onChanged,

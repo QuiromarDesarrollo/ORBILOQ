@@ -20,7 +20,7 @@ final Map<String, ExtractorColumna> columnasProduccion = {
   ColKardex.noConforme: (i) => '${i.pendienteReproceso}',
   ColKardex.estadoProduccion: (i) => i.estadoProduccion.etiqueta,
   ColKardex.fechaEntrega: (i) => _fechaOTexto(i.fechaEntrega),
-  ColKardex.fechaEsperada: (i) => _fechaOTexto(i.fechaEntregaLogistica),
+  ColKardex.fechaEsperada: (i) => _fechaOTexto(i.fechaEsperadaProduccion),
 };
 
 /// Igual, pero para la vista Bodega.
@@ -36,8 +36,8 @@ final Map<String, ExtractorColumna> columnasBodega = {
   ColKardex.noConformeBodega: (i) => '${i.pendienteReproceso}',
   ColKardex.estadoBodega: (i) => i.estadoLogistica.etiqueta,
   ColKardex.fechaEntregaBodega: (i) => _fechaOTexto(i.fechaEntrega),
-  ColKardex.fechaEsperadaBodega: (i) => _fechaOTexto(i.fechaEntregaLogistica),
-  ColKardex.diasFaltantesBodega: (i) => _diasFaltantesTexto(i.fechaEntregaLogistica),
+  ColKardex.fechaEsperadaBodega: (i) => _fechaOTexto(i.fechaEsperadaLogistica),
+  ColKardex.diasFaltantesBodega: (i) => _diasFaltantesTexto(i.fechaEsperadaLogistica),
 };
 
 String _diasFaltantesTexto(DateTime? esperada) {
