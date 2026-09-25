@@ -348,7 +348,7 @@ class _TarjetaLinea extends StatelessWidget {
                         spacing: 8,
                         children: [
                           Text(
-                            '${linea.item.codigo} (${linea.item.talla}) - ${linea.item.descripcion}',
+                            'OP: ${linea.item.op} (${linea.item.talla}) - ${linea.item.descripcion}',
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primaryNavy),
                           ),
                           if (linea.esReproceso)
@@ -364,7 +364,7 @@ class _TarjetaLinea extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        'OP: ${linea.item.op} | OC: ${linea.item.oc} | ${linea.cantidadEnviada} Uds | '
+                        'No. OC: ${linea.item.oc} | ${linea.cantidadEnviada} Uds | '
                         'Lote: ${lote.id} (${lote.operario})',
                         style: const TextStyle(fontSize: 12, color: Colors.black54),
                       ),

@@ -594,7 +594,7 @@ class _TarjetaWidget extends StatelessWidget {
                         spacing: 8,
                         children: [
                           Text(
-                            '${k.item.codigo} - ${k.item.descripcion} (${k.item.talla})',
+                            'OP: ${k.item.op} - ${k.item.descripcion} (${k.item.talla})',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -608,7 +608,7 @@ class _TarjetaWidget extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        'OP: ${k.item.op} | OC: ${k.item.oc} | Cliente: ${k.item.cliente}',
+                        'No. OC: ${k.item.oc} | Cliente: ${k.item.cliente}',
                         style: TextStyle(color: enviada ? Colors.grey.shade600 : null),
                       ),
                     ],
@@ -711,13 +711,13 @@ class _LoteExpandible extends StatelessWidget {
             ListTile(
               dense: true,
               title: Text(
-                '${linea.item.codigo} — ${linea.item.descripcion} (${linea.item.talla})',
+                'OP: ${linea.item.op} — ${linea.item.descripcion} (${linea.item.talla})',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('OP: ${linea.item.op} | Enviadas: ${linea.cantidadEnviada} Uds'
+                  Text('No. OC: ${linea.item.oc} | Enviadas: ${linea.cantidadEnviada} Uds'
                       '${linea.cantidadRecibida != null ? ' | Recibidas: ${linea.cantidadRecibida}' : ''}'),
                   if (linea.novedad.isNotEmpty)
                     Text('Novedad: ${linea.novedad}',

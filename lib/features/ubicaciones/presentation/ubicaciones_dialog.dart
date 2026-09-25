@@ -104,10 +104,10 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
                   return ListTile(
                     dense: true,
                     title: Text(
-                      '${e.item.item.codigo} - ${e.item.item.descripcion} (${e.item.item.talla})',
+                      'OP: ${e.item.item.op} - ${e.item.item.descripcion} (${e.item.item.talla})',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text('OP: ${e.item.item.op} | OC: ${e.item.item.oc} | Cliente: ${e.item.item.cliente}'),
+                    subtitle: Text('No. OC: ${e.item.item.oc} | Cliente: ${e.item.item.cliente}'),
                     trailing: Text(
                       '${e.cantidad} Uds',
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.actionGreen),

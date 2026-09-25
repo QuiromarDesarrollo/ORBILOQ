@@ -564,14 +564,14 @@ class _TarjetaWidgetState extends State<_TarjetaWidget> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${k.item.codigo} - ${k.item.descripcion} (${k.item.talla})',
+                        'OP: ${k.item.op} - ${k.item.descripcion} (${k.item.talla})',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                           color: enviada ? Colors.grey.shade600 : AppColors.primaryNavy,
                         ),
                       ),
-                      Text('OP: ${k.item.op} | Entregadas por Producción: ${k.producido} Uds',
+                      Text('No. OC: ${k.item.oc} | Entregadas por Producción: ${k.producido} Uds',
                           style: TextStyle(color: enviada ? Colors.grey.shade600 : null)),
                     ],
                   ),

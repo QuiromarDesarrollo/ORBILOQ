@@ -301,10 +301,10 @@ class _TarjetaNoConforme extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${k.item.codigo} - ${k.item.descripcion} (${k.item.talla})',
+              'OP: ${k.item.op} - ${k.item.descripcion} (${k.item.talla})',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryNavy),
             ),
-            Text('OP: ${k.item.op} | OC: ${k.item.oc} | Cliente: ${k.item.cliente}'),
+            Text('No. OC: ${k.item.oc} | Cliente: ${k.item.cliente}'),
             const SizedBox(height: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
