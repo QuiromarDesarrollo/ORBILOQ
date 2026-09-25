@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Orden de filtros de fecha por fecha real (no por texto)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_orden_fechas_filtro.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+
+echo "Corrigiendo orden de filtros de fecha..."
+
+echo "  - lib/shared/widgets/multi_select_filter.dart"
+mkdir -p "$(dirname 'lib/shared/widgets/multi_select_filter.dart')"
+cat > 'lib/shared/widgets/multi_select_filter.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -13,13 +30,11 @@ Future<Set<T>?> showMultiSelectFilter<T>(
 }) {
   return showDialog<Set<T>>(
     context: context,
-    builder: (_) => dialogoClaro(
-      _MultiSelectDialog<T>(
-        title: title,
-        options: options,
-        selected: selected,
-        labelOf: labelOf,
-      ),
+    builder: (_) => _MultiSelectDialog<T>(
+      title: title,
+      options: options,
+      selected: selected,
+      labelOf: labelOf,
     ),
   );
 }
@@ -104,9 +119,6 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
     final ninguno = _sel.isEmpty;
 
     return AlertDialog(
-      // Fijo en blanco: el título usa texto navy fijo, pensado para fondo
-      // claro (no debe oscurecerse con el tema oscuro del Kardex).
-      backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       title: Row(
         children: [
@@ -246,3 +258,6 @@ class _BotonOrden extends StatelessWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo "Listo. Revisa el diff con: git diff --stat"

@@ -222,6 +222,20 @@ class AppPalette extends ThemeExtension<AppPalette> {
 /// Atajo para leer la paleta activa desde cualquier widget con [context].
 AppPalette palOf(BuildContext context) => Theme.of(context).extension<AppPalette>() ?? AppPalette.oscuro;
 
+final ThemeData _temaDialogoClaro = ThemeData(
+  useMaterial3: true,
+  brightness: Brightness.light,
+  colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy, brightness: Brightness.light),
+);
+
+/// Envuelve un diálogo utilitario (filtros, confirmaciones, tickets) para
+/// que siempre se vea en modo claro, sin importar si el Kardex está en tema
+/// oscuro o claro: su diseño (texto navy fijo, tarjeta blanca) no está
+/// pensado para adaptarse, y en tema oscuro el título quedaba casi
+/// invisible. `showDialog` monta cada diálogo como una ruta aparte, así que
+/// esto se aplica en cada `builder`, no una sola vez arriba del árbol.
+Widget dialogoClaro(Widget child) => Theme(data: _temaDialogoClaro, child: child);
+
 /// Decoración estándar de campos de texto.
 InputDecoration wmsInput(String label, {IconData? icon, String? hint}) {
   return InputDecoration(

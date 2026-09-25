@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 
-Future<T?> showWmsDialog<T>(BuildContext context, WidgetBuilder builder) =>
-    showDialog<T>(context: context, barrierDismissible: false, builder: builder);
+Future<T?> showWmsDialog<T>(BuildContext context, WidgetBuilder builder) => showDialog<T>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => dialogoClaro(builder(ctx)),
+    );
 
 /// Marco común de los diálogos: título, cierre y tamaño responsive.
 /// Con [expand] el contenido ocupa toda la altura disponible (p. ej. pestañas).
@@ -29,6 +32,10 @@ class WmsDialogShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
     return Dialog(
+      // Fijo en blanco a propósito: estos diálogos usan texto navy fijo
+      // (título, iconos) diseñado para fondo claro, y no deben oscurecerse
+      // con el tema oscuro del Kardex o el texto queda ilegible.
+      backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.all(16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(

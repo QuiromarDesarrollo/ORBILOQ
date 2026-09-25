@@ -29,7 +29,7 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
   Future<void> _imprimir(List<_Existencia> items, int total) async {
     final imprimir = await showDialog<bool>(
       context: context,
-      builder: (_) => _TicketDialog(ubicacion: _ubicacion, items: items, total: total),
+      builder: (_) => dialogoClaro(_TicketDialog(ubicacion: _ubicacion, items: items, total: total)),
     );
     if (imprimir == true && mounted) {
       setState(() => _msg = FeedbackMessage.ok('Ticket de $_ubicacion enviado a impresora térmica.'));

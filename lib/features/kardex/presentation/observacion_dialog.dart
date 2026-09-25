@@ -7,7 +7,7 @@ Future<void> showObservacionDialog(BuildContext context, ItemKardex k) {
   final obs = k.item.observacionOp;
   return showDialog<void>(
     context: context,
-    builder: (ctx) => AlertDialog(
+    builder: (ctx) => dialogoClaro(AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       title: Row(
         children: [
@@ -52,6 +52,6 @@ Future<void> showObservacionDialog(BuildContext context, ItemKardex k) {
           child: const Text('ENTENDIDO'),
         ),
       ],
-    ),
+    )),
   );
 }
