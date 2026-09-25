@@ -36,14 +36,15 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
     final notifier = ref.read(kardexFiltersProvider.notifier);
     final rol = ref.watch(rolProvider);
     final colEstado = rol == Rol.produccion ? ColKardex.estadoProduccion : ColKardex.estadoBodega;
+    final pal = palOf(context);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: pal.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.darkCardBorder),
+        border: Border.all(color: pal.cardBorder),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -54,26 +55,26 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
               child: TextField(
                 controller: _busquedaCtrl,
                 onChanged: notifier.setBusqueda,
-                style: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 13),
+                style: TextStyle(color: pal.textPrimary, fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'Buscar por OP, cliente, OC o producto',
-                  hintStyle: const TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
-                  prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.darkTextMuted),
+                  hintStyle: TextStyle(color: pal.textMuted, fontSize: 13),
+                  prefixIcon: Icon(Icons.search, size: 20, color: pal.textMuted),
                   filled: true,
-                  fillColor: AppColors.darkInput,
+                  fillColor: pal.input,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.darkCardBorder),
+                    borderSide: BorderSide(color: pal.cardBorder),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.darkCardBorder),
+                    borderSide: BorderSide(color: pal.cardBorder),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.tealAccent),
+                    borderSide: BorderSide(color: pal.accent),
                   ),
                 ),
               ),
@@ -100,8 +101,8 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
               icon: const Icon(Icons.tune, size: 18),
               label: const Text('Limpiar'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.darkTextSecondary,
-                side: const BorderSide(color: AppColors.darkCardBorder),
+                foregroundColor: pal.textSecondary,
+                side: BorderSide(color: pal.cardBorder),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             ),
@@ -135,36 +136,33 @@ class _Desplegable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pal = palOf(context);
     return SizedBox(
       width: ancho,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: AppColors.darkInput,
+          color: pal.input,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.darkCardBorder),
+          border: Border.all(color: pal.cardBorder),
         ),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String?>(
             isExpanded: true,
             isDense: true,
             value: valor,
-            dropdownColor: AppColors.darkCard,
-            hint: Text(etiquetaTodos,
-                style: const TextStyle(fontSize: 13, color: AppColors.darkTextSecondary)),
-            icon: const Icon(Icons.expand_more, size: 18, color: AppColors.darkTextMuted),
+            dropdownColor: pal.card,
+            hint: Text(etiquetaTodos, style: TextStyle(fontSize: 13, color: pal.textSecondary)),
+            icon: Icon(Icons.expand_more, size: 18, color: pal.textMuted),
             items: [
               DropdownMenuItem<String?>(
                 value: null,
-                child: Text(etiquetaTodos,
-                    style: const TextStyle(fontSize: 13, color: AppColors.darkTextPrimary)),
+                child: Text(etiquetaTodos, style: TextStyle(fontSize: 13, color: pal.textPrimary)),
               ),
               for (final o in opciones)
                 DropdownMenuItem<String?>(
                   value: o,
-                  child: Text(o,
-                      style: const TextStyle(fontSize: 13, color: AppColors.darkTextPrimary),
-                      overflow: TextOverflow.ellipsis),
+                  child: Text(o, style: TextStyle(fontSize: 13, color: pal.textPrimary), overflow: TextOverflow.ellipsis),
                 ),
             ],
             onChanged: onChanged,

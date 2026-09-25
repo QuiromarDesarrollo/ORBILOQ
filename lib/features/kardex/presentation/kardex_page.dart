@@ -46,16 +46,18 @@ class _KardexPageState extends ConsumerState<KardexPage> {
   Widget build(BuildContext context) {
     final rol = ref.watch(rolProvider);
     final snapshot = ref.watch(wmsSnapshotProvider);
+    final pal = palOf(context);
+    final modoTema = ref.watch(temaProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.darkBg,
+      backgroundColor: pal.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.darkHeader,
-        foregroundColor: AppColors.darkTextPrimary,
+        backgroundColor: pal.header,
+        foregroundColor: pal.textPrimary,
         elevation: 0,
         toolbarHeight: 72,
-        surfaceTintColor: AppColors.darkHeader,
-        shape: const Border(bottom: BorderSide(color: AppColors.darkCardBorder)),
+        surfaceTintColor: pal.header,
+        shape: Border(bottom: BorderSide(color: pal.cardBorder)),
         titleSpacing: 20,
         title: Row(
           children: [
@@ -71,33 +73,42 @@ class _KardexPageState extends ConsumerState<KardexPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 RichText(
-                  text: const TextSpan(
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
+                  text: TextSpan(
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: pal.textPrimary),
                     children: [
-                      TextSpan(text: 'ORBILOQ '),
+                      const TextSpan(text: 'ORBILOQ '),
                       TextSpan(
                         text: '| KARDEX MAESTRO',
-                        style: TextStyle(fontWeight: FontWeight.w500, color: AppColors.tealAccent),
+                        style: TextStyle(fontWeight: FontWeight.w500, color: pal.accent),
                       ),
                     ],
                   ),
                 ),
-                const Text(
+                Text(
                   'CONTROL OPERATIVO DE BODEGA Y PRODUCCIÓN',
-                  style: TextStyle(fontSize: 10, color: AppColors.darkTextMuted, letterSpacing: 0.4),
+                  style: TextStyle(fontSize: 10, color: pal.textMuted, letterSpacing: 0.4),
                 ),
               ],
             ),
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: modoTema == TemaModo.claro ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro',
+            onPressed: () => ref.read(temaProvider.notifier).alternar(),
+            icon: Icon(
+              modoTema == TemaModo.claro ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+              color: pal.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 4),
           OutlinedButton.icon(
             onPressed: () => showImportarOrdenesDialog(context),
             icon: const Icon(Icons.upload_file_outlined, size: 18),
             label: const Text('Importar Excel'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.darkTextSecondary,
-              side: const BorderSide(color: AppColors.darkCardBorder),
+              foregroundColor: pal.textSecondary,
+              side: BorderSide(color: pal.cardBorder),
             ),
           ),
           const SizedBox(width: 10),
@@ -119,9 +130,9 @@ class _KardexPageState extends ConsumerState<KardexPage> {
         ],
       ),
       body: snapshot.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.tealAccent)),
+        loading: () => Center(child: CircularProgressIndicator(color: pal.accent)),
         error: (e, _) => Center(
-          child: Text('Error cargando datos: $e', style: const TextStyle(color: AppColors.darkTextPrimary)),
+          child: Text('Error cargando datos: $e', style: TextStyle(color: pal.textPrimary)),
         ),
         data: (s) => SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -158,10 +169,11 @@ class _SelectorPerfil extends ConsumerWidget {
     final usarSupabase = ref.watch(usarSupabaseProvider);
     final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
     final esAdmin = !usarSupabase || sesion?.rolCuenta == RolCuenta.admin;
+    final pal = palOf(context);
 
     final pastilla = esAdmin
-        ? _pastillaDesplegable(context, ref)
-        : _pastillaFija(sesion?.nombre ?? _etiqueta(rol));
+        ? _pastillaDesplegable(context, ref, pal)
+        : _pastillaFija(sesion?.nombre ?? _etiqueta(rol), pal);
 
     if (!usarSupabase) return pastilla; // modo memoria: sin sesión que cerrar
 
@@ -172,7 +184,7 @@ class _SelectorPerfil extends ConsumerWidget {
         const SizedBox(width: 8),
         IconButton(
           tooltip: 'Cerrar sesión',
-          icon: const Icon(Icons.logout, size: 18, color: AppColors.darkTextMuted),
+          icon: Icon(Icons.logout, size: 18, color: pal.textMuted),
           onPressed: () => ref.read(authRepositoryProvider)?.cerrarSesion(),
         ),
       ],
@@ -180,7 +192,7 @@ class _SelectorPerfil extends ConsumerWidget {
   }
 
   /// Producción o Logística: no pueden cambiar de rol, solo ven quiénes son.
-  Widget _pastillaFija(String nombre) {
+  Widget _pastillaFija(String nombre, AppPalette pal) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -191,31 +203,31 @@ class _SelectorPerfil extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(_icono(rol), size: 16, color: AppColors.tealAccent),
+          Icon(_icono(rol), size: 16, color: pal.accent),
           const SizedBox(width: 8),
-          Text(nombre, style: const TextStyle(color: AppColors.tealAccent, fontWeight: FontWeight.w600, fontSize: 13)),
+          Text(nombre, style: TextStyle(color: pal.accent, fontWeight: FontWeight.w600, fontSize: 13)),
         ],
       ),
     );
   }
 
   /// Administrador (o modo memoria sin login): puede alternar entre vistas.
-  Widget _pastillaDesplegable(BuildContext context, WidgetRef ref) {
+  Widget _pastillaDesplegable(BuildContext context, WidgetRef ref, AppPalette pal) {
     return PopupMenuButton<Rol>(
-      color: AppColors.darkCard,
+      color: pal.card,
       offset: const Offset(0, 44),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppColors.darkCardBorder),
+        side: BorderSide(color: pal.cardBorder),
       ),
       onSelected: (r) => ref.read(rolProvider.notifier).cambiar(r),
       itemBuilder: (context) => [
-        const PopupMenuItem<Rol>(
+        PopupMenuItem<Rol>(
           enabled: false,
           height: 32,
           child: Text(
             'PERFIL DE TRABAJO',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.darkTextMuted, letterSpacing: 0.5),
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: pal.textMuted, letterSpacing: 0.5),
           ),
         ),
         for (final r in Rol.values)
@@ -223,16 +235,16 @@ class _SelectorPerfil extends ConsumerWidget {
             value: r,
             child: Row(
               children: [
-                Icon(_icono(r), size: 18, color: r == rol ? AppColors.tealAccent : AppColors.darkTextSecondary),
+                Icon(_icono(r), size: 18, color: r == rol ? pal.accent : pal.textSecondary),
                 const SizedBox(width: 10),
                 Text(_etiqueta(r),
                     style: TextStyle(
-                      color: r == rol ? AppColors.tealAccent : AppColors.darkTextPrimary,
+                      color: r == rol ? pal.accent : pal.textPrimary,
                       fontWeight: r == rol ? FontWeight.bold : FontWeight.normal,
                     )),
                 if (r == rol) ...[
                   const Spacer(),
-                  const Icon(Icons.check, size: 16, color: AppColors.tealAccent),
+                  Icon(Icons.check, size: 16, color: pal.accent),
                 ],
               ],
             ),
@@ -248,12 +260,12 @@ class _SelectorPerfil extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_icono(rol), size: 16, color: AppColors.tealAccent),
+            Icon(_icono(rol), size: 16, color: pal.accent),
             const SizedBox(width: 8),
             Text(_etiqueta(rol),
-                style: const TextStyle(color: AppColors.tealAccent, fontWeight: FontWeight.w600, fontSize: 13)),
+                style: TextStyle(color: pal.accent, fontWeight: FontWeight.w600, fontSize: 13)),
             const SizedBox(width: 4),
-            const Icon(Icons.expand_more, size: 16, color: AppColors.tealAccent),
+            Icon(Icons.expand_more, size: 16, color: pal.accent),
           ],
         ),
       ),
@@ -269,23 +281,24 @@ class _Cabecera extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pal = palOf(context);
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
       runSpacing: 12,
       children: [
-        const Column(
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Órdenes activas',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: pal.textPrimary),
             ),
-            SizedBox(height: 2),
+            const SizedBox(height: 2),
             Text(
               'Producción, bodega y despachos en un solo tablero',
-              style: TextStyle(fontSize: 13, color: AppColors.darkTextSecondary),
+              style: TextStyle(fontSize: 13, color: pal.textSecondary),
             ),
           ],
         ),
@@ -352,7 +365,7 @@ class _BotonAccion extends StatelessWidget {
       icon: Icon(icono, size: 16),
       label: Text(texto),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.tealAccent,
+        foregroundColor: palOf(context).accent,
         side: const BorderSide(color: AppColors.tealPrimary),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/theme/app_theme.dart';
 import '../data/supabase_importador_fechas.dart';
 import '../data/supabase_importador_ordenes.dart';
 import '../domain/models.dart';
@@ -45,6 +46,20 @@ final personalLogisticaProvider = FutureProvider<List<String>>(
 final personalProduccionProvider = FutureProvider<List<String>>(
   (ref) => ref.watch(wmsRepositoryProvider).cargarPersonalProduccion(),
 );
+
+// ------------------------------------------------------------------ tema
+
+/// Modo de color de la pantalla del Kardex (oscuro/claro). Solo cambia el
+/// estilo visual, no afecta ninguna funcionalidad. Arranca en oscuro, el
+/// tema de siempre.
+class TemaNotifier extends Notifier<TemaModo> {
+  @override
+  TemaModo build() => TemaModo.oscuro;
+
+  void alternar() => state = state == TemaModo.oscuro ? TemaModo.claro : TemaModo.oscuro;
+}
+
+final temaProvider = NotifierProvider<TemaNotifier, TemaModo>(TemaNotifier.new);
 
 // ------------------------------------------------------------------- rol
 

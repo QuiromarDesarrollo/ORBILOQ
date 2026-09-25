@@ -12,50 +12,57 @@ class KardexSummaryCards extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final r = ref.watch(kardexResumenProvider);
     final esProduccion = ref.watch(rolProvider) == Rol.produccion;
+    final pal = palOf(context);
 
     final tarjetas = <_SummaryCard>[
       _SummaryCard(
         titulo: 'UNIDADES PEDIDAS',
         valor: '${r.unidadesPedidas}',
         subtitulo: '+${r.cantidadOrdenes} órdenes',
-        subtituloColor: AppColors.darkTextSecondary,
+        subtituloColor: pal.textSecondary,
         icono: Icons.bar_chart_rounded,
+        acento: AppColors.tealPrimary,
       ),
       _SummaryCard(
         titulo: esProduccion ? 'ENTREGADO A LOGÍSTICA' : 'ENTREGADO POR PRODUCCIÓN',
         valor: '${r.enProduccion}',
         subtitulo: '${r.porcentajeProduccion.toStringAsFixed(1)}% del total',
-        subtituloColor: AppColors.darkTextSecondary,
+        subtituloColor: pal.textSecondary,
         icono: Icons.autorenew_rounded,
+        acento: AppColors.blueChip,
       ),
       _SummaryCard(
         titulo: esProduccion ? 'PENDIENTE POR ENTREGAR' : 'PENDIENTE POR PRODUCCIÓN',
         valor: '${r.pendientePorEntregar}',
         subtitulo: r.pendientePorEntregar > 0 ? 'Requiere seguimiento' : 'Al día',
-        subtituloColor: r.pendientePorEntregar > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
+        subtituloColor: r.pendientePorEntregar > 0 ? pal.chipRed : pal.chipGreen,
         icono: Icons.local_shipping_rounded,
+        acento: AppColors.actionOrange,
       ),
       _SummaryCard(
         titulo: 'PRODUCTO NO CONFORME',
         valor: '${r.totalNoConforme}',
         subtitulo: r.totalNoConforme > 0 ? 'Pendiente por reprocesar' : 'Al día',
-        subtituloColor: r.totalNoConforme > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
+        subtituloColor: r.totalNoConforme > 0 ? pal.chipRed : pal.chipGreen,
         icono: Icons.report_problem_rounded,
+        acento: AppColors.alertRed,
       ),
       if (!esProduccion) ...[
         _SummaryCard(
           titulo: 'RECIBIDO EN BODEGA',
           valor: '${r.recibidoEnBodega}',
           subtitulo: '${r.porcentajeBodega.toStringAsFixed(1)}% del total',
-          subtituloColor: AppColors.darkTextSecondary,
+          subtituloColor: pal.textSecondary,
           icono: Icons.warehouse_rounded,
+          acento: AppColors.actionGreen,
         ),
         _SummaryCard(
           titulo: 'PENDIENTE POR DESPACHAR',
           valor: '${r.pendientePorDespachar}',
           subtitulo: r.pendientePorDespachar > 0 ? 'Requiere seguimiento' : 'Al día',
-          subtituloColor: r.pendientePorDespachar > 0 ? AppColors.chipRedDark : AppColors.chipGreenDark,
+          subtituloColor: r.pendientePorDespachar > 0 ? pal.chipRed : pal.chipGreen,
           icono: Icons.inventory_2_rounded,
+          acento: AppColors.accentCyan,
         ),
       ],
     ];
@@ -86,6 +93,7 @@ class _SummaryCard extends StatelessWidget {
     required this.subtitulo,
     required this.subtituloColor,
     required this.icono,
+    required this.acento,
   });
 
   final String titulo;
@@ -93,15 +101,17 @@ class _SummaryCard extends StatelessWidget {
   final String subtitulo;
   final Color subtituloColor;
   final IconData icono;
+  final Color acento;
 
   @override
   Widget build(BuildContext context) {
+    final pal = palOf(context);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: pal.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.darkCardBorder),
+        border: Border.all(color: pal.cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,21 +122,26 @@ class _SummaryCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   titulo,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.darkTextSecondary,
+                    color: pal.textSecondary,
                     letterSpacing: 0.4,
                   ),
                 ),
               ),
-              Icon(icono, size: 18, color: AppColors.tealAccent),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: acento.withValues(alpha: 0.15), shape: BoxShape.circle),
+                child: Icon(icono, size: 16, color: acento),
+              ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             valor,
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: pal.textPrimary),
           ),
           const SizedBox(height: 4),
           Text(subtitulo, style: TextStyle(fontSize: 12, color: subtituloColor, fontWeight: FontWeight.w500)),
