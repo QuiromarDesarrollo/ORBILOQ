@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Fix: Producto No Conforme ahora tambien descuenta Bodega (v41)
+# Requiere haber corrido antes dev_05_fix_pnc_bodega.sql en el proyecto DEV.
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_pnc_bodega_v41.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando el fix de PNC vs Bodega..."
+
+echo "  - lib/features/no_conforme/presentation/no_conforme_dialog.dart"
+mkdir -p "$(dirname 'lib/features/no_conforme/presentation/no_conforme_dialog.dart')"
+cat > 'lib/features/no_conforme/presentation/no_conforme_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -712,3 +729,9 @@ class _HistorialTabState extends ConsumerState<_HistorialTab> {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. Prueba contra DEV:"
+echo "  flutter analyze"
+echo "  flutter run -d chrome --dart-define=SUPABASE_URL=https://igfuafcekcpugpmsoqbe.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_xpjhE8UM6FgjotbGexUdlw_wTj6VUWi"

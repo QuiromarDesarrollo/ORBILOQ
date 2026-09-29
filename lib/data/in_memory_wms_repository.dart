@@ -10,6 +10,7 @@ class _Acumulado {
   int recibido = 0;
   int despachado = 0;
   int pendienteReproceso = 0;
+  int pendienteAliados = 0;
   final Map<String, int> ubicaciones = {};
   DateTime? fechaEntrega;
   DateTime? fechaRecepcion;
@@ -34,6 +35,9 @@ class InMemoryWmsRepository implements WmsRepository {
   int _correlativoDevolucion = 0;
   final List<String> _personalLogistica = ['RECEPCIÓN BODEGA'];
   final List<String> _personalProduccion = ['SUPERVISOR PLANTA'];
+  final List<String> _personalAliados = ['TALLER ALIADO 1'];
+  final List<NoConformeAliado> _noConformesAliados = []; // más recientes primero
+  int _correlativoAliado = 0;
   final StreamController<WmsSnapshot> _controller = StreamController.broadcast();
 
   // ---------------------------------------------------------------- lectura
@@ -79,6 +83,12 @@ class InMemoryWmsRepository implements WmsRepository {
         case TipoMovimiento.liberacionNoConforme:
           a.producido += m.cantidad;
           a.pendienteReproceso -= m.cantidad;
+        case TipoMovimiento.envioAliado:
+          a.producido -= m.cantidad;
+          a.pendienteAliados += m.cantidad;
+        case TipoMovimiento.liberacionAliado:
+          a.producido += m.cantidad;
+          a.pendienteAliados -= m.cantidad;
       }
     }
 
@@ -105,6 +115,7 @@ class InMemoryWmsRepository implements WmsRepository {
       fechaEntrega: a.fechaEntrega,
       fechaRecepcion: a.fechaRecepcion,
       pendienteReproceso: a.pendienteReproceso,
+      pendienteAliados: a.pendienteAliados,
     );
   }
 
@@ -159,8 +170,12 @@ class InMemoryWmsRepository implements WmsRepository {
     required String loteLineaId,
     required int cantidad,
     required String ubicacion,
+    required String recibidoPor,
     String nota = '',
   }) async {
+    if (recibidoPor.trim().isEmpty) {
+      return Err<LoteLinea>('Debes indicar quién de Logística recibió esta prenda.');
+    }
     Lote? loteEncontrado;
     LoteLinea? lineaEncontrada;
     for (final lote in _lotes) {
@@ -179,7 +194,7 @@ class InMemoryWmsRepository implements WmsRepository {
     if (!lineaEncontrada.enTransito) {
       return Err<LoteLinea>('Esta línea ya fue recibida.');
     }
-    if (cantidad < 0) return Err<LoteLinea>('La cantidad no puede ser negativa.');
+    if (cantidad <= 0) return Err<LoteLinea>('La cantidad debe ser mayor a 0.');
     if (!WmsConstantes.ubicaciones.contains(ubicacion)) {
       return Err<LoteLinea>('Ubicación no válida: $ubicacion.');
     }
@@ -198,6 +213,7 @@ class InMemoryWmsRepository implements WmsRepository {
 
     final lineaActualizada = _aplicarRecepcionLinea(
       loteEncontrado, lineaEncontrada, cantidad, ubicacion, novedad, DateTime.now(),
+      recibidoPor: recibidoPor,
     );
     _emitir();
     return Ok<LoteLinea>(lineaActualizada);
@@ -265,6 +281,111 @@ class InMemoryWmsRepository implements WmsRepository {
     _personalProduccion.add(limpio);
     return Ok<String>(limpio);
   }
+
+  @override
+  Future<List<String>> cargarPersonalAliados() async => List.unmodifiable(_personalAliados);
+
+  @override
+  Future<Result<String>> agregarPersonalAliado(String nombre) async {
+    final limpio = nombre.trim();
+    if (limpio.isEmpty) return Err<String>('El nombre no puede estar vacío.');
+    final existente = _personalAliados.firstWhere(
+      (n) => n.toLowerCase() == limpio.toLowerCase(),
+      orElse: () => '',
+    );
+    if (existente.isNotEmpty) return Ok<String>(existente);
+    _personalAliados.add(limpio);
+    return Ok<String>(limpio);
+  }
+
+  @override
+  Future<Result<void>> enviarNoConformeAliado({
+    required String itemId,
+    required int cantidad,
+    required String causalId,
+    required String operario,
+    required String personaAliadoEntrega,
+    String nota = '',
+  }) async {
+    if (personaAliadoEntrega.trim().isEmpty) {
+      return Err<void>('Debes indicar a quién de Aliados se le entrega esta prenda.');
+    }
+    final item = _items[itemId];
+    if (item == null) return Err<void>('El producto no existe en el kardex.');
+    if (cantidad <= 0) return Err<void>('La cantidad debe ser mayor a 0.');
+    final producido = _snapshot().kardexPorId(itemId)?.producido ?? 0;
+    if (cantidad > producido) {
+      return Err<void>('LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.');
+    }
+
+    _noConformesAliados.insert(
+      0,
+      NoConformeAliado(
+        id: 'ALI-${_correlativoAliado++}',
+        item: item,
+        cantidad: cantidad,
+        causal: causalId,
+        estado: 'pendiente',
+        usuarioSolicitud: operario,
+        personaAliadoEntrega: personaAliadoEntrega,
+        fechaSolicitud: DateTime.now(),
+        notaSolicitud: nota,
+      ),
+    );
+    _movimientos.add(Movimiento(
+      tipo: TipoMovimiento.envioAliado,
+      itemId: item.id,
+      cantidad: cantidad,
+      fecha: DateTime.now(),
+      nota: nota,
+    ));
+    _emitir();
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<Result<void>> liberarNoConformeAliado({
+    required String id,
+    required String operario,
+    required String personaAliadoLibera,
+    String nota = '',
+  }) async {
+    if (personaAliadoLibera.trim().isEmpty) {
+      return Err<void>('Debes indicar quién de Aliados realizó la liberación.');
+    }
+    final idx = _noConformesAliados.indexWhere((a) => a.id == id);
+    if (idx == -1) return Err<void>('La solicitud no existe.');
+    final actual = _noConformesAliados[idx];
+    if (!actual.pendiente) return Err<void>('Esta solicitud ya fue liberada.');
+
+    _noConformesAliados[idx] = NoConformeAliado(
+      id: actual.id,
+      item: actual.item,
+      cantidad: actual.cantidad,
+      causal: actual.causal,
+      estado: 'liberado',
+      usuarioSolicitud: actual.usuarioSolicitud,
+      personaAliadoEntrega: actual.personaAliadoEntrega,
+      fechaSolicitud: actual.fechaSolicitud,
+      notaSolicitud: actual.notaSolicitud,
+      usuarioLiberacion: operario,
+      personaAliadoLibera: personaAliadoLibera,
+      fechaLiberacion: DateTime.now(),
+      notaLiberacion: nota,
+    );
+    _movimientos.add(Movimiento(
+      tipo: TipoMovimiento.liberacionAliado,
+      itemId: actual.item.id,
+      cantidad: actual.cantidad,
+      fecha: DateTime.now(),
+      nota: nota,
+    ));
+    _emitir();
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<List<NoConformeAliado>> cargarNoConformesAliados() async => List.unmodifiable(_noConformesAliados);
 
   @override
   Future<Result<void>> registrarNoConforme({
@@ -394,6 +515,7 @@ class InMemoryWmsRepository implements WmsRepository {
 
   LoteLinea _aplicarRecepcionLinea(
     Lote lote, LoteLinea linea, int cantidad, String ubicacion, String novedad, DateTime fecha,
+    {String recibidoPor = ''}
   ) {
     final lineaActualizada = linea.copyWith(
       estado: novedad.isEmpty ? EstadoLineaLote.recibidoConforme : EstadoLineaLote.recibidoConNovedad,
@@ -401,6 +523,7 @@ class InMemoryWmsRepository implements WmsRepository {
       ubicacionDestino: ubicacion,
       novedad: novedad,
       fechaRecepcion: fecha,
+      recibidoPor: recibidoPor,
     );
 
     final idxLote = _lotes.indexWhere((l) => l.id == lote.id);

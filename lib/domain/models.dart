@@ -31,7 +31,10 @@ enum EstadoLineaLote {
   final String etiqueta;
 }
 
-enum TipoMovimiento { entregaProduccion, recepcion, despacho, devolucionProduccion, liberacionNoConforme }
+enum TipoMovimiento {
+  entregaProduccion, recepcion, despacho, devolucionProduccion, liberacionNoConforme,
+  envioAliado, liberacionAliado,
+}
 
 enum EstadoItem {
   enProduccion('EN PRODUCCIÓN'),
@@ -198,6 +201,7 @@ class LoteLinea {
     this.novedad = '',
     this.fechaRecepcion,
     this.esReproceso = false,
+    this.recibidoPor = '',
   });
 
   final String id;
@@ -213,6 +217,10 @@ class LoteLinea {
   /// una entrega normal de Producción) — para distinguirla en Recepción.
   final bool esReproceso;
 
+  /// Persona de Logística que hizo la recepción. Vacío para líneas recibidas
+  /// antes de que este campo existiera — se muestra igual, sin error.
+  final String recibidoPor;
+
   bool get enTransito => estado == EstadoLineaLote.enTransito;
 
   LoteLinea copyWith({
@@ -221,6 +229,7 @@ class LoteLinea {
     String? ubicacionDestino,
     String? novedad,
     DateTime? fechaRecepcion,
+    String? recibidoPor,
   }) {
     return LoteLinea(
       id: id,
@@ -232,6 +241,7 @@ class LoteLinea {
       novedad: novedad ?? this.novedad,
       fechaRecepcion: fechaRecepcion ?? this.fechaRecepcion,
       esReproceso: esReproceso,
+      recibidoPor: recibidoPor ?? this.recibidoPor,
     );
   }
 }
@@ -273,6 +283,7 @@ class ItemKardex {
     this.fechaEsperadaProduccion,
     this.fechaEsperadaLogistica,
     this.pendienteReproceso = 0,
+    this.pendienteAliados = 0,
   });
 
   final ItemOrden item;
@@ -297,6 +308,9 @@ class ItemKardex {
 
   /// Unidades devueltas a Producción por no conformidad, aún sin reprocesar.
   final int pendienteReproceso;
+
+  /// Unidades enviadas a Aliados por no conformidad, aún sin liberar.
+  final int pendienteAliados;
 
   String get id => item.id;
   int get cantidadPedida => item.cantidadPedida;
@@ -377,4 +391,47 @@ class WmsSnapshot {
   /// El QR real de la marquilla trae OP + Código, sin talla (el código ya es
   /// único por talla dentro de cada OP). Esta es la búsqueda que usa el escaneo.
   ItemKardex? kardexPorOpCodigo(String op, String codigo) => _porOpCodigo['$op|$codigo'];
+}
+
+/// Producto No Conforme enviado a un Aliado externo — cubre todo el ciclo:
+/// solicitud (Producción entrega) -> liberación (Producción recibe de
+/// vuelta). A diferencia del flujo de Logística, este NO pasa por
+/// "Recibir lote"; es un registro de trazabilidad que Producción maneja
+/// de punta a punta.
+class NoConformeAliado {
+  const NoConformeAliado({
+    required this.id,
+    required this.item,
+    required this.cantidad,
+    required this.causal,
+    required this.estado,
+    required this.usuarioSolicitud,
+    required this.personaAliadoEntrega,
+    required this.fechaSolicitud,
+    this.notaSolicitud = '',
+    this.usuarioLiberacion,
+    this.personaAliadoLibera,
+    this.fechaLiberacion,
+    this.notaLiberacion = '',
+  });
+
+  final String id;
+  final ItemOrden item;
+  final int cantidad;
+  final String causal;
+
+  /// 'pendiente' o 'liberado'.
+  final String estado;
+
+  final String usuarioSolicitud;
+  final String personaAliadoEntrega;
+  final DateTime fechaSolicitud;
+  final String notaSolicitud;
+
+  final String? usuarioLiberacion;
+  final String? personaAliadoLibera;
+  final DateTime? fechaLiberacion;
+  final String notaLiberacion;
+
+  bool get pendiente => estado == 'pendiente';
 }

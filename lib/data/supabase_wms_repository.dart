@@ -153,6 +153,7 @@ class SupabaseWmsRepository implements WmsRepository {
       fechaEsperadaProduccion: _fecha(row['fecha_esperada_produccion']),
       fechaEsperadaLogistica: _fecha(row['fecha_esperada_logistica']),
       pendienteReproceso: (row['pendiente_reproceso'] as num?)?.toInt() ?? 0,
+      pendienteAliados: (row['pendiente_aliados'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -211,6 +212,7 @@ class SupabaseWmsRepository implements WmsRepository {
       novedad: (row['novedad'] as String?) ?? '',
       fechaRecepcion: _fecha(row['fecha_recepcion']),
       esReproceso: row['origen'] == 'reproceso',
+      recibidoPor: (row['recibido_por'] as String?) ?? '',
     );
   }
 
@@ -274,6 +276,7 @@ class SupabaseWmsRepository implements WmsRepository {
     required String loteLineaId,
     required int cantidad,
     required String ubicacion,
+    required String recibidoPor,
     String nota = '',
   }) async {
     try {
@@ -286,6 +289,7 @@ class SupabaseWmsRepository implements WmsRepository {
         'p_cantidad': cantidad,
         'p_ubicacion_id': ubicacionId,
         'p_nota': nota,
+        'p_recibido_por': recibidoPor,
       });
       await refrescar();
       for (final lote in _ultimo?.lotes ?? const <Lote>[]) {
@@ -379,6 +383,114 @@ class SupabaseWmsRepository implements WmsRepository {
     } catch (e) {
       return Err<String>('Error inesperado al agregar el nombre: $e');
     }
+  }
+
+  @override
+  Future<List<String>> cargarPersonalAliados() async {
+    final filas = await _client
+        .from('personal_aliados')
+        .select('nombre')
+        .eq('activo', true)
+        .order('nombre');
+    return [for (final f in (filas as List).cast<Map<String, dynamic>>()) f['nombre'] as String];
+  }
+
+  @override
+  Future<Result<String>> agregarPersonalAliado(String nombre) async {
+    try {
+      final res = await _client.rpc('agregar_personal_aliado', params: {'p_nombre': nombre});
+      final fila = res as Map<String, dynamic>;
+      return Ok<String>(fila['nombre'] as String);
+    } on PostgrestException catch (e) {
+      return Err<String>(e.message);
+    } catch (e) {
+      return Err<String>('Error inesperado al agregar el nombre: $e');
+    }
+  }
+
+  @override
+  Future<Result<void>> enviarNoConformeAliado({
+    required String itemId,
+    required int cantidad,
+    required String causalId,
+    required String operario,
+    required String personaAliadoEntrega,
+    String nota = '',
+  }) async {
+    try {
+      await _client.rpc('enviar_no_conforme_aliado', params: {
+        'p_item_orden_id': itemId,
+        'p_cantidad': cantidad,
+        'p_causal_id': causalId,
+        'p_operario_nombre': operario,
+        'p_persona_aliado_entrega': personaAliadoEntrega,
+        'p_nota': nota,
+      });
+      await refrescar();
+      return const Ok<void>(null);
+    } on PostgrestException catch (e) {
+      return Err<void>(e.message);
+    } catch (e) {
+      return Err<void>('Error inesperado al enviar a Aliados: $e');
+    }
+  }
+
+  @override
+  Future<Result<void>> liberarNoConformeAliado({
+    required String id,
+    required String operario,
+    required String personaAliadoLibera,
+    String nota = '',
+  }) async {
+    try {
+      await _client.rpc('liberar_no_conforme_aliado', params: {
+        'p_id': id,
+        'p_operario_nombre': operario,
+        'p_persona_aliado_libera': personaAliadoLibera,
+        'p_nota': nota,
+      });
+      await refrescar();
+      return const Ok<void>(null);
+    } on PostgrestException catch (e) {
+      return Err<void>(e.message);
+    } catch (e) {
+      return Err<void>('Error inesperado al liberar de Aliados: $e');
+    }
+  }
+
+  @override
+  Future<List<NoConformeAliado>> cargarNoConformesAliados() async {
+    final filas = await _traerTodo(
+      (desde, hasta) =>
+          _client.from('vista_no_conformes_aliados').select().order('fecha_solicitud', ascending: false).range(desde, hasta),
+    );
+    return [
+      for (final row in filas)
+        NoConformeAliado(
+          id: row['id'] as String,
+          item: ItemOrden(
+            id: row['item_orden_id'] as String,
+            op: row['op_numero'] as String,
+            cliente: row['item_cliente'] as String,
+            oc: '',
+            codigo: row['item_codigo'] as String,
+            descripcion: row['item_descripcion'] as String,
+            talla: row['item_talla'] as String,
+            cantidadPedida: 0,
+          ),
+          cantidad: (row['cantidad'] as num).toInt(),
+          causal: row['causal_nombre'] as String,
+          estado: row['estado'] as String,
+          usuarioSolicitud: row['usuario_produccion_solicitud_nombre'] as String,
+          personaAliadoEntrega: row['persona_aliado_entrega'] as String,
+          fechaSolicitud: DateTime.parse(row['fecha_solicitud'] as String).toLocal(),
+          notaSolicitud: (row['nota_solicitud'] as String?) ?? '',
+          usuarioLiberacion: row['usuario_produccion_liberacion_nombre'] as String?,
+          personaAliadoLibera: row['persona_aliado_libera'] as String?,
+          fechaLiberacion: _fecha(row['fecha_liberacion']),
+          notaLiberacion: (row['nota_liberacion'] as String?) ?? '',
+        ),
+    ];
   }
 
   @override

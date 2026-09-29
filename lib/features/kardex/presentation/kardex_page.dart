@@ -6,6 +6,7 @@ import '../../../application/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/models.dart';
 import '../../../domain/sesion.dart';
+import '../../aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart';
 import '../../despacho/presentation/despacho_dialog.dart';
 import '../../importacion/presentation/importar_ordenes_dialog.dart';
 import '../../importacion_fechas/presentation/importar_fechas_dialog.dart';
@@ -326,6 +327,11 @@ class _Cabecera extends StatelessWidget {
                 icono: Icons.report_gmailerrorred_outlined,
                 texto: 'Productos no conforme',
                 onPressed: () => showReprocesoDialog(context),
+              ),
+              _BotonAccion(
+                icono: Icons.handshake_outlined,
+                texto: 'Productos No Conformes de Aliados',
+                onPressed: () => showAliadosNoConformeDialog(context),
               ),
             ] else ...[
               _BotonAccion(

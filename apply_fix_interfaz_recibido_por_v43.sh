@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Fix: faltaba recibidoPor en la interfaz WmsRepository (v43)
+# Ejecutar DESPUES de apply_aliados_no_conforme_v42.sh
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_interfaz_recibido_por_v43.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Corrigiendo la interfaz WmsRepository..."
+
+echo "  - lib/domain/wms_repository.dart"
+mkdir -p "$(dirname 'lib/domain/wms_repository.dart')"
+cat > 'lib/domain/wms_repository.dart' << 'ORBILOQ_EOF'
 import '../core/result.dart';
 import 'models.dart';
 
@@ -118,3 +135,7 @@ abstract interface class WmsRepository {
 
   void dispose();
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

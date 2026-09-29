@@ -6,11 +6,14 @@ import '../../../application/providers.dart';
 import '../../../core/constants.dart';
 import '../../../core/result.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
+import '../../../shared/widgets/addable_person_dropdown.dart';
 import '../../../shared/widgets/feedback_banner.dart';
 import '../../../shared/widgets/labeled_dropdown.dart';
+import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
 Future<void> showRecepcionDialog(BuildContext context) =>
@@ -24,14 +27,59 @@ class _LineaConLote {
   final LoteLinea linea;
 }
 
-class RecepcionDialog extends ConsumerStatefulWidget {
+class RecepcionDialog extends StatelessWidget {
   const RecepcionDialog({super.key});
 
   @override
-  ConsumerState<RecepcionDialog> createState() => _RecepcionDialogState();
+  Widget build(BuildContext context) {
+    return WmsDialogShell(
+      title: 'RECEPCIÓN Y REPORTE DE NOVEDADES',
+      icon: Icons.move_to_inbox,
+      iconColor: AppColors.primaryNavy,
+      expand: true,
+      maxWidth: 1000,
+      child: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            const TabBar(
+              labelColor: AppColors.primaryNavy,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: AppColors.primaryNavy,
+              labelPadding: EdgeInsets.symmetric(vertical: 4),
+              labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+              unselectedLabelStyle: TextStyle(fontSize: 11),
+              tabs: [
+                Tab(height: 38, icon: Icon(Icons.move_to_inbox_outlined, size: 16), text: 'PENDIENTES'),
+                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Expanded(
+              child: TabBarView(children: [_PendientesTab(), _HistorialTab()]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}
+
+// ============================================================ pestaña 1: pendientes
+// (flujo actual, sin cambios de comportamiento — solo se agrega "Recibido por")
+
+class _PendientesTab extends ConsumerStatefulWidget {
+  const _PendientesTab();
+
+  @override
+  ConsumerState<_PendientesTab> createState() => _PendientesTabState();
+}
+
+class _PendientesTabState extends ConsumerState<_PendientesTab> {
   final _scanCtrl = TextEditingController();
   final _scanFocus = FocusNode();
   final _scrollController = ScrollController();
@@ -48,6 +96,12 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
   /// escaneo, hasta el máximo declarado).
   final Map<String, int> _conteos = {};
   String _ubicacion = WmsConstantes.ubicaciones.first;
+
+  /// Quién de Logística está recibiendo — se mantiene entre tarjetas (lo
+  /// normal es que sea la misma persona recibiendo varias seguidas), pero
+  /// es obligatorio tener uno seleccionado para poder confirmar cualquiera.
+  String? _recibidoPor;
+
   bool _confirmando = false;
   FeedbackMessage? _msg;
 
@@ -165,8 +219,12 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
 
   Future<void> _confirmar(LoteLinea linea) async {
     final cantidad = int.tryParse(_cantidadCtrl.text.trim());
-    if (cantidad == null) {
-      setState(() => _msg = const FeedbackMessage.error('Ingresa una cantidad válida.'));
+    if (cantidad == null || cantidad <= 0) {
+      setState(() => _msg = const FeedbackMessage.error('Ingresa una cantidad mayor a 0 para confirmar la recepción.'));
+      return;
+    }
+    if (_recibidoPor == null || _recibidoPor!.trim().isEmpty) {
+      setState(() => _msg = const FeedbackMessage.error('Selecciona quién de Logística está recibiendo.'));
       return;
     }
 
@@ -178,6 +236,7 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
           loteLineaId: linea.id,
           cantidad: cantidad,
           ubicacion: _ubicacion,
+          recibidoPor: _recibidoPor!,
           nota: _notaCtrl.text,
         );
     if (!mounted) return;
@@ -207,87 +266,85 @@ class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
     ref.watch(wmsSnapshotProvider);
     final pendientes = _ordenar(_todasPendientes);
 
-    return WmsDialogShell(
-      title: 'RECEPCIÓN Y REPORTE DE NOVEDADES',
-      icon: Icons.move_to_inbox,
-      iconColor: AppColors.primaryNavy,
-      expand: true,
-      maxWidth: 1000,
-      child: Stack(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_msg != null) ...[
-                FeedbackBanner(message: _msg!),
-                const SizedBox(height: 12),
-              ],
-              TextField(
-                controller: _scanCtrl,
-                focusNode: _scanFocus,
-                autofocus: true,
-                decoration: wmsInput('ESCANEAR PRENDA O BUSCAR POR OP', icon: Icons.qr_code_scanner),
-                onSubmitted: _procesarEntrada,
-              ),
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_msg != null) ...[
+              FeedbackBanner(message: _msg!),
               const SizedBox(height: 12),
-              Expanded(
-                child: pendientes.isEmpty
-                    ? const Center(
-                        child: Text('No hay nada pendiente por recibir en este momento.',
-                            style: TextStyle(color: Colors.grey)),
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        itemCount: pendientes.length,
-                        itemBuilder: (_, i) {
-                          final e = pendientes[i];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _TarjetaLinea(
-                              lote: e.lote,
-                              linea: e.linea,
-                              abierta: e.linea.id == _lineaAbiertaId,
-                              onValidar: () => _abrirValidacion(e.linea),
-                              onCerrar: () => setState(() => _lineaAbiertaId = null),
-                              cantidadCtrl: _cantidadCtrl,
-                              notaCtrl: _notaCtrl,
-                              ubicacion: _ubicacion,
-                              onUbicacion: (v) => setState(() => _ubicacion = v),
-                              onConfirmar: () => _confirmar(e.linea),
-                            ),
-                          );
-                        },
-                      ),
-              ),
             ],
-          ),
-          if (_confirmando)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.35),
-                child: const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _LogoLoader(size: 72),
-                      SizedBox(height: 16),
-                      Text(
-                        'Procesando…',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                    ],
-                  ),
+            AddablePersonDropdown(
+              label: 'Recibido por (Logística) *',
+              valor: _recibidoPor,
+              onChanged: (v) => setState(() => _recibidoPor = v),
+              itemsProvider: personalLogisticaProvider,
+              onAgregar: (ref, nombre) => ref.read(wmsRepositoryProvider).agregarPersonalLogistica(nombre),
+              tituloDialogo: 'Agregar persona de Logística',
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _scanCtrl,
+              focusNode: _scanFocus,
+              autofocus: true,
+              decoration: wmsInput('ESCANEAR PRENDA O BUSCAR POR OP', icon: Icons.qr_code_scanner),
+              onSubmitted: _procesarEntrada,
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: pendientes.isEmpty
+                  ? const Center(
+                      child: Text('No hay nada pendiente por recibir en este momento.',
+                          style: TextStyle(color: Colors.grey)),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      itemCount: pendientes.length,
+                      itemBuilder: (_, i) {
+                        final e = pendientes[i];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _TarjetaLinea(
+                            lote: e.lote,
+                            linea: e.linea,
+                            abierta: e.linea.id == _lineaAbiertaId,
+                            onValidar: () => _abrirValidacion(e.linea),
+                            onCerrar: () => setState(() => _lineaAbiertaId = null),
+                            cantidadCtrl: _cantidadCtrl,
+                            notaCtrl: _notaCtrl,
+                            ubicacion: _ubicacion,
+                            onUbicacion: (v) => setState(() => _ubicacion = v),
+                            onConfirmar: () => _confirmar(e.linea),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+        if (_confirmando)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.35),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _LogoLoader(size: 72),
+                    SizedBox(height: 16),
+                    Text(
+                      'Procesando…',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ],
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
-}
-
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }
 
 class _TarjetaLinea extends StatelessWidget {
@@ -506,6 +563,92 @@ class _LogoLoaderState extends State<_LogoLoader> with SingleTickerProviderState
           ),
         ),
       ),
+    );
+  }
+}
+
+// ==================================================== pestaña 2: historial
+// Reutiliza datos que YA están cargados en memoria (WmsSnapshot.lotes trae
+// todo, no solo lo pendiente) — no hace ninguna consulta nueva.
+
+class _HistorialTab extends ConsumerWidget {
+  const _HistorialTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const <Lote>[];
+    final procesadas = <_LineaConLote>[];
+    for (final l in lotes) {
+      for (final li in l.lineas) {
+        if (!li.enTransito) procesadas.add(_LineaConLote(l, li));
+      }
+    }
+    procesadas.sort((a, b) {
+      final fa = a.linea.fechaRecepcion;
+      final fb = b.linea.fechaRecepcion;
+      if (fa == null || fb == null) return 0;
+      return fb.compareTo(fa); // más recientes primero
+    });
+
+    if (procesadas.isEmpty) {
+      return const Center(
+        child: Text('Aún no hay recepciones registradas.', style: TextStyle(color: Colors.grey)),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: procesadas.length,
+      itemBuilder: (_, i) {
+        final e = procesadas[i];
+        final linea = e.linea;
+        final conNovedad = linea.estado == EstadoLineaLote.recibidoConNovedad;
+        return Card(
+          color: conNovedad ? Colors.red.shade50 : Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'OP: ${linea.item.op} (${linea.item.talla}) - ${linea.item.descripcion}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primaryNavy),
+                      ),
+                    ),
+                    StatusChip(label: linea.estado.etiqueta, color: colorDeEstadoLinea(linea.estado)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Lote: ${e.lote.id} | Enviadas: ${linea.cantidadEnviada} Uds | '
+                  'Recibidas: ${linea.cantidadRecibida ?? 0} Uds | Estante: ${linea.ubicacionDestino ?? "—"}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black87),
+                ),
+                Text(
+                  'Recibido por: ${linea.recibidoPor.isNotEmpty ? linea.recibidoPor : "Sin registrar (recepción anterior a esta función)"} | '
+                  '${linea.fechaRecepcion != null ? formatFechaHora(linea.fechaRecepcion) : "Sin fecha"}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                if (linea.novedad.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
+                    child: Text(
+                      linea.novedad,
+                      style: const TextStyle(fontSize: 12, color: AppColors.alertRed, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

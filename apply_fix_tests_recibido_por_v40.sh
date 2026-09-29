@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Arregla las pruebas para el nuevo parametro recibidoPor (v40)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_tests_recibido_por_v40.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Corrigiendo las pruebas..."
+
+echo "  - test/wms_rules_test.dart"
+mkdir -p "$(dirname 'test/wms_rules_test.dart')"
+cat > 'test/wms_rules_test.dart' << 'ORBILOQ_EOF'
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart' as xlsx;
@@ -279,3 +295,7 @@ void main() {
     });
   });
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze / flutter test"

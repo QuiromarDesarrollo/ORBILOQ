@@ -81,7 +81,13 @@ class AddablePersonDropdown extends ConsumerWidget {
         ],
         onChanged: (v) {
           if (v == _valorAgregar) {
-            _agregarNuevo(context, ref);
+            // Se retrasa al siguiente frame: si se abre el diálogo en el
+            // mismo instante en que el desplegable todavía está cerrando su
+            // propio menú, Flutter puede romper el árbol de elementos
+            // ("_dependents.isEmpty is not true").
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) _agregarNuevo(context, ref);
+            });
             return;
           }
           onChanged(v);

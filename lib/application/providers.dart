@@ -47,6 +47,18 @@ final personalProduccionProvider = FutureProvider<List<String>>(
   (ref) => ref.watch(wmsRepositoryProvider).cargarPersonalProduccion(),
 );
 
+/// Lista ampliable de personas de Aliados (a quién se entrega / quién libera
+/// un producto no conforme enviado a un taller externo).
+final personalAliadosProvider = FutureProvider<List<String>>(
+  (ref) => ref.watch(wmsRepositoryProvider).cargarPersonalAliados(),
+);
+
+/// Todas las solicitudes de Producto No Conforme a Aliados (pendientes e
+/// historial), más recientes primero.
+final noConformesAliadosProvider = FutureProvider<List<NoConformeAliado>>(
+  (ref) => ref.watch(wmsRepositoryProvider).cargarNoConformesAliados(),
+);
+
 // ------------------------------------------------------------------ tema
 
 /// Modo de color de la pantalla del Kardex (oscuro/claro). Solo cambia el
