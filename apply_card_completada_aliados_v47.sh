@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Contador visible + card verde de solo lectura al completar (v47)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_card_completada_aliados_v47.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando el ajuste de la card..."
+
+echo "  - lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart"
+mkdir -p "$(dirname 'lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart')"
+cat > 'lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +27,7 @@ import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/addable_person_dropdown.dart';
 import '../../../shared/widgets/feedback_banner.dart';
+import '../../../shared/widgets/metric_card.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
@@ -124,8 +141,8 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
       final qr = QrPrenda.tryParse(texto);
       if (qr != null) {
         final encontrado = kardex.where((k) => k.item.op == qr.op && k.item.codigo == qr.codigo).toList();
-        if (encontrado.isEmpty) {
-          _errorBusqueda = 'No se encontró esa prenda.';
+        if (encontrado.isEmpty || encontrado.first.producido <= 0) {
+          _errorBusqueda = 'No se encontró esa prenda con unidades entregadas por Producción.';
           _resultados = [];
           return;
         }
@@ -135,11 +152,9 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
         return;
       }
 
-      // No es un QR: se interpreta como número de OP. Esto es 100%
-      // informativo — no depende de lo entregado ni de ningún otro número
-      // del inventario, así que se puede reportar sobre cualquier OP/talla.
-      _resultados = kardex.where((k) => k.item.op == texto).toList();
-      _errorBusqueda = _resultados.isEmpty ? 'No se encontraron tallas para la OP $texto.' : null;
+      // No es un QR: se interpreta como número de OP.
+      _resultados = kardex.where((k) => k.item.op == texto && k.producido > 0).toList();
+      _errorBusqueda = _resultados.isEmpty ? 'No se encontraron tallas entregadas por Producción para la OP $texto.' : null;
     });
   }
 
@@ -157,6 +172,10 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
     }
     if (cantidad == null || cantidad <= 0) {
       setState(() => _msg = const FeedbackMessage.error('Ingresa una cantidad mayor a 0.'));
+      return;
+    }
+    if (cantidad > k.producido) {
+      setState(() => _msg = FeedbackMessage.error('LÍMITE EXCEDIDO: solo hay ${k.producido} Uds entregadas por Producción.'));
       return;
     }
 
@@ -185,7 +204,6 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
           _notaCtrl.clear();
           _resultados = [];
           _opCtrl.clear();
-          ref.invalidate(noConformesAliadosProvider);
         case Err(:final message):
           _msg = FeedbackMessage.error(message);
       }
@@ -240,7 +258,7 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
                       leading: const Icon(Icons.checkroom, color: AppColors.primaryNavy),
                       title: Text('${r.item.codigo} — ${r.item.descripcion} (Talla ${r.item.talla})',
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      subtitle: Text('OP: ${r.item.op} | OC: ${r.item.oc}'),
+                      subtitle: Text('Entregadas por Producción: ${r.producido} Uds'),
                     ),
                 ],
               ),
@@ -267,6 +285,14 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
                         IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => _seleccionado = null)),
                       ],
                     ),
+                    MetricWrap(children: [
+                      MetricCard(
+                        title: 'ENTREGADAS',
+                        value: '${_seleccionado!.producido} Uds',
+                        color: AppColors.actionGreen,
+                        icon: Icons.check_circle,
+                      ),
+                    ]),
                     const SizedBox(height: 12),
                     _CausalDropdownAliados(valor: _causalId, onChanged: (v) => setState(() => _causalId = v)),
                     const SizedBox(height: 10),
@@ -283,7 +309,7 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
                       controller: _cantidadCtrl,
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: wmsInput('Cantidad a reportar'),
+                      decoration: wmsInput('Cantidad a enviar (máx ${_seleccionado!.producido} Uds)'),
                     ),
                     const SizedBox(height: 10),
                     TextField(controller: _notaCtrl, decoration: wmsInput('Nota (opcional)', icon: Icons.notes)),
@@ -388,12 +414,6 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
           if (quedan <= 0) _recienCompletadas.add(a.id);
           _personaMap.remove(a.id);
           _cantidadCtrls.remove(a.id)?.dispose();
-          // noConformesAliadosProvider/liberacionesAliadosProvider son
-          // FutureProvider normales — a diferencia del kardex principal, no
-          // se refrescan solos; hay que pedírselo explícitamente o el
-          // contador de "Faltan X Uds" se queda con el valor viejo.
-          ref.invalidate(noConformesAliadosProvider);
-          ref.invalidate(liberacionesAliadosProvider);
         case Err(:final message):
           _msg = FeedbackMessage.error(message);
       }
@@ -659,3 +679,7 @@ class _HistorialTab extends ConsumerWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Fix: faltaban los campos _liberacionesAliados (v46)
+# Ejecutar DESPUES de apply_aliados_parcial_v45.sh
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_campos_liberaciones_v46.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Corrigiendo campos faltantes..."
+
+echo "  - lib/data/in_memory_wms_repository.dart"
+mkdir -p "$(dirname 'lib/data/in_memory_wms_repository.dart')"
+cat > 'lib/data/in_memory_wms_repository.dart' << 'ORBILOQ_EOF'
 import 'dart:async';
 
 import '../core/constants.dart';
@@ -662,3 +679,7 @@ class InMemoryWmsRepository implements WmsRepository {
     _aplicarEntregaLote([ItemCantidad(itemId: bata.id, cantidad: 20)], op, 'LOTE-103', DateTime(2026, 8, 20, 8));
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

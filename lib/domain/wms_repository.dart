@@ -103,18 +103,24 @@ abstract interface class WmsRepository {
     String nota = '',
   });
 
-  /// Producción libera (recibe de vuelta) un envío a Aliados. Solo actualiza
-  /// el registro de trazabilidad — no crea lote ni toca Bodega.
+  /// Producción libera (total o parcialmente) un envío a Aliados. Cada
+  /// llamada crea un registro de liberación propio — nunca sobrescribe uno
+  /// anterior. Solo marca la solicitud como completada cuando lo liberado
+  /// acumulado alcanza el total solicitado.
   Future<Result<void>> liberarNoConformeAliado({
     required String id,
+    required int cantidad,
     required String operario,
     required String personaAliadoLibera,
     String nota = '',
   });
 
-  /// Todas las solicitudes de Aliados (pendientes e historial), más
-  /// recientes primero.
+  /// Todas las solicitudes de Aliados (para "Pendientes"), más recientes primero.
   Future<List<NoConformeAliado>> cargarNoConformesAliados();
+
+  /// Todas las liberaciones de Aliados (para "Historial"), una fila por cada
+  /// liberación — más recientes primero.
+  Future<List<LiberacionAliado>> cargarLiberacionesAliados();
 
   void dispose();
 }

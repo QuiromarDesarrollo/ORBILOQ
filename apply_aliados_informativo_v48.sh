@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Aliados 100% informativo, sin efecto en inventario (v48)
+# Requiere haber corrido antes dev_08_aliados_informativo.sql en el proyecto DEV.
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_aliados_informativo_v48.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando el cambio a informativo..."
+
+echo "  - lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart"
+mkdir -p "$(dirname 'lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart')"
+cat > 'lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,7 +202,6 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
           _notaCtrl.clear();
           _resultados = [];
           _opCtrl.clear();
-          ref.invalidate(noConformesAliadosProvider);
         case Err(:final message):
           _msg = FeedbackMessage.error(message);
       }
@@ -388,12 +404,6 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
           if (quedan <= 0) _recienCompletadas.add(a.id);
           _personaMap.remove(a.id);
           _cantidadCtrls.remove(a.id)?.dispose();
-          // noConformesAliadosProvider/liberacionesAliadosProvider son
-          // FutureProvider normales — a diferencia del kardex principal, no
-          // se refrescan solos; hay que pedírselo explícitamente o el
-          // contador de "Faltan X Uds" se queda con el valor viejo.
-          ref.invalidate(noConformesAliadosProvider);
-          ref.invalidate(liberacionesAliadosProvider);
         case Err(:final message):
           _msg = FeedbackMessage.error(message);
       }
@@ -659,3 +669,7 @@ class _HistorialTab extends ConsumerWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

@@ -393,11 +393,10 @@ class WmsSnapshot {
   ItemKardex? kardexPorOpCodigo(String op, String codigo) => _porOpCodigo['$op|$codigo'];
 }
 
-/// Producto No Conforme enviado a un Aliado externo — cubre todo el ciclo:
-/// solicitud (Producción entrega) -> liberación (Producción recibe de
-/// vuelta). A diferencia del flujo de Logística, este NO pasa por
-/// "Recibir lote"; es un registro de trazabilidad que Producción maneja
-/// de punta a punta.
+/// Solicitud de Producto No Conforme enviado a un Aliado externo. El total
+/// solicitado se mantiene fijo; [cantidadLiberada] es un acumulado que crece
+/// con cada liberación (parcial o completa) — nunca se sobrescribe, cada
+/// liberación queda como su propio registro en [LiberacionAliado].
 class NoConformeAliado {
   const NoConformeAliado({
     required this.id,
@@ -409,18 +408,17 @@ class NoConformeAliado {
     required this.personaAliadoEntrega,
     required this.fechaSolicitud,
     this.notaSolicitud = '',
-    this.usuarioLiberacion,
-    this.personaAliadoLibera,
-    this.fechaLiberacion,
-    this.notaLiberacion = '',
+    this.cantidadLiberada = 0,
   });
 
   final String id;
   final ItemOrden item;
+
+  /// Total original solicitado — nunca cambia.
   final int cantidad;
   final String causal;
 
-  /// 'pendiente' o 'liberado'.
+  /// 'pendiente' o 'liberado' (liberado = ya se liberó el total).
   final String estado;
 
   final String usuarioSolicitud;
@@ -428,10 +426,48 @@ class NoConformeAliado {
   final DateTime fechaSolicitud;
   final String notaSolicitud;
 
-  final String? usuarioLiberacion;
-  final String? personaAliadoLibera;
-  final DateTime? fechaLiberacion;
-  final String notaLiberacion;
+  /// Acumulado de lo ya liberado (suma de todas las liberaciones, parciales
+  /// o no) — siempre <= [cantidad]. El detalle de cada liberación individual
+  /// vive aparte, en [LiberacionAliado] (ver cargarLiberacionesAliados).
+  final int cantidadLiberada;
 
-  bool get pendiente => estado == 'pendiente';
+  int get cantidadPendiente => cantidad - cantidadLiberada;
+  bool get pendiente => estado != 'liberado';
+}
+
+/// Un evento de liberación (parcial o completa) sobre una solicitud de
+/// Aliados. Cada liberación es su propio registro — nunca se sobrescribe.
+class LiberacionAliado {
+  const LiberacionAliado({
+    required this.id,
+    required this.solicitudId,
+    required this.item,
+    required this.cantidad,
+    required this.tipo,
+    required this.operario,
+    required this.personaAliado,
+    required this.fecha,
+    this.nota = '',
+    this.cantidadTotalSolicitud = 0,
+  });
+
+  final String id;
+
+  /// La solicitud (NoConformeAliado) a la que pertenece esta liberación.
+  final String solicitudId;
+  final ItemOrden item;
+
+  /// Cuánto se liberó EN ESTE evento (no el total de la solicitud).
+  final int cantidad;
+
+  /// 'parcial' o 'completa'.
+  final String tipo;
+
+  final String operario;
+  final String personaAliado;
+  final DateTime fecha;
+  final String nota;
+
+  /// El total que tenía la solicitud original, para dar contexto en el historial.
+  final int cantidadTotalSolicitud;
 }

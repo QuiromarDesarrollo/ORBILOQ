@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Fix: el contador 'Faltan X Uds' no se refrescaba al liberar (v49)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_fix_refresco_contador_v49.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando el fix del refresco..."
+
+echo "  - lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart"
+mkdir -p "$(dirname 'lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart')"
+cat > 'lib/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -659,3 +675,7 @@ class _HistorialTab extends ConsumerWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"

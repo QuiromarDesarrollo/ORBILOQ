@@ -37,7 +37,16 @@ class AddablePersonDropdown extends ConsumerWidget {
           controller: ctrl,
           autofocus: true,
           decoration: wmsInput('Nombre completo'),
-          onSubmitted: (v) => Navigator.of(dialogContext).pop(v.trim()),
+          onSubmitted: (v) {
+            // Misma causa que el fix de "+ AGREGAR NUEVA PERSONA": cerrar el
+            // diálogo (Navigator.pop) en el mismo instante en que el campo
+            // de texto todavía está procesando el ENTER del teclado/IME
+            // puede romper el árbol de elementos. Se retrasa al siguiente
+            // frame para que el campo termine de procesar el ENTER primero.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (dialogContext.mounted) Navigator.of(dialogContext).pop(v.trim());
+            });
+          },
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('CANCELAR')),

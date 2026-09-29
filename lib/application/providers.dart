@@ -59,6 +59,12 @@ final noConformesAliadosProvider = FutureProvider<List<NoConformeAliado>>(
   (ref) => ref.watch(wmsRepositoryProvider).cargarNoConformesAliados(),
 );
 
+/// Cada liberación (parcial o completa) de Aliados, una fila por evento —
+/// para el Historial detallado.
+final liberacionesAliadosProvider = FutureProvider<List<LiberacionAliado>>(
+  (ref) => ref.watch(wmsRepositoryProvider).cargarLiberacionesAliados(),
+);
+
 // ------------------------------------------------------------------ tema
 
 /// Modo de color de la pantalla del Kardex (oscuro/claro). Solo cambia el

@@ -438,13 +438,15 @@ class SupabaseWmsRepository implements WmsRepository {
   @override
   Future<Result<void>> liberarNoConformeAliado({
     required String id,
+    required int cantidad,
     required String operario,
     required String personaAliadoLibera,
     String nota = '',
   }) async {
     try {
       await _client.rpc('liberar_no_conforme_aliado', params: {
-        'p_id': id,
+        'p_solicitud_id': id,
+        'p_cantidad': cantidad,
         'p_operario_nombre': operario,
         'p_persona_aliado_libera': personaAliadoLibera,
         'p_nota': nota,
@@ -478,17 +480,46 @@ class SupabaseWmsRepository implements WmsRepository {
             talla: row['item_talla'] as String,
             cantidadPedida: 0,
           ),
-          cantidad: (row['cantidad'] as num).toInt(),
+          cantidad: (row['cantidad_solicitada'] as num).toInt(),
           causal: row['causal_nombre'] as String,
           estado: row['estado'] as String,
           usuarioSolicitud: row['usuario_produccion_solicitud_nombre'] as String,
           personaAliadoEntrega: row['persona_aliado_entrega'] as String,
           fechaSolicitud: DateTime.parse(row['fecha_solicitud'] as String).toLocal(),
           notaSolicitud: (row['nota_solicitud'] as String?) ?? '',
-          usuarioLiberacion: row['usuario_produccion_liberacion_nombre'] as String?,
-          personaAliadoLibera: row['persona_aliado_libera'] as String?,
-          fechaLiberacion: _fecha(row['fecha_liberacion']),
-          notaLiberacion: (row['nota_liberacion'] as String?) ?? '',
+          cantidadLiberada: (row['cantidad_liberada'] as num?)?.toInt() ?? 0,
+        ),
+    ];
+  }
+
+  @override
+  Future<List<LiberacionAliado>> cargarLiberacionesAliados() async {
+    final filas = await _traerTodo(
+      (desde, hasta) =>
+          _client.from('vista_liberaciones_aliados').select().order('fecha', ascending: false).range(desde, hasta),
+    );
+    return [
+      for (final row in filas)
+        LiberacionAliado(
+          id: row['id'] as String,
+          solicitudId: row['solicitud_id'] as String,
+          item: ItemOrden(
+            id: row['item_orden_id'] as String,
+            op: row['op_numero'] as String,
+            cliente: row['item_cliente'] as String,
+            oc: (row['item_oc'] as String?) ?? '',
+            codigo: row['item_codigo'] as String,
+            descripcion: row['item_descripcion'] as String,
+            talla: row['item_talla'] as String,
+            cantidadPedida: (row['cantidad_pedida'] as num?)?.toInt() ?? 0,
+          ),
+          cantidad: (row['cantidad'] as num).toInt(),
+          tipo: (row['es_entrega_completa'] as bool) ? 'completa' : 'parcial',
+          operario: row['usuario_produccion_nombre'] as String,
+          personaAliado: row['persona_aliado_libera'] as String,
+          fecha: DateTime.parse(row['fecha'] as String).toLocal(),
+          nota: (row['nota'] as String?) ?? '',
+          cantidadTotalSolicitud: (row['cantidad_solicitada'] as num?)?.toInt() ?? 0,
         ),
     ];
   }
