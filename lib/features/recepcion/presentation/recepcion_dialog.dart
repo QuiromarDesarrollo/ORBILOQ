@@ -245,12 +245,21 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
       case Ok(:final value):
         setState(() {
           _confirmando = false;
-          _msg = FeedbackMessage.ok(
-            '${linea.item.codigo} (${linea.item.talla}): ${value.estado.etiqueta}. Ingresada a $_ubicacion.',
-          );
-          _lineaAbiertaId = null;
-          _ordenManual.remove(linea.id);
-          _conteos.remove(linea.id);
+          if (value.enTransito) {
+            // Recepción parcial: la tarjeta se queda en Pendientes.
+            _msg = FeedbackMessage.ok(
+              '${linea.item.codigo} (${linea.item.talla}): recibidas $cantidad Uds — faltan ${value.cantidadPendiente} Uds.',
+            );
+            _cantidadCtrl.text = '0';
+            _conteos[linea.id] = 0;
+          } else {
+            _msg = FeedbackMessage.ok(
+              '${linea.item.codigo} (${linea.item.talla}): ${value.estado.etiqueta}. Ingresada a $_ubicacion.',
+            );
+            _lineaAbiertaId = null;
+            _ordenManual.remove(linea.id);
+            _conteos.remove(linea.id);
+          }
         });
       case Err(:final message):
         setState(() {
@@ -258,6 +267,107 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
           _msg = FeedbackMessage.error(message);
         });
     }
+  }
+
+  Future<void> _cerrarConFaltante(LoteLinea linea) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('¿Cerrar con faltante?'),
+        content: Text(
+          'Faltan ${linea.cantidadPendiente} Uds de ${linea.item.descripcion} (${linea.item.talla}) que nunca llegaron. '
+          'Al cerrar, esas unidades van a volver a aparecer como pendientes por entregar en Producción. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('CANCELAR')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('CERRAR CON FALTANTE', style: TextStyle(color: AppColors.alertRed)),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true) return;
+    if (!mounted) return;
+
+    setState(() => _confirmando = true);
+    final res = await ref.read(wmsRepositoryProvider).cerrarLoteItemConFaltante(
+          loteLineaId: linea.id,
+          nota: _notaCtrl.text,
+        );
+    if (!mounted) return;
+    setState(() {
+      _confirmando = false;
+      switch (res) {
+        case Ok():
+          _msg = FeedbackMessage.ok(
+            '${linea.item.codigo} (${linea.item.talla}): cerrada con faltante — vuelve a estar pendiente por entregar en Producción.',
+          );
+          _lineaAbiertaId = null;
+          _ordenManual.remove(linea.id);
+          _conteos.remove(linea.id);
+        case Err(:final message):
+          _msg = FeedbackMessage.error(message);
+      }
+    });
+  }
+
+  Future<void> _reportarSobrante(LoteLinea linea) async {
+    final ctrlCantidad = TextEditingController();
+    final ctrlNota = TextEditingController();
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reportar sobrante'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('¿Cuántas unidades de más llegaron de ${linea.item.descripcion} (${linea.item.talla})?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrlCantidad,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: wmsInput('Cantidad de sobra'),
+            ),
+            const SizedBox(height: 10),
+            TextField(controller: ctrlNota, decoration: wmsInput('Nota (opcional)')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('CANCELAR')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('REGISTRAR')),
+        ],
+      ),
+    );
+    if (confirmado != true) return;
+    final cantidad = int.tryParse(ctrlCantidad.text.trim());
+    if (cantidad == null || cantidad <= 0) {
+      if (!mounted) return;
+      setState(() => _msg = const FeedbackMessage.error('Ingresa una cantidad de sobrante mayor a 0.'));
+      return;
+    }
+    if (!mounted) return;
+
+    final res = await ref.read(wmsRepositoryProvider).registrarSobrante(
+          itemId: linea.item.id,
+          loteLineaId: linea.id,
+          cantidad: cantidad,
+          operario: _recibidoPor ?? '',
+          nota: ctrlNota.text,
+        );
+    if (!mounted) return;
+    setState(() {
+      switch (res) {
+        case Ok():
+          _msg = FeedbackMessage.ok(
+            '$cantidad Uds de sobrante registradas — revísalas en la Bandeja de Sobrantes.',
+          );
+        case Err(:final message):
+          _msg = FeedbackMessage.error(message);
+      }
+    });
   }
 
   @override
@@ -316,6 +426,8 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                             ubicacion: _ubicacion,
                             onUbicacion: (v) => setState(() => _ubicacion = v),
                             onConfirmar: () => _confirmar(e.linea),
+                            onCerrarConFaltante: () => _cerrarConFaltante(e.linea),
+                            onReportarSobrante: () => _reportarSobrante(e.linea),
                           ),
                         );
                       },
@@ -359,6 +471,8 @@ class _TarjetaLinea extends StatelessWidget {
     required this.ubicacion,
     required this.onUbicacion,
     required this.onConfirmar,
+    required this.onCerrarConFaltante,
+    required this.onReportarSobrante,
   });
 
   final Lote lote;
@@ -371,6 +485,8 @@ class _TarjetaLinea extends StatelessWidget {
   final String ubicacion;
   final ValueChanged<String> onUbicacion;
   final VoidCallback onConfirmar;
+  final VoidCallback onCerrarConFaltante;
+  final VoidCallback onReportarSobrante;
 
   @override
   Widget build(BuildContext context) {
@@ -425,6 +541,18 @@ class _TarjetaLinea extends StatelessWidget {
                         'Lote: ${lote.id} (${lote.operario})',
                         style: const TextStyle(fontSize: 12, color: Colors.black54),
                       ),
+                      if ((linea.cantidadRecibida ?? 0) > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                            child: Text(
+                              'Ya recibidas: ${linea.cantidadRecibida} · Faltan: ${linea.cantidadPendiente} Uds',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -474,9 +602,9 @@ class _TarjetaLinea extends StatelessWidget {
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
-                        _MaxValorFormatter(linea.cantidadEnviada),
+                        _MaxValorFormatter(linea.cantidadPendiente),
                       ],
-                      decoration: wmsInput('Cant. validada (máx ${linea.cantidadEnviada})'),
+                      decoration: wmsInput('Cant. a recibir ahora (máx ${linea.cantidadPendiente})'),
                     ),
                   ),
                 ],
@@ -487,19 +615,33 @@ class _TarjetaLinea extends StatelessWidget {
                 decoration: wmsInput('Nota de novedad para Producción (opcional)', icon: Icons.warning_amber),
               ),
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ElevatedButton.icon(
-                  onPressed: onConfirmar,
-                  icon: const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                  label: const Text('INGRESAR A ESTANTE & CONFIRMAR'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.actionGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: onConfirmar,
+                    icon: const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                    label: const Text('INGRESAR A ESTANTE & CONFIRMAR'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.actionGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                   ),
-                ),
+                  OutlinedButton.icon(
+                    onPressed: onReportarSobrante,
+                    icon: const Icon(Icons.add_box_outlined, size: 18),
+                    label: const Text('¿Llegó de más? Reportar sobrante'),
+                  ),
+                  if ((linea.cantidadRecibida ?? 0) > 0)
+                    TextButton.icon(
+                      onPressed: onCerrarConFaltante,
+                      icon: const Icon(Icons.block, size: 18, color: AppColors.alertRed),
+                      label: const Text('Cerrar con faltante', style: TextStyle(color: AppColors.alertRed)),
+                    ),
+                ],
               ),
             ],
           ],

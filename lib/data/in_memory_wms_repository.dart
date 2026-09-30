@@ -40,6 +40,8 @@ class InMemoryWmsRepository implements WmsRepository {
   int _correlativoAliado = 0;
   final List<LiberacionAliado> _liberacionesAliados = []; // más recientes primero
   int _correlativoLiberacionAliado = 0;
+  final List<SobranteBodega> _sobrantes = []; // más recientes primero
+  int _correlativoSobrante = 0;
   final StreamController<WmsSnapshot> _controller = StreamController.broadcast();
 
   // ---------------------------------------------------------------- lectura
@@ -91,6 +93,8 @@ class InMemoryWmsRepository implements WmsRepository {
         case TipoMovimiento.liberacionAliado:
           a.producido += m.cantidad;
           a.pendienteAliados -= m.cantidad;
+        case TipoMovimiento.ajusteFaltanteEntrega:
+          a.producido -= m.cantidad;
       }
     }
 
@@ -194,32 +198,178 @@ class InMemoryWmsRepository implements WmsRepository {
       return Err<LoteLinea>('La línea del lote no existe.');
     }
     if (!lineaEncontrada.enTransito) {
-      return Err<LoteLinea>('Esta línea ya fue recibida.');
+      return Err<LoteLinea>('Esta línea ya fue cerrada.');
     }
     if (cantidad <= 0) return Err<LoteLinea>('La cantidad debe ser mayor a 0.');
     if (!WmsConstantes.ubicaciones.contains(ubicacion)) {
       return Err<LoteLinea>('Ubicación no válida: $ubicacion.');
     }
 
-    final diff = cantidad - lineaEncontrada.cantidadEnviada;
-    var novedad = '';
-    if (diff < 0) {
-      novedad = 'FALTANTE: Se recibieron $cantidad de ${lineaEncontrada.cantidadEnviada} Uds (faltaron ${-diff}).';
-    } else if (diff > 0) {
-      novedad = 'SOBRANTE: Se recibieron $cantidad de ${lineaEncontrada.cantidadEnviada} Uds (+$diff).';
-    }
-    final obs = nota.trim();
-    if (obs.isNotEmpty) {
-      novedad = novedad.isEmpty ? 'Obs: $obs' : '$novedad Obs: $obs';
+    final recibidoPrevio = lineaEncontrada.cantidadRecibida ?? 0;
+    final pendiente = lineaEncontrada.cantidadEnviada - recibidoPrevio;
+    if (cantidad > pendiente) {
+      return Err<LoteLinea>(
+        'LÍMITE EXCEDIDO: solo faltan $pendiente Uds por recibir en esta línea. '
+        'Si llegó más de lo declarado, usa la Bandeja de Sobrantes para el exceso.',
+      );
     }
 
-    final lineaActualizada = _aplicarRecepcionLinea(
-      loteEncontrado, lineaEncontrada, cantidad, ubicacion, novedad, DateTime.now(),
+    final nuevoRecibido = recibidoPrevio + cantidad;
+    final completa = nuevoRecibido >= lineaEncontrada.cantidadEnviada;
+    final fecha = DateTime.now();
+
+    final lineaActualizada = lineaEncontrada.copyWith(
+      estado: completa ? EstadoLineaLote.recibidoConforme : EstadoLineaLote.enTransito,
+      cantidadRecibida: nuevoRecibido,
+      ubicacionDestino: ubicacion,
+      fechaRecepcion: fecha,
       recibidoPor: recibidoPor,
     );
+
+    final idxLote = _lotes.indexWhere((l) => l.id == loteEncontrado!.id);
+    final nuevasLineas = [
+      for (final l in _lotes[idxLote].lineas) l.id == loteLineaId ? lineaActualizada : l,
+    ];
+    final pendientesEnLote = nuevasLineas.where((l) => l.enTransito).length;
+    _lotes[idxLote] = Lote(
+      id: loteEncontrado.id,
+      operario: loteEncontrado.operario,
+      fechaEnvio: loteEncontrado.fechaEnvio,
+      lineas: nuevasLineas,
+      estado: pendientesEnLote == 0 ? EstadoLote.recibidoCompleto : EstadoLote.recibidoParcial,
+    );
+
+    _movimientos.add(Movimiento(
+      tipo: TipoMovimiento.recepcion,
+      itemId: lineaEncontrada.item.id,
+      cantidad: cantidad,
+      fecha: fecha,
+      ubicacion: ubicacion,
+      loteId: loteEncontrado.id,
+      loteLineaId: loteLineaId,
+      nota: nota,
+    ));
+
     _emitir();
     return Ok<LoteLinea>(lineaActualizada);
   }
+
+  @override
+  Future<Result<void>> cerrarLoteItemConFaltante({
+    required String loteLineaId,
+    String nota = '',
+  }) async {
+    Lote? loteEncontrado;
+    LoteLinea? lineaEncontrada;
+    for (final lote in _lotes) {
+      for (final linea in lote.lineas) {
+        if (linea.id == loteLineaId) {
+          loteEncontrado = lote;
+          lineaEncontrada = linea;
+          break;
+        }
+      }
+      if (lineaEncontrada != null) break;
+    }
+    if (loteEncontrado == null || lineaEncontrada == null) {
+      return Err<void>('La línea del lote no existe.');
+    }
+    if (!lineaEncontrada.enTransito) {
+      return Err<void>('Esta línea ya fue cerrada.');
+    }
+    final recibido = lineaEncontrada.cantidadRecibida ?? 0;
+    final faltante = lineaEncontrada.cantidadEnviada - recibido;
+    if (faltante <= 0) {
+      return Err<void>('Esta línea ya está completa, no hay faltante que cerrar.');
+    }
+
+    var novedad =
+        'FALTANTE DEFINITIVO: se recibieron $recibido de ${lineaEncontrada.cantidadEnviada} Uds (nunca llegaron $faltante).';
+    if (nota.trim().isNotEmpty) novedad = '$novedad Obs: ${nota.trim()}';
+
+    final lineaActualizada = lineaEncontrada.copyWith(estado: EstadoLineaLote.recibidoConNovedad, novedad: novedad);
+
+    final idxLote = _lotes.indexWhere((l) => l.id == loteEncontrado!.id);
+    final nuevasLineas = [
+      for (final l in _lotes[idxLote].lineas) l.id == loteLineaId ? lineaActualizada : l,
+    ];
+    final pendientesEnLote = nuevasLineas.where((l) => l.enTransito).length;
+    _lotes[idxLote] = Lote(
+      id: loteEncontrado.id,
+      operario: loteEncontrado.operario,
+      fechaEnvio: loteEncontrado.fechaEnvio,
+      lineas: nuevasLineas,
+      estado: pendientesEnLote == 0 ? EstadoLote.recibidoCompleto : EstadoLote.recibidoParcial,
+    );
+
+    _movimientos.add(Movimiento(
+      tipo: TipoMovimiento.ajusteFaltanteEntrega,
+      itemId: lineaEncontrada.item.id,
+      cantidad: faltante,
+      fecha: DateTime.now(),
+      loteId: loteEncontrado.id,
+      loteLineaId: loteLineaId,
+      nota: novedad,
+    ));
+
+    _emitir();
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<Result<void>> registrarSobrante({
+    required String itemId,
+    String? loteLineaId,
+    required int cantidad,
+    required String operario,
+    String nota = '',
+  }) async {
+    if (cantidad <= 0) return Err<void>('La cantidad debe ser mayor a 0.');
+    final item = _items[itemId];
+    if (item == null) return Err<void>('El producto no existe en el kardex.');
+
+    _sobrantes.insert(
+      0,
+      SobranteBodega(
+        id: 'SOB-${_correlativoSobrante++}',
+        item: item,
+        cantidad: cantidad,
+        estado: 'pendiente',
+        operario: operario,
+        fecha: DateTime.now(),
+        nota: nota,
+      ),
+    );
+    _emitir();
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<Result<void>> resolverSobrante({required String id, required String resolucion}) async {
+    if (resolucion.trim().isEmpty) return Err<void>('Debes indicar qué se decidió hacer con este sobrante.');
+    final idx = _sobrantes.indexWhere((s) => s.id == id);
+    if (idx == -1) return Err<void>('El sobrante no existe.');
+    if (!_sobrantes[idx].pendiente) return Err<void>('El sobrante ya fue resuelto.');
+
+    final actual = _sobrantes[idx];
+    _sobrantes[idx] = SobranteBodega(
+      id: actual.id,
+      item: actual.item,
+      cantidad: actual.cantidad,
+      estado: 'resuelto',
+      operario: actual.operario,
+      fecha: actual.fecha,
+      nota: actual.nota,
+      resolucion: resolucion,
+      fechaResolucion: DateTime.now(),
+    );
+    _emitir();
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<List<SobranteBodega>> cargarSobrantes() async => List.unmodifiable(_sobrantes);
+
 
   @override
   Future<Result<void>> despachar({

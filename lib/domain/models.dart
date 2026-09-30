@@ -33,7 +33,7 @@ enum EstadoLineaLote {
 
 enum TipoMovimiento {
   entregaProduccion, recepcion, despacho, devolucionProduccion, liberacionNoConforme,
-  envioAliado, liberacionAliado,
+  envioAliado, liberacionAliado, ajusteFaltanteEntrega,
 }
 
 enum EstadoItem {
@@ -222,6 +222,9 @@ class LoteLinea {
   final String recibidoPor;
 
   bool get enTransito => estado == EstadoLineaLote.enTransito;
+
+  /// Cuánto falta por recibir de esta línea (0 si ya se completó o se cerró).
+  int get cantidadPendiente => cantidadEnviada - (cantidadRecibida ?? 0);
 
   LoteLinea copyWith({
     EstadoLineaLote? estado,
@@ -470,4 +473,37 @@ class LiberacionAliado {
 
   /// El total que tenía la solicitud original, para dar contexto en el historial.
   final int cantidadTotalSolicitud;
+}
+
+/// Una unidad (o varias) que llegó de más al recibir un lote — no cuenta
+/// para Bodega hasta que alguien decida qué hacer con ella.
+class SobranteBodega {
+  const SobranteBodega({
+    required this.id,
+    required this.item,
+    required this.cantidad,
+    required this.estado,
+    required this.operario,
+    required this.fecha,
+    this.nota = '',
+    this.resolucion,
+    this.fechaResolucion,
+  });
+
+  final String id;
+  final ItemOrden item;
+  final int cantidad;
+
+  /// 'pendiente' o 'resuelto'.
+  final String estado;
+
+  final String operario;
+  final DateTime fecha;
+  final String nota;
+
+  /// Qué se decidió hacer con este sobrante (solo cuando ya está resuelto).
+  final String? resolucion;
+  final DateTime? fechaResolucion;
+
+  bool get pendiente => estado == 'pendiente';
 }

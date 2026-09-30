@@ -65,6 +65,11 @@ final liberacionesAliadosProvider = FutureProvider<List<LiberacionAliado>>(
   (ref) => ref.watch(wmsRepositoryProvider).cargarLiberacionesAliados(),
 );
 
+/// Todo lo que llegó de más al recibir (pendiente e historial de sobrantes).
+final sobrantesProvider = FutureProvider<List<SobranteBodega>>(
+  (ref) => ref.watch(wmsRepositoryProvider).cargarSobrantes(),
+);
+
 // ------------------------------------------------------------------ tema
 
 /// Modo de color de la pantalla del Kardex (oscuro/claro). Solo cambia el

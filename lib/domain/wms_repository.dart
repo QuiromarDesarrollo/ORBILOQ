@@ -28,6 +28,32 @@ abstract interface class WmsRepository {
     String nota = '',
   });
 
+  /// Cierra una línea aceptando que el resto nunca llegó. Las unidades que
+  /// faltaron vuelven a estar "pendientes por entregar" en Producción.
+  Future<Result<void>> cerrarLoteItemConFaltante({
+    required String loteLineaId,
+    String nota = '',
+  });
+
+  /// Registra el excedente cuando llega MÁS de lo declarado en una línea —
+  /// queda aparte, sin sumar a Bodega, hasta que se resuelva.
+  Future<Result<void>> registrarSobrante({
+    required String itemId,
+    String? loteLineaId,
+    required int cantidad,
+    required String operario,
+    String nota = '',
+  });
+
+  /// Marca un sobrante pendiente como resuelto, con la decisión tomada.
+  Future<Result<void>> resolverSobrante({
+    required String id,
+    required String resolucion,
+  });
+
+  /// Todos los sobrantes (pendientes e historial), más recientes primero.
+  Future<List<SobranteBodega>> cargarSobrantes();
+
   /// Logística despacha unidades desde una ubicación.
   Future<Result<void>> despachar({
     required String itemId,
