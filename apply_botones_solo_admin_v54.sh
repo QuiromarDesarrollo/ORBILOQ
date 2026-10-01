@@ -1,3 +1,20 @@
+#!/usr/bin/env bash
+# ============================================================================
+# ORBILOQ WMS - Importar Excel / Importar fechas / Exportar a Excel ahora
+# solo para Administrador (v54)
+# Ejecutar DESDE LA RAIZ del repo:
+#   bash apply_botones_solo_admin_v54.sh
+# ============================================================================
+set -e
+if [ ! -f "pubspec.yaml" ]; then
+  echo "ERROR: corre este script desde la raiz del repo (donde esta pubspec.yaml)"
+  exit 1
+fi
+echo "Aplicando el cambio de permisos de botones..."
+
+echo "  - lib/features/kardex/presentation/kardex_page.dart"
+mkdir -p "$(dirname 'lib/features/kardex/presentation/kardex_page.dart')"
+cat > 'lib/features/kardex/presentation/kardex_page.dart' << 'ORBILOQ_EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -428,3 +445,7 @@ class _BotonAccion extends StatelessWidget {
     );
   }
 }
+ORBILOQ_EOF
+
+echo ""
+echo "Listo. flutter analyze"
