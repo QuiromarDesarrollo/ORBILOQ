@@ -1,3 +1,8 @@
+import '../../admin/presentation/reportes_admin_dialog.dart';
+import '../../admin/presentation/catalogos_dialog.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../../data/excel_kardex.dart';
+import '../../importacion/presentation/importar_kardex_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -55,8 +60,17 @@ class _KardexPageState extends ConsumerState<KardexPage> {
     final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
     final esAdmin = !usarSupabase || sesion?.rolCuenta == RolCuenta.admin;
 
+    final compacto = MediaQuery.sizeOf(context).width < 1200;
     return Scaffold(
       backgroundColor: pal.bg,
+      drawerEnableOpenDragGesture: false,
+      drawer: esAdmin
+          ? _AdminDrawer(
+              rol: rol,
+              kardex: snapshot.value?.kardex ?? const [],
+              datosDisponibles: snapshot.hasValue,
+              pageContext: context)
+          : null,
       appBar: AppBar(
         backgroundColor: pal.header,
         foregroundColor: pal.textPrimary,
@@ -65,107 +79,184 @@ class _KardexPageState extends ConsumerState<KardexPage> {
         surfaceTintColor: pal.header,
         shape: Border(bottom: BorderSide(color: pal.cardBorder)),
         titleSpacing: 20,
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 40,
-                height: 40,
-                color: Colors.white,
-                child: Image.asset(
-                  'assets/images/logo_orbiloq.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stack) => Container(
-                    color: AppColors.tealPrimary,
-                    child: const Icon(Icons.inventory_2_outlined, color: Colors.white, size: 20),
+        title: compacto
+            ? const Text('ORBILOQ', style: TextStyle(fontSize: 18))
+            : Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      color: Colors.white,
+                      child: Image.asset(
+                        'assets/images/logo_orbiloq.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) => Container(
+                          color: AppColors.tealPrimary,
+                          child: const Icon(Icons.inventory_2_outlined,
+                              color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                RichText(
-                  text: TextSpan(
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: pal.textPrimary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const TextSpan(text: 'ORBILOQ '),
-                      TextSpan(
-                        text: '| KARDEX MAESTRO',
-                        style: TextStyle(fontWeight: FontWeight.w500, color: pal.accent),
+                      RichText(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        text: TextSpan(
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: pal.textPrimary),
+                          children: [
+                            const TextSpan(text: 'ORBILOQ '),
+                            TextSpan(
+                              text: '| KARDEX MAESTRO',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: pal.accent),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'CONTROL OPERATIVO DE BODEGA Y PRODUCCIÓN',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: pal.textMuted,
+                            letterSpacing: 0.4),
                       ),
                     ],
+                  )),
+                ],
+              ),
+        actions: compacto
+            ? [
+                IconButton(
+                    tooltip: 'Sincronizar',
+                    onPressed: _sincronizando ? null : _sincronizar,
+                    icon: const Icon(Icons.sync)),
+                PopupMenuButton<String>(
+                    tooltip: 'Menú',
+                    onSelected: (v) {
+                      if (v == 'tema') {
+                        ref.read(temaProvider.notifier).alternar();
+                      }
+                      if (v == 'ordenes') showImportarOrdenesDialog(context);
+                      if (v == 'salir') {
+                        ref.read(authRepositoryProvider)?.cerrarSesion();
+                      }
+                      if (v == 'produccion') {
+                        ref.read(rolProvider.notifier).cambiar(Rol.produccion);
+                      }
+                      if (v == 'logistica') {
+                        ref.read(rolProvider.notifier).cambiar(Rol.logistica);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                          const PopupMenuItem(
+                              value: 'tema', child: Text('Cambiar tema')),
+                          if (esAdmin) ...[
+                            const PopupMenuItem(
+                                value: 'produccion',
+                                child: Text('Vista Producción')),
+                            const PopupMenuItem(
+                                value: 'logistica',
+                                child: Text('Vista Logística')),
+                            const PopupMenuItem(
+                                value: 'ordenes',
+                                child: Text('Importar órdenes ERP')),
+                          ],
+                          if (usarSupabase)
+                            const PopupMenuItem(
+                                value: 'salir', child: Text('Cerrar sesión')),
+                        ]),
+              ]
+            : [
+                IconButton(
+                  tooltip: modoTema == TemaModo.claro
+                      ? 'Cambiar a tema oscuro'
+                      : 'Cambiar a tema claro',
+                  onPressed: () => ref.read(temaProvider.notifier).alternar(),
+                  icon: Icon(
+                    modoTema == TemaModo.claro
+                        ? Icons.dark_mode_outlined
+                        : Icons.light_mode_outlined,
+                    color: pal.textSecondary,
                   ),
                 ),
-                Text(
-                  'CONTROL OPERATIVO DE BODEGA Y PRODUCCIÓN',
-                  style: TextStyle(fontSize: 10, color: pal.textMuted, letterSpacing: 0.4),
+                const SizedBox(width: 4),
+                if (esAdmin) ...[
+                  OutlinedButton.icon(
+                    onPressed: () => showImportarOrdenesDialog(context),
+                    icon: const Icon(Icons.upload_file_outlined, size: 18),
+                    label: const Text('Importar órdenes ERP'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: pal.textSecondary,
+                      side: BorderSide(color: pal.cardBorder),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                ElevatedButton.icon(
+                  onPressed: _sincronizando ? null : _sincronizar,
+                  icon: _sincronizando
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.sync, size: 18),
+                  label: Text(
+                      _sincronizando ? 'Sincronizando...' : 'Sincronizar BD'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.tealPrimary,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
+                const SizedBox(width: 10),
+                _SelectorPerfil(rol: rol),
+                const SizedBox(width: 20),
               ],
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: modoTema == TemaModo.claro ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro',
-            onPressed: () => ref.read(temaProvider.notifier).alternar(),
-            icon: Icon(
-              modoTema == TemaModo.claro ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-              color: pal.textSecondary,
-            ),
-          ),
-          const SizedBox(width: 4),
-          if (esAdmin) ...[
-            OutlinedButton.icon(
-              onPressed: () => showImportarOrdenesDialog(context),
-              icon: const Icon(Icons.upload_file_outlined, size: 18),
-              label: const Text('Importar Excel'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: pal.textSecondary,
-                side: BorderSide(color: pal.cardBorder),
-              ),
-            ),
-            const SizedBox(width: 10),
-          ],
-          ElevatedButton.icon(
-            onPressed: _sincronizando ? null : _sincronizar,
-            icon: _sincronizando
-                ? const SizedBox(
-                    width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.sync, size: 18),
-            label: Text(_sincronizando ? 'Sincronizando...' : 'Sincronizar BD'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.tealPrimary,
-              foregroundColor: Colors.white,
-            ),
-          ),
-          const SizedBox(width: 10),
-          _SelectorPerfil(rol: rol),
-          const SizedBox(width: 20),
-        ],
       ),
       body: snapshot.when(
-        loading: () => Center(child: CircularProgressIndicator(color: pal.accent)),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: pal.accent)),
         error: (e, _) => Center(
-          child: Text('Error cargando datos: $e', style: TextStyle(color: pal.textPrimary)),
+          child: Text('Error cargando datos: $e',
+              style: TextStyle(color: pal.textPrimary)),
         ),
-        data: (s) => SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Cabecera(rol: rol, enTransito: s.lotesConPendientes, kardex: s.kardex, esAdmin: esAdmin),
-              const SizedBox(height: 20),
-              const KardexSummaryCards(),
-              const SizedBox(height: 20),
-              const KardexFiltersBar(),
-              const SizedBox(height: 16),
-              const KardexTable(),
-            ],
-          ),
+        data: (s) => Column(
+          children: [
+            Expanded(
+                child: SingleChildScrollView(
+              padding: EdgeInsets.all(compacto ? 12 : 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(rol.etiqueta,
+                      style: TextStyle(
+                          color: pal.accent, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  _Cabecera(rol: rol, enTransito: s.lotesConPendientes),
+                  const SizedBox(height: 20),
+                  const KardexSummaryCards(),
+                  const SizedBox(height: 20),
+                  const KardexFiltersBar(),
+                  const SizedBox(height: 16),
+                  const KardexTable(),
+                ],
+              ),
+            )),
+          ],
         ),
       ),
     );
@@ -179,7 +270,8 @@ class _SelectorPerfil extends ConsumerWidget {
 
   final Rol rol;
 
-  IconData _icono(Rol r) => r == Rol.produccion ? Icons.content_cut : Icons.warehouse_outlined;
+  IconData _icono(Rol r) =>
+      r == Rol.produccion ? Icons.content_cut : Icons.warehouse_outlined;
   String _etiqueta(Rol r) => r == Rol.produccion ? 'Producción' : 'Bodega';
 
   @override
@@ -223,14 +315,19 @@ class _SelectorPerfil extends ConsumerWidget {
         children: [
           Icon(_icono(rol), size: 16, color: pal.accent),
           const SizedBox(width: 8),
-          Text(nombre, style: TextStyle(color: pal.accent, fontWeight: FontWeight.w600, fontSize: 13)),
+          Text(nombre,
+              style: TextStyle(
+                  color: pal.accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13)),
         ],
       ),
     );
   }
 
   /// Administrador (o modo memoria sin login): puede alternar entre vistas.
-  Widget _pastillaDesplegable(BuildContext context, WidgetRef ref, AppPalette pal) {
+  Widget _pastillaDesplegable(
+      BuildContext context, WidgetRef ref, AppPalette pal) {
     return PopupMenuButton<Rol>(
       color: pal.card,
       offset: const Offset(0, 44),
@@ -245,7 +342,11 @@ class _SelectorPerfil extends ConsumerWidget {
           height: 32,
           child: Text(
             'PERFIL DE TRABAJO',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: pal.textMuted, letterSpacing: 0.5),
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: pal.textMuted,
+                letterSpacing: 0.5),
           ),
         ),
         for (final r in Rol.values)
@@ -253,12 +354,14 @@ class _SelectorPerfil extends ConsumerWidget {
             value: r,
             child: Row(
               children: [
-                Icon(_icono(r), size: 18, color: r == rol ? pal.accent : pal.textSecondary),
+                Icon(_icono(r),
+                    size: 18, color: r == rol ? pal.accent : pal.textSecondary),
                 const SizedBox(width: 10),
                 Text(_etiqueta(r),
                     style: TextStyle(
                       color: r == rol ? pal.accent : pal.textPrimary,
-                      fontWeight: r == rol ? FontWeight.bold : FontWeight.normal,
+                      fontWeight:
+                          r == rol ? FontWeight.bold : FontWeight.normal,
                     )),
                 if (r == rol) ...[
                   const Spacer(),
@@ -281,7 +384,10 @@ class _SelectorPerfil extends ConsumerWidget {
             Icon(_icono(rol), size: 16, color: pal.accent),
             const SizedBox(width: 8),
             Text(_etiqueta(rol),
-                style: TextStyle(color: pal.accent, fontWeight: FontWeight.w600, fontSize: 13)),
+                style: TextStyle(
+                    color: pal.accent,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13)),
             const SizedBox(width: 4),
             Icon(Icons.expand_more, size: 16, color: pal.accent),
           ],
@@ -291,19 +397,36 @@ class _SelectorPerfil extends ConsumerWidget {
   }
 }
 
-class _Cabecera extends StatelessWidget {
-  const _Cabecera({required this.rol, required this.enTransito, required this.kardex, required this.esAdmin});
+class _AdminDrawer extends ConsumerWidget {
+  const _AdminDrawer(
+      {required this.rol,
+      required this.kardex,
+      required this.datosDisponibles,
+      required this.pageContext});
 
   final Rol rol;
-  final int enTransito;
   final List<ItemKardex> kardex;
-  final bool esAdmin;
+  final bool datosDisponibles;
+  final BuildContext pageContext;
 
-  Future<void> _exportar(BuildContext context) async {
+  Future<void> _exportar(BuildContext context, WidgetRef ref) async {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Generando el archivo de Excel…'), duration: Duration(seconds: 2)),
+      const SnackBar(
+          content: Text('Generando el archivo de Excel…'),
+          duration: Duration(seconds: 2)),
     );
     try {
+      final service = ref.read(importadorKardexProvider);
+      if (service != null) {
+        final archivo = await service.exportar(rol);
+        await FilePicker.platform.saveFile(
+            dialogTitle: 'Guardar tabla completa',
+            fileName: 'orbiloq_${rol.name}.xlsx',
+            bytes: ExcelKardex.generar(archivo),
+            type: FileType.custom,
+            allowedExtensions: ['xlsx']);
+        return;
+      }
       if (rol == Rol.produccion) {
         await KardexExcelExportador.exportarProduccion(kardex);
       } else {
@@ -312,14 +435,80 @@ class _Cabecera extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo exportar: $e'), backgroundColor: AppColors.alertRed),
+          SnackBar(
+              content: Text('No se pudo exportar: $e'),
+              backgroundColor: AppColors.alertRed),
         );
       }
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = palOf(context);
+    return Drawer(
+      backgroundColor: pal.header,
+      semanticLabel: 'Menú del administrador',
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 20, right: 8),
+              child: Row(children: [
+                Expanded(
+                    child: Text('Menú del administrador',
+                        style: TextStyle(
+                            color: pal.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold))),
+                IconButton(
+                    tooltip: 'Cerrar menú',
+                    onPressed: () => Scaffold.of(context).closeDrawer(),
+                    icon: const Icon(Icons.close)),
+              ]),
+            ),
+            const Divider(),
+            _enlace(context, Icons.manage_accounts_outlined, 'Administración',
+                () => showCatalogosDialog(pageContext)),
+            _enlace(context, Icons.analytics_outlined, 'Reportes y auditoría',
+                () => showReportesAdminDialog(pageContext)),
+            _enlace(context, Icons.upload_file_outlined, 'Importar tabla',
+                () => showImportarKardexDialog(pageContext, rol)),
+            _enlace(context, Icons.file_download_outlined, 'Extraer tabla',
+                datosDisponibles ? () => _exportar(pageContext, ref) : null),
+            _enlace(context, Icons.event_available_outlined, 'Importar fechas',
+                () => showImportarFechasDialog(pageContext)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _enlace(BuildContext context, IconData icono, String texto,
+      VoidCallback? accion) {
+    return ListTile(
+      leading: Icon(icono, color: palOf(context).accent),
+      title: Text(texto),
+      enabled: accion != null,
+      onTap: accion == null
+          ? null
+          : () {
+              Scaffold.of(context).closeDrawer();
+              accion();
+            },
+    );
+  }
+}
+
+class _Cabecera extends ConsumerWidget {
+  const _Cabecera({required this.rol, required this.enTransito});
+
+  final Rol rol;
+  final int enTransito;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final pal = palOf(context);
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
@@ -332,7 +521,10 @@ class _Cabecera extends StatelessWidget {
           children: [
             Text(
               'Órdenes activas',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: pal.textPrimary),
+              style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: pal.textPrimary),
             ),
             const SizedBox(height: 2),
             Text(
@@ -388,18 +580,6 @@ class _Cabecera extends StatelessWidget {
                 onPressed: () => showSobrantesDialog(context),
               ),
             ],
-            if (esAdmin) ...[
-              _BotonAccion(
-                icono: Icons.event_available_outlined,
-                texto: 'Importar fechas',
-                onPressed: () => showImportarFechasDialog(context),
-              ),
-              _BotonAccion(
-                icono: Icons.file_download_outlined,
-                texto: 'Exportar a Excel',
-                onPressed: () => _exportar(context),
-              ),
-            ],
           ],
         ),
       ],
@@ -408,7 +588,8 @@ class _Cabecera extends StatelessWidget {
 }
 
 class _BotonAccion extends StatelessWidget {
-  const _BotonAccion({required this.icono, required this.texto, required this.onPressed});
+  const _BotonAccion(
+      {required this.icono, required this.texto, required this.onPressed});
 
   final IconData icono;
   final String texto;

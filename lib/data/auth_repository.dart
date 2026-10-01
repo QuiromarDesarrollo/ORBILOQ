@@ -21,6 +21,8 @@ class AuthRepository {
         email: emailDesdeUsuario(numeroUsuario),
         password: contrasena,
       );
+      final perfil=await _client.from('usuarios').select('id').eq('auth_id',_client.auth.currentUser!.id).eq('activo',true).maybeSingle();
+      if(perfil==null){await _client.auth.signOut();return const Err<void>('Cuenta inactiva o sin acceso. Contacta al administrador.');}
       return const Ok<void>(null);
     } on AuthException catch (e) {
       return Err<void>(_mensajeAmigable(e));

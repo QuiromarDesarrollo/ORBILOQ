@@ -1,3 +1,4 @@
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -153,7 +154,7 @@ class _DespachoDialogState extends ConsumerState<DespachoDialog> {
                     if (ubicacion == null)
                       const Text('Sin stock disponible en ninguna ubicación.')
                     else
-                      Row(
+                      ResponsiveRow(
                         children: [
                           Expanded(
                             child: LabeledDropdown<String>(

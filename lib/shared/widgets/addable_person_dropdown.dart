@@ -78,8 +78,14 @@ class AddablePersonDropdown extends ConsumerWidget {
     return items.when(
       loading: () => const LinearProgressIndicator(),
       error: (e, _) => Text('No se pudo cargar la lista: $e', style: const TextStyle(color: AppColors.alertRed)),
-      data: (lista) => DropdownButtonFormField<String>(
-        initialValue: valor,
+      data: (lista) {
+        if(valor!=null && !lista.contains(valor)) {
+          WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)onChanged(null);});
+        }
+        return DropdownButtonFormField<String>(
+                  isExpanded: true,
+        key: ValueKey('${lista.join('|')}::$valor'),
+        initialValue: lista.contains(valor) ? valor : null,
         decoration: wmsInput(label, icon: Icons.person_outline),
         items: [
           for (final n in lista) DropdownMenuItem(value: n, child: Text(n)),
@@ -101,7 +107,8 @@ class AddablePersonDropdown extends ConsumerWidget {
           }
           onChanged(v);
         },
-      ),
+      );
+      },
     );
   }
 }

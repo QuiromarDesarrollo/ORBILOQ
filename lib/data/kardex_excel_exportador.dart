@@ -18,6 +18,33 @@ import '../features/kardex/presentation/kardex_table.dart';
 class KardexExcelExportador {
   const KardexExcelExportador._();
 
+  /// Misma librería y diálogo de descarga del kardex, con varias hojas de reporte.
+  static Uint8List generarReporte(Map<String, List<List<Object?>>> hojas) {
+    final libro = Excel.createExcel();
+    final defecto = libro.getDefaultSheet()!;
+    for (final entrada in hojas.entries) {
+      if (entrada.value.length > 1048576) throw const FormatException('El reporte supera el límite de filas de Excel. Reduce el rango de fechas.');
+      final hoja = libro[entrada.key];
+      for (final fila in entrada.value) {
+        hoja.appendRow(fila.map((valor) {
+          if (valor is int) return IntCellValue(valor);
+          if (valor is num) return DoubleCellValue(valor.toDouble());
+          final texto = valor?.toString() ?? '';
+          if (texto.length > 32767) throw const FormatException('Un detalle supera el límite de una celda de Excel.');
+          return TextCellValue(texto);
+        }).toList());
+      }
+    }
+    if (!hojas.containsKey(defecto)) libro.delete(defecto);
+    libro.setDefaultSheet(hojas.keys.first);
+    return Uint8List.fromList(libro.save()!);
+  }
+
+  static Future<void> exportarReporte(String nombre, Map<String,List<List<Object?>>> hojas) async {
+    await FilePicker.platform.saveFile(dialogTitle: 'Guardar reporte', fileName: '$nombre.xlsx',
+      bytes: generarReporte(hojas), type: FileType.custom, allowedExtensions: ['xlsx']);
+  }
+
   static Future<void> exportarProduccion(List<ItemKardex> todosLosItems) => _exportar(
         items: todosLosItems,
         etiquetas: kEtiquetasProduccion,
@@ -41,6 +68,7 @@ class KardexExcelExportador {
     required Map<String, ExtractorColumna> extractores,
     required String nombreBase,
   }) async {
+    items = items.where((item) => !item.eliminada).toList(growable: false);
     final libro = Excel.createExcel();
     final nombreHoja = libro.getDefaultSheet()!;
     final hoja = libro[nombreHoja];

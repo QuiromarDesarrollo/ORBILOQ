@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -27,10 +28,14 @@ final usuarioSesionProvider = FutureProvider<UsuarioSesion?>((ref) async {
 
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) return null;
+  // Un JWT puede seguir vigente tras desactivar la cuenta: revalidar el perfil.
+  final timer=Timer(const Duration(seconds:30),()=>ref.invalidateSelf());
+  ref.onDispose(timer.cancel);
 
   final fila = await Supabase.instance.client
       .from('usuarios')
       .select('numero_usuario, nombre, rol')
+      .eq('activo', true)
       .eq('auth_id', user.id)
       .maybeSingle();
 
@@ -43,4 +48,10 @@ final usuarioSesionProvider = FutureProvider<UsuarioSesion?>((ref) async {
     nombre: fila['nombre'] as String,
     rolCuenta: rol,
   );
+});
+
+/// Nombre del actor autenticado. El modo local se identifica explícitamente.
+final nombreOperarioProvider = Provider<String>((ref) {
+  if (!ref.watch(usarSupabaseProvider)) return 'Usuario de demostración';
+  return ref.watch(usuarioSesionProvider).value?.nombre.trim() ?? '';
 });

@@ -70,7 +70,7 @@ class KardexSummaryCards extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final n = tarjetas.length;
-        final anchoTarjeta = constraints.maxWidth >= 900
+        final anchoTarjeta = constraints.maxWidth >= n * 220
             ? (constraints.maxWidth - (n - 1) * 16) / n
             : constraints.maxWidth >= 500
                 ? (constraints.maxWidth - 16) / 2

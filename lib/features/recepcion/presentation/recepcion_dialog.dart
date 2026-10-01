@@ -1,18 +1,19 @@
+import '../../../application/auth_providers.dart';
+import '../../../shared/widgets/operario_actual.dart';
+import '../../../shared/widgets/historial_agrupado.dart';
+import '../../../shared/widgets/catalogo_ubicacion_dropdown.dart';
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers.dart';
-import '../../../core/constants.dart';
 import '../../../core/result.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
-import '../../../shared/widgets/addable_person_dropdown.dart';
 import '../../../shared/widgets/feedback_banner.dart';
-import '../../../shared/widgets/labeled_dropdown.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
@@ -43,10 +44,12 @@ class RecepcionDialog extends StatelessWidget {
         child: Column(
           children: [
             const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               labelColor: AppColors.primaryNavy,
               unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primaryNavy,
-              labelPadding: EdgeInsets.symmetric(vertical: 4),
+              labelPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
@@ -95,12 +98,12 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   /// Cuántas unidades se han pistoleado por línea (sube de a 1 en cada
   /// escaneo, hasta el máximo declarado).
   final Map<String, int> _conteos = {};
-  String _ubicacion = WmsConstantes.ubicaciones.first;
+  String _ubicacion = '';
 
   /// Quién de Logística está recibiendo — se mantiene entre tarjetas (lo
   /// normal es que sea la misma persona recibiendo varias seguidas), pero
   /// es obligatorio tener uno seleccionado para poder confirmar cualquiera.
-  String? _recibidoPor;
+  String? get _recibidoPor => ref.read(nombreOperarioProvider);
 
   bool _confirmando = false;
   FeedbackMessage? _msg;
@@ -142,7 +145,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
       _lineaAbiertaId = linea.id;
       _cantidadCtrl.text = '${_conteos[linea.id] ?? 0}';
       _notaCtrl.clear();
-      _ubicacion = WmsConstantes.ubicaciones.first;
+      _ubicacion = '';
       _msg = null;
     });
   }
@@ -190,7 +193,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
         _cantidadCtrl.text = '${_conteos[encontrada.id]}';
         if (!mismaLineaYaAbierta) {
           _notaCtrl.clear();
-          _ubicacion = WmsConstantes.ubicaciones.first;
+          _ubicacion = '';
         }
       });
       _scanFocus.requestFocus();
@@ -218,6 +221,10 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   }
 
   Future<void> _confirmar(LoteLinea linea) async {
+    if(!(ref.read(ubicacionesProvider).value??[]).contains(_ubicacion)){
+      setState(()=>_msg=const FeedbackMessage.error('Selecciona un estante activo antes de recibir.'));
+      return;
+    }
     final cantidad = int.tryParse(_cantidadCtrl.text.trim());
     if (cantidad == null || cantidad <= 0) {
       setState(() => _msg = const FeedbackMessage.error('Ingresa una cantidad mayor a 0 para confirmar la recepción.'));
@@ -385,14 +392,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
               FeedbackBanner(message: _msg!),
               const SizedBox(height: 12),
             ],
-            AddablePersonDropdown(
-              label: 'Recibido por (Logística) *',
-              valor: _recibidoPor,
-              onChanged: (v) => setState(() => _recibidoPor = v),
-              itemsProvider: personalLogisticaProvider,
-              onAgregar: (ref, nombre) => ref.read(wmsRepositoryProvider).agregarPersonalLogistica(nombre),
-              tituloDialogo: 'Agregar persona de Logística',
-            ),
+            const OperarioActual(label: 'Recibido por (Logística)'),
             const SizedBox(height: 10),
             TextField(
               controller: _scanCtrl,
@@ -509,7 +509,7 @@ class _TarjetaLinea extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            ResponsiveRow(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
@@ -569,7 +569,7 @@ class _TarjetaLinea extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(6)),
-                  child: Row(
+                  child: ResponsiveRow(
                     children: [
                       Icon(Icons.autorenew, size: 16, color: Colors.amber.shade900),
                       const SizedBox(width: 6),
@@ -584,14 +584,14 @@ class _TarjetaLinea extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
               ],
-              Row(
+              ResponsiveRow(
                 children: [
                   Expanded(
                     flex: 2,
-                    child: LabeledDropdown<String>(
+                    child: CatalogoUbicacionDropdown(
                       label: 'Estante físico',
                       value: ubicacion,
-                      items: WmsConstantes.ubicaciones,
+
                       onChanged: onUbicacion,
                     ),
                   ),
@@ -715,82 +715,17 @@ class _LogoLoaderState extends State<_LogoLoader> with SingleTickerProviderState
 
 class _HistorialTab extends ConsumerWidget {
   const _HistorialTab();
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const <Lote>[];
-    final procesadas = <_LineaConLote>[];
-    for (final l in lotes) {
-      for (final li in l.lineas) {
-        if (!li.enTransito) procesadas.add(_LineaConLote(l, li));
-      }
-    }
-    procesadas.sort((a, b) {
-      final fa = a.linea.fechaRecepcion;
-      final fb = b.linea.fechaRecepcion;
-      if (fa == null || fb == null) return 0;
-      return fb.compareTo(fa); // más recientes primero
-    });
-
-    if (procesadas.isEmpty) {
-      return const Center(
-        child: Text('Aún no hay recepciones registradas.', style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: procesadas.length,
-      itemBuilder: (_, i) {
-        final e = procesadas[i];
-        final linea = e.linea;
-        final conNovedad = linea.estado == EstadoLineaLote.recibidoConNovedad;
-        return Card(
-          color: conNovedad ? Colors.red.shade50 : Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'OP: ${linea.item.op} (${linea.item.talla}) - ${linea.item.descripcion}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primaryNavy),
-                      ),
-                    ),
-                    StatusChip(label: linea.estado.etiqueta, color: colorDeEstadoLinea(linea.estado)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Lote: ${e.lote.id} | Enviadas: ${linea.cantidadEnviada} Uds | '
-                  'Recibidas: ${linea.cantidadRecibida ?? 0} Uds | Estante: ${linea.ubicacionDestino ?? "—"}',
-                  style: const TextStyle(fontSize: 12, color: Colors.black87),
-                ),
-                Text(
-                  'Recibido por: ${linea.recibidoPor.isNotEmpty ? linea.recibidoPor : "Sin registrar (recepción anterior a esta función)"} | '
-                  '${linea.fechaRecepcion != null ? formatFechaHora(linea.fechaRecepcion) : "Sin fecha"}',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-                if (linea.novedad.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
-                    child: Text(
-                      linea.novedad,
-                      style: const TextStyle(fontSize: 12, color: AppColors.alertRed, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    final registros = [for (final lote in lotes) for (final linea in lote.lineas) if (!linea.enTransito || linea.fechaRecepcion != null || (linea.cantidadRecibida ?? 0) > 0) (lote: lote, linea: linea)];
+    return HistorialAgrupado(grupos: agruparHistorial(registros, (e) => e.linea.item,
+      (e) => EventoHistorial(id: e.linea.id, fecha: e.linea.fechaRecepcion, cantidad: e.linea.cantidadRecibida ?? 0,
+        titulo: 'Recepción acumulada · ${e.linea.cantidadRecibida ?? 0} Uds · ${e.linea.estado.etiqueta}',
+        detalle: 'Lote: ${e.lote.id} | Operario: ${e.lote.operario}\n'
+          'Enviadas: ${e.linea.cantidadEnviada} Uds | Recibidas: ${e.linea.cantidadRecibida ?? 0} Uds | Estante: ${e.linea.ubicacionDestino ?? '—'}\n'
+          'Última recepción registrada por: ${e.linea.recibidoPor.isEmpty ? 'Sin registrar' : e.linea.recibidoPor}'
+          '${e.linea.novedad.isEmpty ? '' : '\nNovedad: ${e.linea.novedad}'}',
+        color: colorDeEstadoLinea(e.linea.estado))));
   }
 }

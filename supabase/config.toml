@@ -1,0 +1,4 @@
+[functions.admin-crear-usuario]
+# La función verifica cada JWT con Auth.getUser y consulta el rol en la base.
+# Evita depender del verificador heredado del gateway con claves asimétricas.
+verify_jwt = false

@@ -276,6 +276,7 @@ class Lote {
 /// Fila del kardex: línea de orden + saldos derivados de los movimientos.
 class ItemKardex {
   const ItemKardex({
+    this.eliminada = false,
     required this.item,
     required this.producido,
     required this.recibido,
@@ -289,6 +290,8 @@ class ItemKardex {
     this.pendienteAliados = 0,
   });
 
+  /// Marca de borrado lógico; movimientos y existencias se conservan.
+  final bool eliminada;
   final ItemOrden item;
   final int producido;
   final int recibido;

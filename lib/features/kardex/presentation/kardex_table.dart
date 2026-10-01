@@ -1,51 +1,137 @@
+import '../../../application/kardex_columnas.dart';
+import 'eliminar_linea_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/kardex_filters.dart';
 import '../../../application/providers.dart';
+import '../../../application/auth_providers.dart';
+import '../../../domain/sesion.dart';
+import '../../../domain/edicion_admin.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/models.dart';
 import '../../../shared/widgets/multi_select_filter.dart';
 import 'observacion_dialog.dart';
+import 'edicion_admin_dialog.dart';
 
 // Columnas para el rol Producción (Taller). Todas tienen filtro por columna.
-const List<double> _kAnchosProduccion = [100, 160, 150, 95, 140, 95, 140, 170, 110, 110, 115];
+const List<double> _kAnchosProduccion = [
+  100,
+  160,
+  150,
+  95,
+  140,
+  95,
+  140,
+  170,
+  110,
+  110,
+  115
+];
 const List<String> kEtiquetasProduccion = [
-  'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'CANTIDAD',
-  'ENTREGADO A LOGÍSTICA', 'PENDIENTE', 'PRODUCTO NO CONFORME',
-  'ESTADOS', 'FECHA DE ENTREGA', 'FECHA ESPERADA', 'DÍAS FALTANTES',
+  'OP / OBS.',
+  'PRODUCTO',
+  'CLIENTE / OC',
+  'CANTIDAD',
+  'ENTREGADO A LOGÍSTICA',
+  'PENDIENTE',
+  'PRODUCTO NO CONFORME',
+  'ESTADOS',
+  'FECHA DE ENTREGA',
+  'FECHA ESPERADA',
+  'DÍAS FALTANTES',
 ];
 // A qué columna de filtro corresponde cada encabezado de Producción (por
 // índice). `null` = sin filtro en esa columna.
 const List<String?> kColumnasProduccion = [
-  ColKardex.op, ColKardex.producto, ColKardex.cliente, ColKardex.cantidad,
-  ColKardex.entregado, ColKardex.pendiente, ColKardex.noConforme,
-  ColKardex.estadoProduccion, ColKardex.fechaEntrega, ColKardex.fechaEsperada, ColKardex.diasFaltantes,
+  ColKardex.op,
+  ColKardex.producto,
+  ColKardex.cliente,
+  ColKardex.cantidad,
+  ColKardex.entregado,
+  ColKardex.pendiente,
+  ColKardex.noConforme,
+  ColKardex.estadoProduccion,
+  ColKardex.fechaEntrega,
+  ColKardex.fechaEsperada,
+  ColKardex.diasFaltantes,
 ];
 
 // Columnas para el rol Logística (Bodega). Todas tienen filtro por columna.
-const List<double> _kAnchosBodega = [100, 150, 150, 90, 135, 135, 85, 120, 120, 95, 100, 100, 105];
+const List<double> _kAnchosBodega = [
+  100,
+  150,
+  150,
+  90,
+  135,
+  135,
+  85,
+  120,
+  120,
+  95,
+  100,
+  100,
+  105
+];
 const List<String> kEtiquetasBodega = [
-  'OP / OBS.', 'PRODUCTO', 'CLIENTE / OC', 'PEDIDAS',
-  'ENTREGADO POR PRODUCCIÓN', 'PENDIENTE POR PRODUCCIÓN', 'BODEGA', 'DESPACHADAS',
-  'PRODUCTO NO CONFORME', 'ESTADOS', 'FECHA DE ENTREGA', 'FECHA ESPERADA', 'DÍAS FALTANTES',
+  'OP / OBS.',
+  'PRODUCTO',
+  'CLIENTE / OC',
+  'PEDIDAS',
+  'ENTREGADO POR PRODUCCIÓN',
+  'PENDIENTE POR PRODUCCIÓN',
+  'BODEGA',
+  'DESPACHADAS',
+  'PRODUCTO NO CONFORME',
+  'ESTADOS',
+  'FECHA DE ENTREGA',
+  'FECHA ESPERADA',
+  'DÍAS FALTANTES',
 ];
 const List<String?> kColumnasBodega = [
-  ColKardex.op, ColKardex.producto, ColKardex.cliente, ColKardex.pedidas,
-  ColKardex.produccion, ColKardex.pendienteProduccionBodega, ColKardex.bodega, ColKardex.despachadas,
-  ColKardex.noConformeBodega, ColKardex.estadoBodega, ColKardex.fechaEntregaBodega,
-  ColKardex.fechaEsperadaBodega, ColKardex.diasFaltantesBodega,
+  ColKardex.op,
+  ColKardex.producto,
+  ColKardex.cliente,
+  ColKardex.pedidas,
+  ColKardex.produccion,
+  ColKardex.pendienteProduccionBodega,
+  ColKardex.bodega,
+  ColKardex.despachadas,
+  ColKardex.noConformeBodega,
+  ColKardex.estadoBodega,
+  ColKardex.fechaEntregaBodega,
+  ColKardex.fechaEsperadaBodega,
+  ColKardex.diasFaltantesBodega,
 ];
 
 const _kPaletaProducto = [
-  Color(0xFF2DD4BF), Color(0xFF60A5FA), Color(0xFFA78BFA), Color(0xFFFBBF24),
-  Color(0xFFF472B6), Color(0xFFFB923C), Color(0xFF34D399), Color(0xFF94A3B8),
+  Color(0xFF2DD4BF),
+  Color(0xFF60A5FA),
+  Color(0xFFA78BFA),
+  Color(0xFFFBBF24),
+  Color(0xFFF472B6),
+  Color(0xFFFB923C),
+  Color(0xFF34D399),
+  Color(0xFF94A3B8),
 ];
 
-Color _colorProducto(String codigo) => _kPaletaProducto[codigo.hashCode.abs() % _kPaletaProducto.length];
+Color _colorProducto(String codigo) =>
+    _kPaletaProducto[codigo.hashCode.abs() % _kPaletaProducto.length];
 
 const _mesesEs = [
-  '', 'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
+  '',
+  'ENE',
+  'FEB',
+  'MAR',
+  'ABR',
+  'MAY',
+  'JUN',
+  'JUL',
+  'AGO',
+  'SEP',
+  'OCT',
+  'NOV',
+  'DIC',
 ];
 String _fechaCorta(DateTime d) => '${d.day} ${_mesesEs[d.month]}';
 
@@ -60,12 +146,51 @@ class KardexTable extends ConsumerWidget {
     final pagina = ref.watch(kardexPaginaProvider);
     final rol = ref.watch(rolProvider);
     final esProduccion = rol == Rol.produccion;
-    final anchos = esProduccion ? _kAnchosProduccion : _kAnchosBodega;
-    final etiquetas = esProduccion ? kEtiquetasProduccion : kEtiquetasBodega;
-    final columnas = esProduccion ? kColumnasProduccion : kColumnasBodega;
-    final totalPaginas = total == 0 ? 1 : ((total - 1) ~/ kardexFilasPorPagina) + 1;
+    final esAdmin = !ref.watch(usarSupabaseProvider) ||
+        ref.watch(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
+    final anchos = [
+      ...(esProduccion ? _kAnchosProduccion : _kAnchosBodega),
+      if (esAdmin) 112.0
+    ];
+    final etiquetas = [
+      ...(esProduccion ? kEtiquetasProduccion : kEtiquetasBodega),
+      if (esAdmin) 'ACCIONES'
+    ];
+    final columnas = [
+      ...(esProduccion ? kColumnasProduccion : kColumnasBodega),
+      if (esAdmin) null
+    ];
+    final totalPaginas =
+        total == 0 ? 1 : ((total - 1) ~/ kardexFilasPorPagina) + 1;
     final anchoTabla = anchos.fold<double>(0, (a, b) => a + b);
     final pal = palOf(context);
+
+    if (MediaQuery.sizeOf(context).width < 600) {
+      final campos = esProduccion ? kColumnasProduccion : kColumnasBodega;
+      final labels = esProduccion ? kEtiquetasProduccion : kEtiquetasBodega;
+      final extraer = esProduccion ? columnasProduccion : columnasBodega;
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (filas.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('Sin resultados para los filtros aplicados.')),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (var n = 0; n < labels.length; n++)
+            if (campos[n] != null) _EncabezadoConFiltro(columna: campos[n]!, etiqueta: labels[n], esOp: n == 0),
+        ]),
+        for (final item in filas) Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('OP ${item.item.op} · ${item.item.descripcion}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}'),
+            TextButton.icon(onPressed: () => showObservacionDialog(context, item), icon: const Icon(Icons.comment_outlined), label: const Text('Observaciones')),
+            for (var n = 2; n < labels.length; n++) Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text('${labels[n]}: ${extraer[campos[n]]?.call(item) ?? ""}')),
+            if (esAdmin) Wrap(alignment: WrapAlignment.end, children: [
+              IconButton(tooltip: 'Editar fila', icon: const Icon(Icons.edit_outlined), onPressed: () => showEdicionAdminDialog(context, item, CampoAdmin.cantidad)),
+              IconButton(tooltip: 'Borrar fila', icon: const Icon(Icons.delete_outline), onPressed: () => showWmsEliminarLinea(context, item)),
+            ]),
+          ],
+        ))),
+        _BarraPaginacion(pagina: pagina, totalPaginas: totalPaginas, total: total, filas: filas.length),
+      ]);
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -119,18 +244,27 @@ class KardexTable extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 48),
                       child: Center(
-                        child: Text('Sin resultados para los filtros aplicados.',
+                        child: Text(
+                            'Sin resultados para los filtros aplicados.',
                             style: TextStyle(color: pal.textMuted)),
                       ),
                     )
                   else
-                    for (final item in filas) _KardexRow(item: item, anchos: anchos, esProduccion: esProduccion),
+                    for (final item in filas)
+                      _KardexRow(
+                          item: item,
+                          anchos: anchos,
+                          esProduccion: esProduccion),
                 ],
               ),
             ),
           ),
           Divider(height: 1, color: pal.cardBorder),
-          _BarraPaginacion(pagina: pagina, totalPaginas: totalPaginas, total: total, filas: filas.length),
+          _BarraPaginacion(
+              pagina: pagina,
+              totalPaginas: totalPaginas,
+              total: total,
+              filas: filas.length),
         ],
       ),
     );
@@ -140,7 +274,8 @@ class KardexTable extends ConsumerWidget {
 /// Encabezado de columna con el ícono de embudo que abre el filtro de
 /// selección múltiple (búsqueda + casillas), para cualquier columna.
 class _EncabezadoConFiltro extends ConsumerWidget {
-  const _EncabezadoConFiltro({required this.columna, required this.etiqueta, this.esOp = false});
+  const _EncabezadoConFiltro(
+      {required this.columna, required this.etiqueta, this.esOp = false});
 
   final String columna;
   final String etiqueta;
@@ -182,7 +317,9 @@ class _EncabezadoConFiltro extends ConsumerWidget {
               selected: filtros.valoresDe(columna),
               labelOf: esOp ? (v) => '#$v' : (v) => v,
             );
-            if (r != null) ref.read(kardexFiltersProvider.notifier).setColumna(columna, r);
+            if (r != null) {
+              ref.read(kardexFiltersProvider.notifier).setColumna(columna, r);
+            }
           },
           child: Icon(
             Icons.filter_alt,
@@ -217,14 +354,16 @@ class _BarraPaginacion extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        spacing: 12, runSpacing: 12,
         children: [
           Text(
             'Mostrando $desde-$hasta de $total registros',
             style: TextStyle(fontSize: 12, color: pal.textSecondary),
           ),
-          Row(
+          Wrap(
+            spacing: 8, runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: pagina > 0 ? () => notifier.ir(pagina - 1) : null,
@@ -235,9 +374,11 @@ class _BarraPaginacion extends ConsumerWidget {
                   side: BorderSide(color: pal.cardBorder),
                 ),
               ),
-              const SizedBox(width: 8),
+
               ElevatedButton.icon(
-                onPressed: pagina + 1 < totalPaginas ? () => notifier.ir(pagina + 1) : null,
+                onPressed: pagina + 1 < totalPaginas
+                    ? () => notifier.ir(pagina + 1)
+                    : null,
                 icon: const Icon(Icons.chevron_right, size: 18),
                 label: const Text('Siguiente'),
                 style: ElevatedButton.styleFrom(
@@ -256,7 +397,8 @@ class _BarraPaginacion extends ConsumerWidget {
 }
 
 class _Celda extends StatelessWidget {
-  const _Celda(this.col, this.anchos, this.child, {this.alignment = Alignment.centerLeft});
+  const _Celda(this.col, this.anchos, this.child,
+      {this.alignment = Alignment.centerLeft});
 
   final int col;
   final List<double> anchos;
@@ -275,16 +417,25 @@ class _Celda extends StatelessWidget {
   }
 }
 
-class _KardexRow extends StatelessWidget {
-  const _KardexRow({required this.item, required this.anchos, required this.esProduccion});
+class _KardexRow extends ConsumerWidget {
+  const _KardexRow(
+      {required this.item, required this.anchos, required this.esProduccion});
 
   final ItemKardex item;
   final List<double> anchos;
   final bool esProduccion;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final pal = palOf(context);
+    final esAdmin = !ref.watch(usarSupabaseProvider) ||
+        ref.watch(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
+    final celdas = [
+      _celdaOp(pal),
+      _celdaProducto(pal),
+      _celdaClienteOc(pal),
+      if (esProduccion) ..._celdasProduccion(pal) else ..._celdasBodega(pal)
+    ];
     return Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: pal.cardBorder)),
@@ -292,10 +443,24 @@ class _KardexRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _celdaOp(pal),
-          _celdaProducto(pal),
-          _celdaClienteOc(pal),
-          if (esProduccion) ..._celdasProduccion(pal) else ..._celdasBodega(pal),
+          ...celdas,
+          if (esAdmin)
+            _Celda(
+                celdas.length,
+                anchos,
+                Row(children: [
+                  IconButton(
+                      tooltip: 'Editar fila',
+                      color: pal.accent,
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: () => showEdicionAdminDialog(
+                          context, item, CampoAdmin.cantidad)),
+                  IconButton(
+                      tooltip: 'Borrar fila',
+                      color: Colors.redAccent,
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      onPressed: () => showWmsEliminarLinea(context, item)),
+                ])),
         ],
       ),
     );
@@ -315,11 +480,19 @@ class _KardexRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               child: Padding(
                 padding: const EdgeInsets.only(right: 6),
-                child: Icon(Icons.chat_bubble_outline, size: 16, color: pal.textMuted),
+                child: Icon(Icons.chat_bubble_outline,
+                    size: 16, color: pal.textMuted),
               ),
             ),
           ),
-          Text('#${o.op}', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: pal.accent)),
+          Flexible(
+              child: Text('#${o.op}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: pal.accent))),
         ],
       ),
     );
@@ -337,7 +510,9 @@ class _KardexRow extends StatelessWidget {
             width: 10,
             height: 10,
             margin: const EdgeInsets.only(right: 8, top: 2),
-            decoration: BoxDecoration(color: _colorProducto(o.codigo), borderRadius: BorderRadius.circular(3)),
+            decoration: BoxDecoration(
+                color: _colorProducto(o.codigo),
+                borderRadius: BorderRadius.circular(3)),
           ),
           Flexible(
             child: Builder(
@@ -351,8 +526,12 @@ class _KardexRow extends StatelessWidget {
                     Text(o.descripcion,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: pal.textPrimary)),
-                    Text('Talla ${o.talla}', style: TextStyle(fontSize: 11, color: pal.textMuted)),
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: pal.textPrimary)),
+                    Text('Talla ${o.talla}',
+                        style: TextStyle(fontSize: 11, color: pal.textMuted)),
                   ],
                 ),
               ),
@@ -375,7 +554,9 @@ class _KardexRow extends StatelessWidget {
               width: 10,
               height: 10,
               margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(color: _colorProducto(o.codigo), borderRadius: BorderRadius.circular(3)),
+              decoration: BoxDecoration(
+                  color: _colorProducto(o.codigo),
+                  borderRadius: BorderRadius.circular(3)),
             ),
             Expanded(
               child: Text('Producto', style: TextStyle(color: pal.textPrimary)),
@@ -388,7 +569,10 @@ class _KardexRow extends StatelessWidget {
           children: [
             Text(
               o.descripcion,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.textPrimary),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: pal.textPrimary),
             ),
             const SizedBox(height: 12),
             _filaDato('Código', o.codigo, pal),
@@ -399,7 +583,9 @@ class _KardexRow extends StatelessWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('CERRAR')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('CERRAR')),
         ],
       ),
     );
@@ -412,7 +598,9 @@ class _KardexRow extends StatelessWidget {
         text: TextSpan(
           style: TextStyle(fontSize: 13, color: pal.textSecondary),
           children: [
-            TextSpan(text: '$etiqueta: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+            TextSpan(
+                text: '$etiqueta: ',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             TextSpan(text: valor, style: TextStyle(color: pal.textPrimary)),
           ],
         ),
@@ -432,10 +620,15 @@ class _KardexRow extends StatelessWidget {
           Text(o.cliente,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: pal.textPrimary)),
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: pal.textPrimary)),
           if (o.oc.isNotEmpty)
             Text('OC ${o.oc}',
-                maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: pal.textMuted)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: pal.textMuted)),
         ],
       ),
     );
@@ -446,9 +639,17 @@ class _KardexRow extends StatelessWidget {
   List<Widget> _celdasProduccion(AppPalette pal) {
     final noConforme = item.pendienteReproceso;
     return [
-      _Celda(3, anchos, Text('${item.cantidadPedida}', style: TextStyle(fontSize: 13, color: pal.textPrimary)),
+      _Celda(
+          3,
+          anchos,
+          Text('${item.cantidadPedida}',
+              style: TextStyle(fontSize: 13, color: pal.textPrimary)),
           alignment: Alignment.center),
-      _Celda(4, anchos, Text('${item.producido}', style: TextStyle(fontSize: 13, color: pal.accent)),
+      _Celda(
+          4,
+          anchos,
+          Text('${item.producido}',
+              style: TextStyle(fontSize: 13, color: pal.accent)),
           alignment: Alignment.center),
       _Celda(
         5,
@@ -505,9 +706,11 @@ class _KardexRow extends StatelessWidget {
 
   Widget _chipFecha(DateTime? fecha, AppPalette pal) {
     if (fecha == null) {
-      return _chip('Sin fecha', pal.textMuted, pal.chipNeutralBg, Icons.event_outlined);
+      return _chip(
+          'Sin fecha', pal.textMuted, pal.chipNeutralBg, Icons.event_outlined);
     }
-    return _chip(_fechaCorta(fecha), pal.textSecondary, pal.chipNeutralBg, Icons.event_outlined);
+    return _chip(_fechaCorta(fecha), pal.textSecondary, pal.chipNeutralBg,
+        Icons.event_outlined);
   }
 
   // ------------------------------------------------------- vista Bodega
@@ -515,9 +718,17 @@ class _KardexRow extends StatelessWidget {
   List<Widget> _celdasBodega(AppPalette pal) {
     final noConforme = item.pendienteReproceso;
     return [
-      _Celda(3, anchos, Text('${item.cantidadPedida}', style: TextStyle(fontSize: 13, color: pal.textPrimary)),
+      _Celda(
+          3,
+          anchos,
+          Text('${item.cantidadPedida}',
+              style: TextStyle(fontSize: 13, color: pal.textPrimary)),
           alignment: Alignment.center),
-      _Celda(4, anchos, Text('${item.producido}', style: TextStyle(fontSize: 13, color: pal.accent)),
+      _Celda(
+          4,
+          anchos,
+          Text('${item.producido}',
+              style: TextStyle(fontSize: 13, color: pal.accent)),
           alignment: Alignment.center),
       _Celda(
         5,
@@ -530,9 +741,17 @@ class _KardexRow extends StatelessWidget {
             )),
         alignment: Alignment.center,
       ),
-      _Celda(6, anchos, Text('${item.recibido}', style: TextStyle(fontSize: 13, color: pal.info)),
+      _Celda(
+          6,
+          anchos,
+          Text('${item.recibido}',
+              style: TextStyle(fontSize: 13, color: pal.info)),
           alignment: Alignment.center),
-      _Celda(7, anchos, Text('${item.despachado}', style: TextStyle(fontSize: 13, color: pal.warning)),
+      _Celda(
+          7,
+          anchos,
+          Text('${item.despachado}',
+              style: TextStyle(fontSize: 13, color: pal.warning)),
           alignment: Alignment.center),
       _Celda(
         8,
@@ -556,19 +775,22 @@ class _KardexRow extends StatelessWidget {
 
   Widget _chipDiasFaltantes(DateTime? esperada, AppPalette pal) {
     if (esperada == null) {
-      return _chip('Sin fecha', pal.textMuted, pal.chipNeutralBg, Icons.hourglass_empty);
+      return _chip(
+          'Sin fecha', pal.textMuted, pal.chipNeutralBg, Icons.hourglass_empty);
     }
     final hoy = DateTime.now();
     final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
     final soloEsperada = DateTime(esperada.year, esperada.month, esperada.day);
     final dias = soloEsperada.difference(soloHoy).inDays;
     if (dias < 0) {
-      return _chip('Vencido ${-dias}d', pal.chipRed, pal.chipRedBg, Icons.warning_amber_outlined);
+      return _chip('Vencido ${-dias}d', pal.chipRed, pal.chipRedBg,
+          Icons.warning_amber_outlined);
     }
     if (dias == 0) {
       return _chip('HOY', pal.warning, pal.chipNeutralBg, Icons.today_outlined);
     }
-    return _chip('Faltan ${dias}d', pal.textSecondary, pal.chipNeutralBg, Icons.hourglass_bottom);
+    return _chip('Faltan ${dias}d', pal.textSecondary, pal.chipNeutralBg,
+        Icons.hourglass_bottom);
   }
 
   Widget _celdaEstadoLogistica(AppPalette pal) {
@@ -596,7 +818,8 @@ class _KardexRow extends StatelessWidget {
   Widget _chip(String texto, Color color, Color fondo, IconData icono) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(6)),
+      decoration:
+          BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(6)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -606,7 +829,8 @@ class _KardexRow extends StatelessWidget {
             child: Text(texto,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                    fontSize: 10, color: color, fontWeight: FontWeight.w600)),
           ),
         ],
       ),

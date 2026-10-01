@@ -48,7 +48,7 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final estrecho = constraints.maxWidth < 760;
+          final estrecho = constraints.maxWidth < 920;
           final campos = <Widget>[
             SizedBox(
               width: estrecho ? double.infinity : 320,

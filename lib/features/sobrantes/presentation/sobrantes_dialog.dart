@@ -1,3 +1,4 @@
+import '../../../shared/widgets/historial_agrupado.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,7 +8,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
 import '../../../shared/widgets/feedback_banner.dart';
-import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
 Future<void> showSobrantesDialog(BuildContext context) =>
@@ -29,10 +29,12 @@ class SobrantesDialog extends StatelessWidget {
         child: Column(
           children: [
             const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               labelColor: AppColors.primaryNavy,
               unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primaryNavy,
-              labelPadding: EdgeInsets.symmetric(vertical: 4),
+              labelPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
@@ -170,59 +172,20 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
 
 class _HistorialTab extends ConsumerWidget {
   const _HistorialTab();
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final todos = ref.watch(sobrantesProvider);
-    return todos.when(
+    return ref.watch(sobrantesProvider).when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppColors.alertRed))),
-      data: (lista) {
-        if (lista.isEmpty) {
-          return const Center(child: Text('Aún no hay sobrantes registrados.', style: TextStyle(color: Colors.grey)));
-        }
-        return ListView.builder(
-          itemCount: lista.length,
-          itemBuilder: (_, i) {
-            final s = lista[i];
-            return Card(
-              color: s.pendiente ? Colors.blue.shade50 : Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text('OP: ${s.item.op} - ${s.item.descripcion} (${s.item.talla})',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
-                        ),
-                        StatusChip(
-                          label: s.pendiente ? 'PENDIENTE' : 'RESUELTO',
-                          color: s.pendiente ? Colors.blue.shade700 : AppColors.actionGreen,
-                        ),
-                      ],
-                    ),
-                    Text('${s.cantidad} Uds de más | Registrado por: ${s.operario} | ${formatFechaHora(s.fecha)}',
-                        style: const TextStyle(fontSize: 12)),
-                    if (s.nota.isNotEmpty)
-                      Text('Nota: ${s.nota}', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
-                    if (!s.pendiente)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Resuelto: ${s.resolucion} | ${s.fechaResolucion != null ? formatFechaHora(s.fechaResolucion) : ""}',
-                          style: const TextStyle(fontSize: 12, color: AppColors.actionGreen, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      error: (e, _) => Center(child: Text('Error: $e')),
+      data: (lista) => HistorialAgrupado(grupos: [for (final s in lista) GrupoHistorial(
+        id: s.id, op: s.item.op, titulo: 'OP: ${s.item.op} - ${s.item.descripcion} (${s.item.talla})',
+        detalle: 'Código: ${s.item.codigo} | ${s.cantidad} Uds de más | ${s.pendiente ? 'PENDIENTE' : 'RESUELTO'}',
+        eventos: [
+          EventoHistorial(id: '${s.id}-registro', fecha: s.fecha, titulo: 'Sobrante registrado · ${s.cantidad} Uds',
+            detalle: 'Registrado por: ${s.operario}${s.nota.isEmpty ? '' : '\nNota: ${s.nota}'}', color: Colors.blue),
+          if (!s.pendiente) EventoHistorial(id: '${s.id}-resolucion', fecha: s.fechaResolucion,
+            titulo: 'Sobrante resuelto', detalle: 'Resolución: ${s.resolucion ?? 'Sin registrar'}'),
+        ])]),
     );
   }
 }

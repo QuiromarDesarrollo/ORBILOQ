@@ -1,3 +1,6 @@
+import '../data/reportes_admin_repository.dart';
+import '../data/catalogos_repository.dart';
+import '../data/supabase_importador_kardex.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_theme.dart';
@@ -32,25 +35,25 @@ final kardexProvider = Provider<List<ItemKardex>>(
 
 /// Causales disponibles para reportar un producto como no conforme.
 final causalesProvider = FutureProvider<List<Causal>>(
-  (ref) => ref.watch(wmsRepositoryProvider).cargarCausales(),
+  (ref) { ref.watch(catalogosRevisionProvider); return ref.watch(wmsRepositoryProvider).cargarCausales(); },
 );
 
 /// Lista ampliable de personas de Logística que pueden recibir una prenda
 /// liberada por Producción. Se invalida tras agregar un nombre nuevo.
 final personalLogisticaProvider = FutureProvider<List<String>>(
-  (ref) => ref.watch(wmsRepositoryProvider).cargarPersonalLogistica(),
+  (ref) { ref.watch(catalogosRevisionProvider); return ref.watch(wmsRepositoryProvider).cargarPersonalLogistica(); },
 );
 
 /// Lista ampliable de personas de Producción que pueden entregar una prenda
 /// no conforme a Logística. Se invalida tras agregar un nombre nuevo.
 final personalProduccionProvider = FutureProvider<List<String>>(
-  (ref) => ref.watch(wmsRepositoryProvider).cargarPersonalProduccion(),
+  (ref) { ref.watch(catalogosRevisionProvider); return ref.watch(wmsRepositoryProvider).cargarPersonalProduccion(); },
 );
 
 /// Lista ampliable de personas de Aliados (a quién se entrega / quién libera
 /// un producto no conforme enviado a un taller externo).
 final personalAliadosProvider = FutureProvider<List<String>>(
-  (ref) => ref.watch(wmsRepositoryProvider).cargarPersonalAliados(),
+  (ref) { ref.watch(catalogosRevisionProvider); return ref.watch(wmsRepositoryProvider).cargarPersonalAliados(); },
 );
 
 /// Todas las solicitudes de Producto No Conforme a Aliados (pendientes e
@@ -87,6 +90,8 @@ final temaProvider = NotifierProvider<TemaNotifier, TemaModo>(TemaNotifier.new);
 // ------------------------------------------------------------------- rol
 
 class RolNotifier extends Notifier<Rol> {
+  Rol _vistaAdmin = Rol.produccion;
+  String? _numeroAdmin;
   @override
   Rol build() {
     final usarSupabase = ref.watch(usarSupabaseProvider);
@@ -94,6 +99,11 @@ class RolNotifier extends Notifier<Rol> {
 
     final sesion = ref.watch(usuarioSesionProvider).value;
     if (sesion == null) return Rol.produccion; // aún cargando / sin sesión
+    if(sesion.rolCuenta==RolCuenta.admin){
+      if(_numeroAdmin!=sesion.numeroUsuario){_numeroAdmin=sesion.numeroUsuario;_vistaAdmin=Rol.produccion;}
+      return _vistaAdmin;
+    }
+    _numeroAdmin=null;
     return switch (sesion.rolCuenta) {
       RolCuenta.produccion => Rol.produccion,
       RolCuenta.logistica => Rol.logistica,
@@ -107,6 +117,7 @@ class RolNotifier extends Notifier<Rol> {
       final esAdmin = ref.read(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
       if (!esAdmin) return; // Producción/Logística no pueden cambiarse su propio rol
     }
+    _vistaAdmin = rol;
     state = rol;
   }
 }
@@ -134,7 +145,8 @@ final kardexFiltersProvider =
     NotifierProvider<KardexFiltersNotifier, KardexFilters>(KardexFiltersNotifier.new);
 
 final kardexFiltradoProvider = Provider<List<ItemKardex>>((ref) {
-  final kardex = ref.watch(kardexProvider);
+  final kardex = ref.watch(kardexProvider)
+      .where((i) => !i.eliminada).toList(growable: false);
   final filtros = ref.watch(kardexFiltersProvider);
   final extractores = ref.watch(extractoresColumnaProvider);
   if (!filtros.hayFiltros) return kardex;
@@ -182,3 +194,20 @@ final kardexPaginaActualProvider = Provider<List<ItemKardex>>((ref) {
   final hasta = (desde + kardexFilasPorPagina).clamp(0, filtrado.length);
   return filtrado.sublist(desde, hasta);
 });
+
+final importadorKardexProvider = Provider<SupabaseImportadorKardex?>((ref) => null);
+
+final catalogosAdminProvider=Provider<CatalogosRepository?>((ref)=>null);
+final catalogosRevisionProvider=StreamProvider<int>((ref)=>const Stream.empty());
+final ubicacionesProvider=FutureProvider<List<String>>((ref){
+  ref.watch(catalogosRevisionProvider);
+  return ref.watch(wmsRepositoryProvider).cargarUbicaciones();
+});
+
+/// Historial de liberaciones internas; se actualiza al cambiar los movimientos.
+final liberacionesProduccionProvider = FutureProvider.autoDispose<List<Liberacion>>((ref) {
+  ref.watch(wmsSnapshotProvider);
+  return ref.watch(wmsRepositoryProvider).cargarLiberaciones();
+});
+
+final reportesAdminProvider = Provider<ReportesAdminRepository?>((ref) => null);

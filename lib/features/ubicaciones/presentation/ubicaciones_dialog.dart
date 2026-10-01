@@ -1,13 +1,13 @@
+import '../../../shared/widgets/catalogo_ubicacion_dropdown.dart';
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers.dart';
-import '../../../core/constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/models.dart';
 import '../../../shared/widgets/action_button.dart';
 import '../../../shared/widgets/feedback_banner.dart';
-import '../../../shared/widgets/labeled_dropdown.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
 Future<void> showUbicacionesDialog(BuildContext context) =>
@@ -23,7 +23,7 @@ class UbicacionesDialog extends ConsumerStatefulWidget {
 }
 
 class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
-  String _ubicacion = WmsConstantes.ubicaciones.first;
+  String _ubicacion = '';
   FeedbackMessage? _msg;
 
   Future<void> _imprimir(List<_Existencia> items, int total) async {
@@ -57,10 +57,10 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
             FeedbackBanner(message: _msg!),
             const SizedBox(height: 12),
           ],
-          LabeledDropdown<String>(
+          CatalogoUbicacionDropdown(
             label: 'Seleccionar estante / rack',
             value: _ubicacion,
-            items: WmsConstantes.ubicaciones,
+
             onChanged: (v) => setState(() {
               _ubicacion = v;
               _msg = null;
@@ -70,7 +70,7 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
           Container(
             padding: const EdgeInsets.all(10),
             color: Colors.blue.shade50,
-            child: Row(
+            child: ResponsiveRow(
               children: [
                 Expanded(
                   child: Text(
@@ -175,7 +175,7 @@ class _TicketDialog extends StatelessWidget {
                         for (final e in items)
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Row(
+                            child: ResponsiveRow(
                               children: [
                                 Expanded(
                                   child: Text(
@@ -201,7 +201,7 @@ class _TicketDialog extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              Row(
+              ResponsiveRow(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cerrar')),

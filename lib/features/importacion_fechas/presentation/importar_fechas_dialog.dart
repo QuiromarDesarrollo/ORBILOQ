@@ -1,3 +1,4 @@
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -116,7 +117,7 @@ class _ImportarFechasDialogState extends ConsumerState<ImportarFechasDialog> {
               style: TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
-            Row(
+            ResponsiveRow(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(

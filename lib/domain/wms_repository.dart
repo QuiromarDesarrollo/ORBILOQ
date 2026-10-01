@@ -1,9 +1,18 @@
 import '../core/result.dart';
 import 'models.dart';
+import 'edicion_admin.dart';
 
 /// Contrato de datos. Las reglas de negocio (límites, stock) deben aplicarse
 /// dentro de cada implementación; en Supabase, mediante funciones RPC transaccionales.
 abstract interface class WmsRepository {
+  Future<List<String>> cargarUbicaciones();
+  Future<Result<void>> eliminarLineaAdmin(
+      String itemId, String version, String motivo);
+
+  Future<ContextoEdicionAdmin> cargarEdicionAdmin(String itemId);
+  Future<Result<Map<String, dynamic>>> editarAdmin(CambioAdmin cambio,
+      {required bool confirmar});
+
   /// Emite el estado actual y cada cambio posterior.
   Stream<WmsSnapshot> watch();
 

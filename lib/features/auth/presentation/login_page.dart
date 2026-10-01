@@ -92,7 +92,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             return Row(
               children: [
                 Expanded(flex: 5, child: panelMarca),
-                Expanded(flex: 6, child: Center(child: panelForm)),
+                Expanded(flex: 6, child: SingleChildScrollView(child: Center(child: panelForm))),
               ],
             );
           }
@@ -101,7 +101,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             child: Column(
               children: [
                 SizedBox(height: 260, child: panelMarca),
-                Padding(padding: const EdgeInsets.all(24), child: panelForm),
+                Padding(padding: const EdgeInsets.all(12), child: panelForm),
               ],
             ),
           );
@@ -121,6 +121,7 @@ class _PanelMarca extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compacto = MediaQuery.sizeOf(context).width < 900;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -132,13 +133,13 @@ class _PanelMarca extends StatelessWidget {
       ),
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(compacto ? 16 : 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 220,
-                height: 220,
+                width: compacto ? 96 : 220,
+                height: compacto ? 96 : 220,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1),
@@ -147,8 +148,8 @@ class _PanelMarca extends StatelessWidget {
                   child: ClipOval(
                     child: Image.asset(
                       'assets/images/logo_orbiloq.png',
-                      width: 190,
-                      height: 190,
+                      width: compacto ? 84 : 190,
+                      height: compacto ? 84 : 190,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stack) => Icon(
                         Icons.inventory_2_outlined,
@@ -159,7 +160,7 @@ class _PanelMarca extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: compacto ? 12 : 28),
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
@@ -171,7 +172,7 @@ class _PanelMarca extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              const Text(
+              if (!compacto) const Text(
                 'Sistema de gestión de almacenes para una operación\nlogística precisa.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.5),
@@ -303,7 +304,7 @@ class _PanelFormulario extends StatelessWidget {
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('Iniciar sesión', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                          Flexible(child: Text('Iniciar sesión', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15))),
                           SizedBox(width: 8),
                           Icon(Icons.arrow_forward, size: 18),
                         ],
@@ -313,8 +314,9 @@ class _PanelFormulario extends StatelessWidget {
             const SizedBox(height: 24),
             Divider(color: slate200),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 12, runSpacing: 12,
               children: [
                 Row(
                   children: [

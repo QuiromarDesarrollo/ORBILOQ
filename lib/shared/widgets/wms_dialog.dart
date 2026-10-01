@@ -19,6 +19,7 @@ class WmsDialogShell extends StatelessWidget {
     required this.child,
     this.maxWidth = 900,
     this.expand = false,
+    this.canClose = true,
   });
 
   final String title;
@@ -27,10 +28,11 @@ class WmsDialogShell extends StatelessWidget {
   final Widget child;
   final double maxWidth;
   final bool expand;
+  final bool canClose;
 
   @override
   Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
+    final maxHeight = (MediaQuery.sizeOf(context).height - MediaQuery.viewInsetsOf(context).bottom - 32).clamp(100.0, double.infinity);
     return Dialog(
       // Fijo en blanco a propósito: estos diálogos usan texto navy fijo
       // (título, iconos) diseñado para fondo claro, y no deben oscurecerse
@@ -41,7 +43,7 @@ class WmsDialogShell extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 20),
           child: Column(
             mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -63,7 +65,7 @@ class WmsDialogShell extends StatelessWidget {
                   IconButton(
                     tooltip: 'Cerrar',
                     icon: const Icon(Icons.close, color: AppColors.alertRed),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: canClose ? () => Navigator.pop(context) : null,
                   ),
                 ],
               ),

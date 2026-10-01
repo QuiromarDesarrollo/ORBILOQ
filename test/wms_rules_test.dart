@@ -115,7 +115,7 @@ void main() {
       expect(snap2.lotes.firstWhere((l) => l.id == lote.id).estado, EstadoLote.recibidoCompleto);
     });
 
-    test('la recepción con faltante genera novedad y actualiza el stock', () async {
+    test('la recepción parcial actualiza stock y permite recibir el restante', () async {
       final snap = await repo.watch().first;
       final linea = snap.lotes.firstWhere((l) => l.id == 'LOTE-101').lineas.first;
 
@@ -123,13 +123,18 @@ void main() {
         loteLineaId: linea.id, cantidad: 3, ubicacion: 'RACK C3', recibidoPor: 'PRUEBA',
       );
       final actualizada = (res as Ok<LoteLinea>).value;
-      expect(actualizada.estado, EstadoLineaLote.recibidoConNovedad);
-      expect(actualizada.novedad, contains('FALTANTE'));
+      expect(actualizada.estado, EstadoLineaLote.enTransito);
+      expect(actualizada.cantidadPendiente, 1);
       expect(actualizada.recibidoPor, 'PRUEBA');
 
       final k = await kardex(_xs);
       expect(k.recibido, 8);
       expect(k.stockEn('RACK C3'), 3);
+      final segunda = await repo.recibirLoteLinea(
+        loteLineaId: linea.id, cantidad: 1, ubicacion: 'RACK C3', recibidoPor: 'PRUEBA',
+      );
+      expect((segunda as Ok<LoteLinea>).value.estado, EstadoLineaLote.recibidoConforme);
+      expect((await kardex(_xs)).recibido, 9);
     });
 
     test('una línea de lote no se puede recibir dos veces', () async {

@@ -1,18 +1,19 @@
+import '../../../application/auth_providers.dart';
+import '../../../shared/widgets/operario_actual.dart';
+import '../../../shared/widgets/historial_agrupado.dart';
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers.dart';
-import '../../../core/constants.dart';
 import '../../../core/result.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
 import '../../../shared/widgets/addable_person_dropdown.dart';
 import '../../../shared/widgets/feedback_banner.dart';
-import '../../../shared/widgets/labeled_dropdown.dart';
 import '../../../shared/widgets/metric_card.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
@@ -35,10 +36,12 @@ class NoConformeDialog extends StatelessWidget {
         child: Column(
           children: [
             const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               labelColor: AppColors.primaryNavy,
               unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primaryNavy,
-              labelPadding: EdgeInsets.symmetric(vertical: 4),
+              labelPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
@@ -160,12 +163,18 @@ class _CausalDropdown extends ConsumerWidget {
     return causales.when(
       loading: () => const LinearProgressIndicator(),
       error: (e, _) => Text('No se pudieron cargar las causales: $e', style: const TextStyle(color: AppColors.alertRed)),
-      data: (lista) => DropdownButtonFormField<String>(
-        initialValue: valor,
+      data: (lista) {
+        final valida=lista.any((c)=>c.id==valor);
+        if(valor!=null && !valida)WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)onChanged(null);});
+        return DropdownButtonFormField<String>(
+            isExpanded: true,
+        key: ValueKey('${lista.map((c)=>c.id).join('|')}::$valor'),
+        initialValue: valida ? valor : null,
         decoration: wmsInput('Causal de la no conformidad', icon: Icons.report_problem_outlined),
         items: [for (final c in lista) DropdownMenuItem(value: c.id, child: Text(c.nombre))],
         onChanged: onChanged,
-      ),
+      );
+      },
     );
   }
 }
@@ -182,7 +191,7 @@ class _EscanearTab extends ConsumerStatefulWidget {
 class _EscanearTabState extends ConsumerState<_EscanearTab> with AutomaticKeepAliveClientMixin {
   final _qrCtrl = TextEditingController();
   final _qrFocus = FocusNode();
-  String _operario = WmsConstantes.operarios.first;
+  String get _operario => ref.read(nombreOperarioProvider);
   final List<_TarjetaNoConforme> _tarjetas = [];
   FeedbackMessage? _msgGeneral;
   bool _enviandoTodo = false;
@@ -257,12 +266,7 @@ class _EscanearTabState extends ConsumerState<_EscanearTab> with AutomaticKeepAl
             FeedbackBanner(message: _msgGeneral!),
             const SizedBox(height: 12),
           ],
-          LabeledDropdown<String>(
-            label: 'Reportado por',
-            value: _operario,
-            items: WmsConstantes.operarios,
-            onChanged: (v) => setState(() => _operario = v),
-          ),
+          OperarioActual(label: 'Reportado por'),
           const SizedBox(height: 12),
           TextField(
             controller: _qrCtrl,
@@ -281,7 +285,7 @@ class _EscanearTabState extends ConsumerState<_EscanearTab> with AutomaticKeepAl
               ),
             )
           else ...[
-            Row(
+            ResponsiveRow(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
@@ -333,7 +337,7 @@ class _ManualTab extends ConsumerStatefulWidget {
 
 class _ManualTabState extends ConsumerState<_ManualTab> with AutomaticKeepAliveClientMixin {
   final _opCtrl = TextEditingController();
-  String _operario = WmsConstantes.operarios.first;
+  String get _operario => ref.read(nombreOperarioProvider);
   List<ItemKardex> _resultados = [];
   final Set<String> _seleccionados = {};
   final List<_TarjetaNoConforme> _tarjetas = [];
@@ -412,14 +416,9 @@ class _ManualTabState extends ConsumerState<_ManualTab> with AutomaticKeepAliveC
             FeedbackBanner(message: _msgGeneral!),
             const SizedBox(height: 12),
           ],
-          LabeledDropdown<String>(
-            label: 'Reportado por',
-            value: _operario,
-            items: WmsConstantes.operarios,
-            onChanged: (v) => setState(() => _operario = v),
-          ),
+          OperarioActual(label: 'Reportado por'),
           const SizedBox(height: 12),
-          Row(
+          ResponsiveRow(
             children: [
               Expanded(
                 child: TextField(
@@ -488,7 +487,7 @@ class _ManualTabState extends ConsumerState<_ManualTab> with AutomaticKeepAliveC
               ),
             )
           else if (_tarjetas.isNotEmpty) ...[
-            Row(
+            ResponsiveRow(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
@@ -557,7 +556,7 @@ class _TarjetaWidgetState extends State<_TarjetaWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            ResponsiveRow(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
@@ -620,7 +619,7 @@ class _TarjetaWidgetState extends State<_TarjetaWidget> {
                 tituloDialogo: 'Agregar persona de Producción',
               ),
               const SizedBox(height: 10),
-              Row(
+              ResponsiveRow(
                 children: [
                   Expanded(
                     child: TextField(
@@ -678,36 +677,11 @@ class _HistorialTabState extends ConsumerState<_HistorialTab> {
           return Center(child: Text('No se pudo cargar el historial: ${snapshot.error}'));
         }
         final devoluciones = snapshot.data ?? const [];
-        if (devoluciones.isEmpty) {
-          return const Center(
-            child: Text('Aún no hay productos no conformes reportados.', style: TextStyle(color: Colors.grey)),
-          );
-        }
-        return ListView.builder(
-          itemCount: devoluciones.length,
-          itemBuilder: (_, i) {
-            final d = devoluciones[i];
-            return Card(
-              child: ListTile(
-                dense: true,
-                leading: const CircleAvatar(
-                  backgroundColor: AppColors.alertRed,
-                  child: Icon(Icons.report_problem_outlined, color: Colors.white, size: 18),
-                ),
-                title: Text(
-                  '${d.item.codigo} (${d.item.talla}) — ${d.cantidad} Uds — ${d.causal}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'OP: ${d.item.op} | Reportado por: ${d.operario}'
-                  '${d.recibidoDeProduccion.isNotEmpty ? ' | Recibido de Producción: ${d.recibidoDeProduccion}' : ''}'
-                  ' | ${formatFechaHora(d.fecha)}'
-                  '${d.nota.isNotEmpty ? ' | ${d.nota}' : ''}',
-                ),
-              ),
-            );
-          },
-        );
+        return HistorialAgrupado(grupos: agruparHistorial(devoluciones, (d) => d.item,
+          (d) => EventoHistorial(id: d.id, fecha: d.fecha, cantidad: d.cantidad,
+            titulo: 'No conforme · ${d.cantidad} Uds · ${d.causal}',
+            detalle: 'Reportado por: ${d.operario}\nRecibido de Producción: ${d.recibidoDeProduccion.isEmpty ? 'Sin registrar' : d.recibidoDeProduccion}'
+              '${d.nota.isEmpty ? '' : '\nNota: ${d.nota}'}', color: AppColors.alertRed)));
       },
     );
   }

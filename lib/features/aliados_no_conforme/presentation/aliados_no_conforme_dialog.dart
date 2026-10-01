@@ -1,9 +1,12 @@
+import '../../../application/auth_providers.dart';
+import '../../../shared/widgets/operario_actual.dart';
+import '../../../shared/widgets/historial_agrupado.dart';
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers.dart';
-import '../../../core/constants.dart';
 import '../../../core/result.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/fecha.dart';
@@ -33,10 +36,12 @@ class AliadosNoConformeDialog extends StatelessWidget {
         child: Column(
           children: [
             const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               labelColor: AppColors.primaryNavy,
               unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primaryNavy,
-              labelPadding: EdgeInsets.symmetric(vertical: 4),
+              labelPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
@@ -68,12 +73,18 @@ class _CausalDropdownAliados extends ConsumerWidget {
     return causales.when(
       loading: () => const LinearProgressIndicator(),
       error: (e, _) => Text('No se pudieron cargar las causales: $e', style: const TextStyle(color: AppColors.alertRed)),
-      data: (lista) => DropdownButtonFormField<String>(
-        initialValue: valor,
+      data: (lista) {
+        final valida=lista.any((c)=>c.id==valor);
+        if(valor!=null && !valida)WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)onChanged(null);});
+        return DropdownButtonFormField<String>(
+            isExpanded: true,
+        key: ValueKey('${lista.map((c)=>c.id).join('|')}::$valor'),
+        initialValue: valida ? valor : null,
         decoration: wmsInput('Causal de la no conformidad', icon: Icons.report_problem_outlined),
         items: [for (final c in lista) DropdownMenuItem(value: c.id, child: Text(c.nombre))],
         onChanged: onChanged,
-      ),
+      );
+      },
     );
   }
 }
@@ -96,7 +107,7 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
   ItemKardex? _seleccionado;
   String? _causalId;
   String? _personaAliado;
-  String _operario = WmsConstantes.operarios.first;
+  String get _operario => ref.read(nombreOperarioProvider);
   bool _enviando = false;
   FeedbackMessage? _msg;
 
@@ -199,14 +210,9 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_msg != null) ...[FeedbackBanner(message: _msg!), const SizedBox(height: 12)],
-          DropdownButtonFormField<String>(
-            initialValue: _operario,
-            decoration: wmsInput('Enviado por (Producción)', icon: Icons.person_outline),
-            items: [for (final o in WmsConstantes.operarios) DropdownMenuItem(value: o, child: Text(o))],
-            onChanged: (v) => setState(() => _operario = v ?? _operario),
-          ),
+          OperarioActual(label: 'Enviado por (Producción)'),
           const SizedBox(height: 10),
-          Row(
+          ResponsiveRow(
             children: [
               Expanded(
                 child: TextField(
@@ -256,7 +262,7 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    ResponsiveRow(
                       children: [
                         Expanded(
                           child: Text(
@@ -325,7 +331,6 @@ class _PendientesTab extends ConsumerStatefulWidget {
 
 class _PendientesTabState extends ConsumerState<_PendientesTab> {
   final Map<String, String?> _personaMap = {};
-  final Map<String, String> _operarioMap = {};
   final Map<String, TextEditingController> _cantidadCtrls = {};
   final Map<String, bool> _liberando = {};
 
@@ -371,7 +376,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     final res = await ref.read(wmsRepositoryProvider).liberarNoConformeAliado(
           id: a.id,
           cantidad: cantidad,
-          operario: _operarioMap[a.id] ?? WmsConstantes.operarios.first,
+          operario: ref.read(nombreOperarioProvider),
           personaAliadoLibera: persona,
         );
     if (!mounted) return;
@@ -440,7 +445,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
+                                    ResponsiveRow(
                                       children: [
                                         const Icon(Icons.check_circle, color: AppColors.actionGreen, size: 20),
                                         const SizedBox(width: 8),
@@ -478,7 +483,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
+                                  ResponsiveRow(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
@@ -521,12 +526,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                                     ),
                                   ],
                                   const Divider(),
-                                  DropdownButtonFormField<String>(
-                                    initialValue: _operarioMap[a.id] ?? WmsConstantes.operarios.first,
-                                    decoration: wmsInput('Liberado por (Producción)', icon: Icons.person_outline),
-                                    items: [for (final o in WmsConstantes.operarios) DropdownMenuItem(value: o, child: Text(o))],
-                                    onChanged: (v) => setState(() => _operarioMap[a.id] = v ?? WmsConstantes.operarios.first),
-                                  ),
+                                  OperarioActual(label: 'Liberado por (Producción)'),
                                   const SizedBox(height: 10),
                                   AddablePersonDropdown(
                                     label: 'Quién de Aliados liberó *',
@@ -573,89 +573,24 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
 
 class _HistorialTab extends ConsumerWidget {
   const _HistorialTab();
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final solicitudes = ref.watch(noConformesAliadosProvider);
     final liberaciones = ref.watch(liberacionesAliadosProvider);
-
-    if (solicitudes.isLoading || liberaciones.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (solicitudes.hasError) {
-      return Center(child: Text('Error: ${solicitudes.error}', style: const TextStyle(color: AppColors.alertRed)));
-    }
-    if (liberaciones.hasError) {
-      return Center(child: Text('Error: ${liberaciones.error}', style: const TextStyle(color: AppColors.alertRed)));
-    }
-
-    final lista = solicitudes.requireValue;
-    final todasLiberaciones = liberaciones.requireValue;
-
-    if (lista.isEmpty) {
-      return const Center(child: Text('Aún no hay solicitudes de Aliados.', style: TextStyle(color: Colors.grey)));
-    }
-
-    return ListView.builder(
-      itemCount: lista.length,
-      itemBuilder: (_, i) {
-        final a = lista[i];
-        final eventos = todasLiberaciones.where((l) => l.solicitudId == a.id).toList()
-          ..sort((x, y) => x.fecha.compareTo(y.fecha)); // más antigua primero, orden natural de entrega
-        return Card(
-          color: a.pendiente ? Colors.amber.shade50 : Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text('OP: ${a.item.op} - ${a.item.descripcion} (${a.item.talla})',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
-                    ),
-                    StatusChip(
-                      label: a.pendiente ? 'PENDIENTE' : 'LIBERADO',
-                      color: a.pendiente ? Colors.amber.shade800 : AppColors.actionGreen,
-                    ),
-                  ],
-                ),
-                Text('Solicitado: ${a.cantidad} Uds | Causal: ${a.causal}', style: const TextStyle(fontSize: 12)),
-                Text(
-                  'Entregado a: ${a.personaAliadoEntrega} | Enviado por: ${a.usuarioSolicitud} | ${formatFechaHora(a.fechaSolicitud)}',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-                if (a.notaSolicitud.isNotEmpty)
-                  Text('Nota: ${a.notaSolicitud}', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
-                if (eventos.isNotEmpty) ...[
-                  const Divider(),
-                  for (final ev in eventos)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          StatusChip(
-                            label: ev.tipo == 'completa' ? 'ENTREGA COMPLETA' : 'ENTREGA PARCIAL',
-                            color: ev.tipo == 'completa' ? AppColors.actionGreen : Colors.orange.shade700,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${ev.cantidad} Uds | ${ev.operario} ← ${ev.personaAliado} | ${formatFechaHora(ev.fecha)}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    if (solicitudes.isLoading || liberaciones.isLoading) return const Center(child: CircularProgressIndicator());
+    if (solicitudes.hasError || liberaciones.hasError) return Center(child: Text('Error: ${solicitudes.error ?? liberaciones.error}'));
+    return HistorialAgrupado(grupos: [for (final a in solicitudes.requireValue) GrupoHistorial(
+      id: a.id, op: a.item.op, titulo: 'OP: ${a.item.op} - ${a.item.descripcion} (${a.item.talla})',
+      detalle: 'Código: ${a.item.codigo} | Solicitado: ${a.cantidad} Uds | Causal: ${a.causal} | ${a.pendiente ? 'PENDIENTE' : 'LIBERADO'}',
+      eventos: [
+        EventoHistorial(id: '${a.id}-solicitud', fecha: a.fechaSolicitud, titulo: 'Envío a Aliado · ${a.cantidad} Uds',
+          detalle: 'Entregado a: ${a.personaAliadoEntrega} | Enviado por: ${a.usuarioSolicitud}'
+            '${a.notaSolicitud.isEmpty ? '' : '\nNota: ${a.notaSolicitud}'}', color: Colors.blue),
+        for (final e in liberaciones.requireValue.where((e) => e.solicitudId == a.id))
+          EventoHistorial(id: e.id, fecha: e.fecha,
+            titulo: '${e.tipo == 'completa' ? 'ENTREGA COMPLETA' : 'ENTREGA PARCIAL'} · ${e.cantidad} Uds',
+            detalle: '${e.operario} ← ${e.personaAliado}${e.nota.isEmpty ? '' : '\nNota: ${e.nota}'}',
+            color: e.tipo == 'completa' ? AppColors.actionGreen : Colors.orange.shade700),
+      ])]);
   }
 }

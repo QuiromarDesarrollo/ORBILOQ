@@ -1,17 +1,18 @@
+import '../../../application/auth_providers.dart';
+import '../../../shared/widgets/operario_actual.dart';
+import '../../../shared/widgets/historial_agrupado.dart';
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers.dart';
-import '../../../core/constants.dart';
 import '../../../core/result.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
 import '../../../shared/widgets/feedback_banner.dart';
-import '../../../shared/widgets/labeled_dropdown.dart';
 import '../../../shared/widgets/metric_card.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_dialog.dart';
@@ -35,10 +36,12 @@ class EntregaProduccionDialog extends StatelessWidget {
         child: Column(
           children: [
             const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               labelColor: AppColors.primaryNavy,
               unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primaryNavy,
-              labelPadding: EdgeInsets.symmetric(vertical: 4),
+              labelPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
@@ -118,7 +121,7 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
   final _qrCtrl = TextEditingController();
   final _qrFocus = FocusNode();
 
-  String _operario = WmsConstantes.operarios.first;
+  String get _operario => ref.read(nombreOperarioProvider);
   final List<_TarjetaEntrega> _tarjetas = [];
   FeedbackMessage? _msgGeneral;
   bool _despachandoTodo = false;
@@ -251,12 +254,7 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
             FeedbackBanner(message: _msgGeneral!),
             const SizedBox(height: 12),
           ],
-          LabeledDropdown<String>(
-            label: 'Operario de Producción',
-            value: _operario,
-            items: WmsConstantes.operarios,
-            onChanged: (v) => setState(() => _operario = v),
-          ),
+          OperarioActual(label: 'Operario de Producción'),
           const SizedBox(height: 12),
           TextField(
             controller: _qrCtrl,
@@ -279,7 +277,7 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
               ),
             )
           else ...[
-            Row(
+            ResponsiveRow(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
@@ -325,7 +323,7 @@ class _EntregaManualTab extends ConsumerStatefulWidget {
 
 class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with AutomaticKeepAliveClientMixin {
   final _opCtrl = TextEditingController();
-  String _operario = WmsConstantes.operarios.first;
+  String get _operario => ref.read(nombreOperarioProvider);
   List<ItemKardex> _resultados = [];
   final Set<String> _seleccionados = {};
   final List<_TarjetaEntrega> _tarjetas = [];
@@ -441,14 +439,9 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
             FeedbackBanner(message: _msgGeneral!),
             const SizedBox(height: 12),
           ],
-          LabeledDropdown<String>(
-            label: 'Operario de Producción',
-            value: _operario,
-            items: WmsConstantes.operarios,
-            onChanged: (v) => setState(() => _operario = v),
-          ),
+          OperarioActual(label: 'Operario de Producción'),
           const SizedBox(height: 12),
-          Row(
+          ResponsiveRow(
             children: [
               Expanded(
                 child: TextField(
@@ -519,7 +512,7 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
               ),
             )
           else if (_tarjetas.isNotEmpty) ...[
-            Row(
+            ResponsiveRow(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
@@ -582,7 +575,7 @@ class _TarjetaWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            ResponsiveRow(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
@@ -666,68 +659,17 @@ class _TarjetaWidget extends StatelessWidget {
 
 class _HistorialTab extends ConsumerWidget {
   const _HistorialTab();
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const [];
-    if (lotes.isEmpty) {
-      return const Center(child: Text('Aún no hay lotes.', style: TextStyle(color: Colors.grey)));
-    }
-    return ListView.builder(
-      itemCount: lotes.length,
-      itemBuilder: (_, i) => _LoteExpandible(lote: lotes[i], indice: lotes.length - i),
-    );
-  }
-}
-
-Color _colorEstadoLote(EstadoLote e) => switch (e) {
-      EstadoLote.enTransito => Colors.amber.shade800,
-      EstadoLote.recibidoParcial => AppColors.accentCyan,
-      EstadoLote.recibidoCompleto => AppColors.actionGreen,
-    };
-
-class _LoteExpandible extends StatelessWidget {
-  const _LoteExpandible({required this.lote, required this.indice});
-
-  final Lote lote;
-  final int indice;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ExpansionTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.primaryNavy,
-          child: Text('#$indice', style: const TextStyle(color: Colors.white, fontSize: 11)),
-        ),
-        title: Text(
-          '${lote.id} — ${lote.totalLineas} producto(s)',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('Operario: ${lote.operario} | Fecha: ${formatFechaHora(lote.fechaEnvio)}'),
-        trailing: StatusChip(label: lote.estado.etiqueta, color: _colorEstadoLote(lote.estado)),
-        children: [
-          for (final linea in lote.lineas)
-            ListTile(
-              dense: true,
-              title: Text(
-                'OP: ${linea.item.op} — ${linea.item.descripcion} (${linea.item.talla})',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('No. OC: ${linea.item.oc} | Enviadas: ${linea.cantidadEnviada} Uds'
-                      '${linea.cantidadRecibida != null ? ' | Recibidas: ${linea.cantidadRecibida}' : ''}'),
-                  if (linea.novedad.isNotEmpty)
-                    Text('Novedad: ${linea.novedad}',
-                        style: const TextStyle(color: AppColors.alertRed, fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
-              ),
-              trailing: StatusChip(label: linea.estado.etiqueta, color: colorDeEstadoLinea(linea.estado)),
-            ),
-        ],
-      ),
-    );
+    final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const <Lote>[];
+    final registros = [for (final lote in lotes) for (final linea in lote.lineas)  (lote: lote, linea: linea)];
+    return HistorialAgrupado(grupos: agruparHistorial(registros, (e) => e.linea.item,
+      (e) => EventoHistorial(id: e.linea.id, fecha: e.lote.fechaEnvio, cantidad: e.linea.cantidadEnviada,
+        titulo: 'Entrega · ${e.linea.cantidadEnviada} Uds · ${e.linea.estado.etiqueta}',
+        detalle: 'Lote: ${e.lote.id} | Operario: ${e.lote.operario}\n'
+          'Enviadas: ${e.linea.cantidadEnviada} Uds | Recibidas: ${e.linea.cantidadRecibida ?? 0} Uds | Estante: ${e.linea.ubicacionDestino ?? '—'}\n'
+          'Recibido por: ${e.linea.recibidoPor.isEmpty ? 'Sin registrar' : e.linea.recibidoPor}'
+          '${e.linea.novedad.isEmpty ? '' : '\nNovedad: ${e.linea.novedad}'}',
+        color: colorDeEstadoLinea(e.linea.estado))));
   }
 }

@@ -1,3 +1,5 @@
+import '../../../application/auth_providers.dart';
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,7 +66,7 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
       res = await importador.importar(
         bytes: bytes,
         nombreArchivo: archivo.name,
-        usuarioNombre: 'Operario Confección 1', // TODO: usuario real cuando exista login
+        usuarioNombre: ref.read(nombreOperarioProvider),
       );
     } catch (e) {
       // Red de seguridad final: cualquier error no previsto (de red, del
@@ -122,7 +124,7 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
               style: TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
-            Row(
+            ResponsiveRow(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(

@@ -1,18 +1,19 @@
+import '../../../application/auth_providers.dart';
+import '../../../shared/widgets/operario_actual.dart';
+import 'historial_liberaciones.dart';
+import '../../../shared/widgets/responsive_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/providers.dart';
-import '../../../core/constants.dart';
 import '../../../core/result.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/fecha.dart';
 import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
 import '../../../shared/widgets/addable_person_dropdown.dart';
 import '../../../shared/widgets/feedback_banner.dart';
-import '../../../shared/widgets/labeled_dropdown.dart';
 import '../../../shared/widgets/metric_card.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
@@ -35,10 +36,12 @@ class ReprocesoDialog extends StatelessWidget {
         child: Column(
           children: [
             const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               labelColor: AppColors.primaryNavy,
               unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primaryNavy,
-              labelPadding: EdgeInsets.symmetric(vertical: 4),
+              labelPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
@@ -72,7 +75,7 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
   final Map<String, TextEditingController> _cantidadCtrls = {};
   final Map<String, bool> _liberando = {};
   final Map<String, String?> _recibidoPorLogistica = {};
-  String _operario = WmsConstantes.operarios.first;
+  String get _operario => ref.read(nombreOperarioProvider);
   String _filtroOp = '';
   FeedbackMessage? _msgGeneral;
   late Future<Map<String, List<String>>> _motivosFuturo;
@@ -175,6 +178,7 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
       _liberando[k.id] = false;
       switch (res) {
         case Ok():
+          ref.invalidate(liberacionesProduccionProvider);
           _msgGeneral = FeedbackMessage.ok(
             '${cantidad}u de ${k.item.descripcion} (${k.item.talla}) liberadas — vuelven a Entregado a Logística.',
           );
@@ -201,14 +205,9 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
           FeedbackBanner(message: _msgGeneral!),
           const SizedBox(height: 12),
         ],
-        LabeledDropdown<String>(
-          label: 'Liberado por',
-          value: _operario,
-          items: WmsConstantes.operarios,
-          onChanged: (v) => setState(() => _operario = v),
-        ),
+        OperarioActual(label: 'Liberado por'),
         const SizedBox(height: 12),
-        Row(
+        ResponsiveRow(
           children: [
             Expanded(
               child: TextField(
@@ -306,7 +305,7 @@ class _TarjetaNoConforme extends StatelessWidget {
             ),
             Text('No. OC: ${k.item.oc} | Cliente: ${k.item.cliente}'),
             const SizedBox(height: 6),
-            Row(
+            ResponsiveRow(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Icon(Icons.report_problem_outlined, size: 16, color: AppColors.alertRed),
@@ -348,7 +347,7 @@ class _TarjetaNoConforme extends StatelessWidget {
               tituloDialogo: 'Agregar persona de Logística',
             ),
             const SizedBox(height: 10),
-            Row(
+            ResponsiveRow(
               children: [
                 Expanded(
                   child: TextField(
@@ -377,63 +376,15 @@ class _TarjetaNoConforme extends StatelessWidget {
 
 // ==================================================== pestaña 2: historial
 
-class _HistorialTab extends ConsumerStatefulWidget {
+class _HistorialTab extends ConsumerWidget {
   const _HistorialTab();
 
   @override
-  ConsumerState<_HistorialTab> createState() => _HistorialTabState();
-}
-
-class _HistorialTabState extends ConsumerState<_HistorialTab> {
-  late Future<List<Liberacion>> _futuro;
-
-  @override
-  void initState() {
-    super.initState();
-    _futuro = ref.read(wmsRepositoryProvider).cargarLiberaciones();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Liberacion>>(
-      future: _futuro,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('No se pudo cargar el historial: ${snapshot.error}'));
-        }
-        final liberaciones = snapshot.data ?? const [];
-        if (liberaciones.isEmpty) {
-          return const Center(child: Text('Aún no hay liberaciones registradas.', style: TextStyle(color: Colors.grey)));
-        }
-        return ListView.builder(
-          itemCount: liberaciones.length,
-          itemBuilder: (_, i) {
-            final l = liberaciones[i];
-            return Card(
-              child: ListTile(
-                dense: true,
-                leading: const CircleAvatar(
-                  backgroundColor: AppColors.actionGreen,
-                  child: Icon(Icons.check, color: Colors.white, size: 18),
-                ),
-                title: Text(
-                  '${l.item.codigo} (${l.item.talla}) — ${l.cantidad} Uds liberadas',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'OP: ${l.item.op} | Por: ${l.operario}'
-                  '${l.recibidoPorLogistica.isNotEmpty ? ' | Recibido por Logística: ${l.recibidoPorLogistica}' : ''}'
-                  ' | ${formatFechaHora(l.fecha)}'
-                  '${l.nota.isNotEmpty ? ' | ${l.nota}' : ''}',
-                ),
-              ),
-            );
-          },
-        );
-      },
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(liberacionesProduccionProvider).when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(child: Text('No se pudo cargar el historial: $error')),
+      data: (liberaciones) => HistorialLiberaciones(liberaciones: liberaciones),
     );
   }
 }

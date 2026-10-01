@@ -1,3 +1,7 @@
+import 'data/reportes_admin_repository.dart';
+import 'dart:async';
+import 'data/catalogos_repository.dart';
+import 'data/supabase_importador_kardex.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -43,6 +47,24 @@ Future<void> main() async {
           ref.onDispose(repo.dispose);
           return repo;
         }),
+        reportesAdminProvider.overrideWith((ref)=>usarSupabase?SupabaseReportesAdminRepository(Supabase.instance.client):null),
+        catalogosAdminProvider.overrideWith((ref)=>usarSupabase?SupabaseCatalogosRepository(Supabase.instance.client):null),
+        catalogosRevisionProvider.overrideWith((ref) {
+          if(!usarSupabase)return const Stream<int>.empty();
+          final controller=StreamController<int>(); var version=0;
+          var channel=Supabase.instance.client.channel('catalogos_cambios');
+          for(final tabla in catalogosAdministrables.keys){
+            channel=channel.onPostgresChanges(event:PostgresChangeEvent.all,schema:'public',table:tabla,callback:(_){
+              if(!controller.isClosed)controller.add(++version);
+              ref.read(wmsRepositoryProvider).refrescar();
+            });
+          }
+          channel.subscribe();
+          final timer=Timer.periodic(const Duration(seconds:30),(_){if(!controller.isClosed)controller.add(++version);});
+          ref.onDispose((){timer.cancel();Supabase.instance.client.removeChannel(channel);controller.close();});
+          return controller.stream;
+        }),
+        importadorKardexProvider.overrideWith((ref) => usarSupabase ? SupabaseImportadorKardex(Supabase.instance.client) : null),
         importadorOrdenesProvider.overrideWith((ref) {
           if (!usarSupabase) return null;
           return SupabaseImportadorOrdenes(Supabase.instance.client);

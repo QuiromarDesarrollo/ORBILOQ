@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/result.dart';
 import '../domain/models.dart';
+import '../domain/edicion_admin.dart';
 import '../domain/wms_repository.dart';
 
 /// Implementación real contra Supabase. Las reglas de negocio (límites de
@@ -12,9 +13,70 @@ import '../domain/wms_repository.dart';
 /// protegidas por transacciones del lado del servidor, sin condiciones de
 /// carrera entre usuarios concurrentes.
 class SupabaseWmsRepository implements WmsRepository {
+  @override
+  Future<List<String>> cargarUbicaciones() async {
+    final filas = await _traerTodo((a,b) => _client.from('ubicaciones').select('codigo').eq('activa',true).order('codigo').range(a,b));
+    return [for(final f in filas) f['codigo'] as String];
+  }
+
+  @override
+  Future<Result<void>> eliminarLineaAdmin(
+      String itemId, String version, String motivo) async {
+    try {
+      await _client.rpc('admin_eliminar_linea', params: {
+        'p_item_id': itemId,
+        'p_version': version,
+        'p_motivo': motivo,
+      });
+      await refrescar();
+      return const Ok(null);
+    } on PostgrestException catch (e) {
+      return Err(e.message);
+    } catch (e) {
+      return const Err(
+          'No se pudo verificar la operacion. Actualiza antes de reintentar.');
+    }
+  }
+
+  @override
+  Future<ContextoEdicionAdmin> cargarEdicionAdmin(String itemId) async {
+    final data = await _client
+        .rpc('admin_contexto_edicion', params: {'p_item_id': itemId});
+    return ContextoEdicionAdmin.fromJson(
+        Map<String, dynamic>.from(data as Map));
+  }
+
+  @override
+  Future<Result<Map<String, dynamic>>> editarAdmin(CambioAdmin cambio,
+      {required bool confirmar}) async {
+    try {
+      final data = await _client.rpc('admin_editar_kardex',
+          params: cambio.parametros(confirmar));
+      if (confirmar) await refrescar();
+      return Ok(Map<String, dynamic>.from(data as Map));
+    } on PostgrestException catch (e) {
+      return Err(e.message);
+    } catch (e) {
+      return Err(
+          'No se pudo verificar la operación. Actualiza antes de reintentar: $e');
+    }
+  }
+
   SupabaseWmsRepository(this._client) {
     _channel = _client
         .channel('wms_cambios')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'items_orden',
+          callback: (_) => refrescar(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'ordenes_produccion',
+          callback: (_) => refrescar(),
+        )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -39,7 +101,8 @@ class SupabaseWmsRepository implements WmsRepository {
 
   final SupabaseClient _client;
   late final RealtimeChannel _channel;
-  final StreamController<WmsSnapshot> _controller = StreamController.broadcast();
+  final StreamController<WmsSnapshot> _controller =
+      StreamController.broadcast();
   WmsSnapshot? _ultimo;
 
   @override
@@ -100,7 +163,10 @@ class SupabaseWmsRepository implements WmsRepository {
     );
 
     final stockRows = await _traerTodo(
-      (desde, hasta) => _client.from('vista_stock_ubicacion_detalle').select().range(desde, hasta),
+      (desde, hasta) => _client
+          .from('vista_stock_ubicacion_detalle')
+          .select()
+          .range(desde, hasta),
     );
 
     final loteItemsRows = await _traerTodo(
@@ -143,6 +209,7 @@ class SupabaseWmsRepository implements WmsRepository {
       observacionOp: (row['observacion_op'] as String?) ?? '',
     );
     return ItemKardex(
+      eliminada: row['admin_eliminado_en'] != null,
       item: item,
       producido: (row['producido'] as num).toInt(),
       recibido: (row['recibido'] as num).toInt(),
@@ -180,7 +247,9 @@ class SupabaseWmsRepository implements WmsRepository {
     final pendientes = lineas.where((l) => l.enTransito).length;
     final estado = pendientes == 0
         ? EstadoLote.recibidoCompleto
-        : (pendientes == lineas.length ? EstadoLote.enTransito : EstadoLote.recibidoParcial);
+        : (pendientes == lineas.length
+            ? EstadoLote.enTransito
+            : EstadoLote.recibidoParcial);
     return Lote(
       id: numero,
       operario: primera['operario_nombre'] as String,
@@ -222,13 +291,15 @@ class SupabaseWmsRepository implements WmsRepository {
         _ => EstadoLineaLote.enTransito,
       };
 
-  DateTime? _fecha(dynamic v) => v == null ? null : DateTime.parse(v as String).toLocal();
+  DateTime? _fecha(dynamic v) =>
+      v == null ? null : DateTime.parse(v as String).toLocal();
 
   Future<String?> _idDeUbicacion(String codigo) async {
     final fila = await _client
         .from('ubicaciones')
         .select('id')
         .eq('codigo', codigo)
+        .eq('activa', true)
         .maybeSingle();
     return fila?['id'] as String?;
   }
@@ -252,16 +323,20 @@ class SupabaseWmsRepository implements WmsRepository {
     try {
       final res = await _client.rpc('crear_lote', params: {
         'p_items': [
-          for (final i in items) {'item_orden_id': i.itemId, 'cantidad': i.cantidad},
+          for (final i in items)
+            {'item_orden_id': i.itemId, 'cantidad': i.cantidad},
         ],
         'p_operario_nombre': operario,
-        'p_numero_lote': (numeroLote == null || numeroLote.trim().isEmpty) ? null : numeroLote.trim(),
+        'p_numero_lote': (numeroLote == null || numeroLote.trim().isEmpty)
+            ? null
+            : numeroLote.trim(),
       });
       final numero = (res as Map)['numero'] as String;
       await refrescar();
       final lote = _buscarLotePorNumero(numero);
       if (lote == null) {
-        return Err<Lote>('El lote $numero se creó, pero no se pudo leer de vuelta.');
+        return Err<Lote>(
+            'El lote $numero se creó, pero no se pudo leer de vuelta.');
       }
       return Ok<Lote>(lote);
     } on PostgrestException catch (e) {
@@ -297,7 +372,8 @@ class SupabaseWmsRepository implements WmsRepository {
           if (linea.id == loteLineaId) return Ok<LoteLinea>(linea);
         }
       }
-      return Err<LoteLinea>('La línea se actualizó, pero no se pudo leer de vuelta.');
+      return Err<LoteLinea>(
+          'La línea se actualizó, pero no se pudo leer de vuelta.');
     } on PostgrestException catch (e) {
       return Err<LoteLinea>(e.message);
     } catch (e) {
@@ -349,9 +425,11 @@ class SupabaseWmsRepository implements WmsRepository {
   }
 
   @override
-  Future<Result<void>> resolverSobrante({required String id, required String resolucion}) async {
+  Future<Result<void>> resolverSobrante(
+      {required String id, required String resolucion}) async {
     try {
-      await _client.rpc('resolver_sobrante', params: {'p_id': id, 'p_resolucion': resolucion});
+      await _client.rpc('resolver_sobrante',
+          params: {'p_id': id, 'p_resolucion': resolucion});
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);
@@ -363,7 +441,11 @@ class SupabaseWmsRepository implements WmsRepository {
   @override
   Future<List<SobranteBodega>> cargarSobrantes() async {
     final filas = await _traerTodo(
-      (desde, hasta) => _client.from('vista_sobrantes_bodega').select().order('fecha', ascending: false).range(desde, hasta),
+      (desde, hasta) => _client
+          .from('vista_sobrantes_bodega')
+          .select()
+          .order('fecha', ascending: false)
+          .range(desde, hasta),
     );
     return [
       for (final row in filas)
@@ -417,7 +499,11 @@ class SupabaseWmsRepository implements WmsRepository {
 
   @override
   Future<List<Causal>> cargarCausales() async {
-    final filas = await _client.from('causales_devolucion').select('id, nombre').eq('activa', true).order('nombre');
+    final filas = await _client
+        .from('causales_devolucion')
+        .select('id, nombre')
+        .eq('activa', true)
+        .order('nombre');
     return [
       for (final f in (filas as List).cast<Map<String, dynamic>>())
         Causal(id: f['id'] as String, nombre: f['nombre'] as String),
@@ -431,13 +517,17 @@ class SupabaseWmsRepository implements WmsRepository {
         .select('nombre')
         .eq('activo', true)
         .order('nombre');
-    return [for (final f in (filas as List).cast<Map<String, dynamic>>()) f['nombre'] as String];
+    return [
+      for (final f in (filas as List).cast<Map<String, dynamic>>())
+        f['nombre'] as String
+    ];
   }
 
   @override
   Future<Result<String>> agregarPersonalLogistica(String nombre) async {
     try {
-      final res = await _client.rpc('agregar_personal_logistica', params: {'p_nombre': nombre});
+      final res = await _client
+          .rpc('agregar_personal_logistica', params: {'p_nombre': nombre});
       final fila = res as Map<String, dynamic>;
       return Ok<String>(fila['nombre'] as String);
     } on PostgrestException catch (e) {
@@ -454,13 +544,17 @@ class SupabaseWmsRepository implements WmsRepository {
         .select('nombre')
         .eq('activo', true)
         .order('nombre');
-    return [for (final f in (filas as List).cast<Map<String, dynamic>>()) f['nombre'] as String];
+    return [
+      for (final f in (filas as List).cast<Map<String, dynamic>>())
+        f['nombre'] as String
+    ];
   }
 
   @override
   Future<Result<String>> agregarPersonalProduccion(String nombre) async {
     try {
-      final res = await _client.rpc('agregar_personal_produccion', params: {'p_nombre': nombre});
+      final res = await _client
+          .rpc('agregar_personal_produccion', params: {'p_nombre': nombre});
       final fila = res as Map<String, dynamic>;
       return Ok<String>(fila['nombre'] as String);
     } on PostgrestException catch (e) {
@@ -477,13 +571,17 @@ class SupabaseWmsRepository implements WmsRepository {
         .select('nombre')
         .eq('activo', true)
         .order('nombre');
-    return [for (final f in (filas as List).cast<Map<String, dynamic>>()) f['nombre'] as String];
+    return [
+      for (final f in (filas as List).cast<Map<String, dynamic>>())
+        f['nombre'] as String
+    ];
   }
 
   @override
   Future<Result<String>> agregarPersonalAliado(String nombre) async {
     try {
-      final res = await _client.rpc('agregar_personal_aliado', params: {'p_nombre': nombre});
+      final res = await _client
+          .rpc('agregar_personal_aliado', params: {'p_nombre': nombre});
       final fila = res as Map<String, dynamic>;
       return Ok<String>(fila['nombre'] as String);
     } on PostgrestException catch (e) {
@@ -548,8 +646,11 @@ class SupabaseWmsRepository implements WmsRepository {
   @override
   Future<List<NoConformeAliado>> cargarNoConformesAliados() async {
     final filas = await _traerTodo(
-      (desde, hasta) =>
-          _client.from('vista_no_conformes_aliados').select().order('fecha_solicitud', ascending: false).range(desde, hasta),
+      (desde, hasta) => _client
+          .from('vista_no_conformes_aliados')
+          .select()
+          .order('fecha_solicitud', ascending: false)
+          .range(desde, hasta),
     );
     return [
       for (final row in filas)
@@ -568,9 +669,11 @@ class SupabaseWmsRepository implements WmsRepository {
           cantidad: (row['cantidad_solicitada'] as num).toInt(),
           causal: row['causal_nombre'] as String,
           estado: row['estado'] as String,
-          usuarioSolicitud: row['usuario_produccion_solicitud_nombre'] as String,
+          usuarioSolicitud:
+              row['usuario_produccion_solicitud_nombre'] as String,
           personaAliadoEntrega: row['persona_aliado_entrega'] as String,
-          fechaSolicitud: DateTime.parse(row['fecha_solicitud'] as String).toLocal(),
+          fechaSolicitud:
+              DateTime.parse(row['fecha_solicitud'] as String).toLocal(),
           notaSolicitud: (row['nota_solicitud'] as String?) ?? '',
           cantidadLiberada: (row['cantidad_liberada'] as num?)?.toInt() ?? 0,
         ),
@@ -580,8 +683,11 @@ class SupabaseWmsRepository implements WmsRepository {
   @override
   Future<List<LiberacionAliado>> cargarLiberacionesAliados() async {
     final filas = await _traerTodo(
-      (desde, hasta) =>
-          _client.from('vista_liberaciones_aliados').select().order('fecha', ascending: false).range(desde, hasta),
+      (desde, hasta) => _client
+          .from('vista_liberaciones_aliados')
+          .select()
+          .order('fecha', ascending: false)
+          .range(desde, hasta),
     );
     return [
       for (final row in filas)
@@ -604,7 +710,8 @@ class SupabaseWmsRepository implements WmsRepository {
           personaAliado: row['persona_aliado_libera'] as String,
           fecha: DateTime.parse(row['fecha'] as String).toLocal(),
           nota: (row['nota'] as String?) ?? '',
-          cantidadTotalSolicitud: (row['cantidad_solicitada'] as num?)?.toInt() ?? 0,
+          cantidadTotalSolicitud:
+              (row['cantidad_solicitada'] as num?)?.toInt() ?? 0,
         ),
     ];
   }
@@ -664,7 +771,11 @@ class SupabaseWmsRepository implements WmsRepository {
   @override
   Future<List<Liberacion>> cargarLiberaciones() async {
     final filas = await _traerTodo(
-      (desde, hasta) => _client.from('vista_liberaciones').select().order('creado_en', ascending: false).range(desde, hasta),
+      (desde, hasta) => _client
+          .from('vista_liberaciones')
+          .select()
+          .order('creado_en', ascending: false)
+          .range(desde, hasta),
     );
     return [
       for (final row in filas)
@@ -684,7 +795,8 @@ class SupabaseWmsRepository implements WmsRepository {
           operario: row['operario_nombre'] as String,
           fecha: DateTime.parse(row['creado_en'] as String).toLocal(),
           nota: (row['nota'] as String?) ?? '',
-          recibidoPorLogistica: (row['recibido_por_logistica'] as String?) ?? '',
+          recibidoPorLogistica:
+              (row['recibido_por_logistica'] as String?) ?? '',
         ),
     ];
   }
@@ -692,7 +804,11 @@ class SupabaseWmsRepository implements WmsRepository {
   @override
   Future<List<Devolucion>> cargarDevoluciones() async {
     final filas = await _traerTodo(
-      (desde, hasta) => _client.from('vista_devoluciones').select().order('creado_en', ascending: false).range(desde, hasta),
+      (desde, hasta) => _client
+          .from('vista_devoluciones')
+          .select()
+          .order('creado_en', ascending: false)
+          .range(desde, hasta),
     );
     return [
       for (final row in filas)
@@ -713,7 +829,8 @@ class SupabaseWmsRepository implements WmsRepository {
           operario: row['operario_nombre'] as String,
           fecha: DateTime.parse(row['creado_en'] as String).toLocal(),
           nota: (row['nota'] as String?) ?? '',
-          recibidoDeProduccion: (row['recibido_de_produccion'] as String?) ?? '',
+          recibidoDeProduccion:
+              (row['recibido_de_produccion'] as String?) ?? '',
         ),
     ];
   }
