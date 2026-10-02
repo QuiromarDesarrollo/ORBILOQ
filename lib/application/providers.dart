@@ -1,3 +1,4 @@
+import '../data/despachos_oc_repository.dart';
 import '../data/reportes_admin_repository.dart';
 import '../data/catalogos_repository.dart';
 import '../data/supabase_importador_kardex.dart';
@@ -15,15 +16,18 @@ import 'kardex_filters.dart';
 
 /// Debe sobrescribirse en `main.dart` (o en tests) con la implementación deseada.
 final wmsRepositoryProvider = Provider<WmsRepository>(
-  (ref) => throw UnimplementedError('Sobrescribe wmsRepositoryProvider en main.dart'),
+  (ref) => throw UnimplementedError(
+      'Sobrescribe wmsRepositoryProvider en main.dart'),
 );
 
 /// Solo disponible cuando la app corre contra Supabase; `null` en modo memoria
 /// (la importación de Excel no tiene sentido sin una base de datos real detrás).
-final importadorOrdenesProvider = Provider<SupabaseImportadorOrdenes?>((ref) => null);
+final importadorOrdenesProvider =
+    Provider<SupabaseImportadorOrdenes?>((ref) => null);
 
 /// Igual, para el Excel de fechas esperadas.
-final importadorFechasProvider = Provider<SupabaseImportadorFechas?>((ref) => null);
+final importadorFechasProvider =
+    Provider<SupabaseImportadorFechas?>((ref) => null);
 
 final wmsSnapshotProvider = StreamProvider<WmsSnapshot>(
   (ref) => ref.watch(wmsRepositoryProvider).watch(),
@@ -35,25 +39,37 @@ final kardexProvider = Provider<List<ItemKardex>>(
 
 /// Causales disponibles para reportar un producto como no conforme.
 final causalesProvider = FutureProvider<List<Causal>>(
-  (ref) { ref.watch(catalogosRevisionProvider); return ref.watch(wmsRepositoryProvider).cargarCausales(); },
+  (ref) {
+    ref.watch(catalogosRevisionProvider);
+    return ref.watch(wmsRepositoryProvider).cargarCausales();
+  },
 );
 
 /// Lista ampliable de personas de Logística que pueden recibir una prenda
 /// liberada por Producción. Se invalida tras agregar un nombre nuevo.
 final personalLogisticaProvider = FutureProvider<List<String>>(
-  (ref) { ref.watch(catalogosRevisionProvider); return ref.watch(wmsRepositoryProvider).cargarPersonalLogistica(); },
+  (ref) {
+    ref.watch(catalogosRevisionProvider);
+    return ref.watch(wmsRepositoryProvider).cargarPersonalLogistica();
+  },
 );
 
 /// Lista ampliable de personas de Producción que pueden entregar una prenda
 /// no conforme a Logística. Se invalida tras agregar un nombre nuevo.
 final personalProduccionProvider = FutureProvider<List<String>>(
-  (ref) { ref.watch(catalogosRevisionProvider); return ref.watch(wmsRepositoryProvider).cargarPersonalProduccion(); },
+  (ref) {
+    ref.watch(catalogosRevisionProvider);
+    return ref.watch(wmsRepositoryProvider).cargarPersonalProduccion();
+  },
 );
 
 /// Lista ampliable de personas de Aliados (a quién se entrega / quién libera
 /// un producto no conforme enviado a un taller externo).
 final personalAliadosProvider = FutureProvider<List<String>>(
-  (ref) { ref.watch(catalogosRevisionProvider); return ref.watch(wmsRepositoryProvider).cargarPersonalAliados(); },
+  (ref) {
+    ref.watch(catalogosRevisionProvider);
+    return ref.watch(wmsRepositoryProvider).cargarPersonalAliados();
+  },
 );
 
 /// Todas las solicitudes de Producto No Conforme a Aliados (pendientes e
@@ -82,7 +98,8 @@ class TemaNotifier extends Notifier<TemaModo> {
   @override
   TemaModo build() => TemaModo.oscuro;
 
-  void alternar() => state = state == TemaModo.oscuro ? TemaModo.claro : TemaModo.oscuro;
+  void alternar() =>
+      state = state == TemaModo.oscuro ? TemaModo.claro : TemaModo.oscuro;
 }
 
 final temaProvider = NotifierProvider<TemaNotifier, TemaModo>(TemaNotifier.new);
@@ -95,27 +112,36 @@ class RolNotifier extends Notifier<Rol> {
   @override
   Rol build() {
     final usarSupabase = ref.watch(usarSupabaseProvider);
-    if (!usarSupabase) return Rol.produccion; // modo memoria: sin login, libre como antes
+    if (!usarSupabase) {
+      return Rol.produccion; // modo memoria: sin login, libre como antes
+    }
 
     final sesion = ref.watch(usuarioSesionProvider).value;
     if (sesion == null) return Rol.produccion; // aún cargando / sin sesión
-    if(sesion.rolCuenta==RolCuenta.admin){
-      if(_numeroAdmin!=sesion.numeroUsuario){_numeroAdmin=sesion.numeroUsuario;_vistaAdmin=Rol.produccion;}
+    if (sesion.rolCuenta == RolCuenta.admin) {
+      if (_numeroAdmin != sesion.numeroUsuario) {
+        _numeroAdmin = sesion.numeroUsuario;
+        _vistaAdmin = Rol.produccion;
+      }
       return _vistaAdmin;
     }
-    _numeroAdmin=null;
+    _numeroAdmin = null;
     return switch (sesion.rolCuenta) {
       RolCuenta.produccion => Rol.produccion,
       RolCuenta.logistica => Rol.logistica,
-      RolCuenta.admin => Rol.produccion, // el admin arranca en Producción y puede cambiar
+      RolCuenta.admin =>
+        Rol.produccion, // el admin arranca en Producción y puede cambiar
     };
   }
 
   void cambiar(Rol rol) {
     if (rol == state) return;
     if (ref.read(usarSupabaseProvider)) {
-      final esAdmin = ref.read(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
-      if (!esAdmin) return; // Producción/Logística no pueden cambiarse su propio rol
+      final esAdmin =
+          ref.read(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
+      if (!esAdmin) {
+        return; // Producción/Logística no pueden cambiarse su propio rol
+      }
     }
     _vistaAdmin = rol;
     state = rol;
@@ -125,7 +151,8 @@ class RolNotifier extends Notifier<Rol> {
 final rolProvider = NotifierProvider<RolNotifier, Rol>(RolNotifier.new);
 
 /// El mapa de "columna -> valor" que le corresponde a la vista actual.
-final extractoresColumnaProvider = Provider<Map<String, ExtractorColumna>>((ref) {
+final extractoresColumnaProvider =
+    Provider<Map<String, ExtractorColumna>>((ref) {
   final rol = ref.watch(rolProvider);
   return rol == Rol.produccion ? columnasProduccion : columnasBodega;
 });
@@ -137,20 +164,26 @@ class KardexFiltersNotifier extends Notifier<KardexFilters> {
   KardexFilters build() => const KardexFilters();
 
   void setBusqueda(String v) => state = state.conBusqueda(v);
-  void setColumna(String columna, Set<String> valores) => state = state.conColumna(columna, valores);
+  void setColumna(String columna, Set<String> valores) =>
+      state = state.conColumna(columna, valores);
   void limpiar() => state = const KardexFilters();
 }
 
 final kardexFiltersProvider =
-    NotifierProvider<KardexFiltersNotifier, KardexFilters>(KardexFiltersNotifier.new);
+    NotifierProvider<KardexFiltersNotifier, KardexFilters>(
+        KardexFiltersNotifier.new);
 
 final kardexFiltradoProvider = Provider<List<ItemKardex>>((ref) {
-  final kardex = ref.watch(kardexProvider)
-      .where((i) => !i.eliminada).toList(growable: false);
+  final kardex = ref
+      .watch(kardexProvider)
+      .where((i) => !i.eliminada)
+      .toList(growable: false);
   final filtros = ref.watch(kardexFiltersProvider);
   final extractores = ref.watch(extractoresColumnaProvider);
   if (!filtros.hayFiltros) return kardex;
-  return kardex.where((i) => filtros.aplica(i, extractores)).toList(growable: false);
+  return kardex
+      .where((i) => filtros.aplica(i, extractores))
+      .toList(growable: false);
 });
 
 final kardexResumenProvider = Provider<KardexResumen>((ref) {
@@ -184,7 +217,8 @@ class KardexPaginaNotifier extends Notifier<int> {
   void ir(int pagina) => state = pagina;
 }
 
-final kardexPaginaProvider = NotifierProvider<KardexPaginaNotifier, int>(KardexPaginaNotifier.new);
+final kardexPaginaProvider =
+    NotifierProvider<KardexPaginaNotifier, int>(KardexPaginaNotifier.new);
 
 final kardexPaginaActualProvider = Provider<List<ItemKardex>>((ref) {
   final filtrado = ref.watch(kardexFiltradoProvider);
@@ -195,19 +229,27 @@ final kardexPaginaActualProvider = Provider<List<ItemKardex>>((ref) {
   return filtrado.sublist(desde, hasta);
 });
 
-final importadorKardexProvider = Provider<SupabaseImportadorKardex?>((ref) => null);
+final importadorKardexProvider =
+    Provider<SupabaseImportadorKardex?>((ref) => null);
 
-final catalogosAdminProvider=Provider<CatalogosRepository?>((ref)=>null);
-final catalogosRevisionProvider=StreamProvider<int>((ref)=>const Stream.empty());
-final ubicacionesProvider=FutureProvider<List<String>>((ref){
+final catalogosAdminProvider = Provider<CatalogosRepository?>((ref) => null);
+final catalogosRevisionProvider =
+    StreamProvider<int>((ref) => const Stream.empty());
+final ubicacionesProvider = FutureProvider<List<String>>((ref) {
   ref.watch(catalogosRevisionProvider);
   return ref.watch(wmsRepositoryProvider).cargarUbicaciones();
 });
 
 /// Historial de liberaciones internas; se actualiza al cambiar los movimientos.
-final liberacionesProduccionProvider = FutureProvider.autoDispose<List<Liberacion>>((ref) {
+final liberacionesProduccionProvider =
+    FutureProvider.autoDispose<List<Liberacion>>((ref) {
   ref.watch(wmsSnapshotProvider);
   return ref.watch(wmsRepositoryProvider).cargarLiberaciones();
 });
 
 final reportesAdminProvider = Provider<ReportesAdminRepository?>((ref) => null);
+
+final despachosOcProvider = Provider<DespachosOcRepository?>((ref) => null);
+final historialDespachosProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>(
+        (ref) async => await ref.watch(despachosOcProvider)?.historial() ?? []);

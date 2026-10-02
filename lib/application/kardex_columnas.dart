@@ -36,7 +36,7 @@ final Map<String, ExtractorColumna> columnasBodega = {
   ColKardex.despachadas: (i) => '${i.despachado}',
   ColKardex.noConformeBodega: (i) => '${i.pendienteReproceso}',
   ColKardex.estadoBodega: (i) => i.estadoLogistica.etiqueta,
-  ColKardex.fechaEntregaBodega: (i) => _fechaOTexto(i.fechaEntrega),
+  ColKardex.fechaEntregaBodega: (i) => _fechaOTexto(i.fechaDespacho),
   ColKardex.fechaEsperadaBodega: (i) => _fechaOTexto(i.fechaEsperadaLogistica),
   ColKardex.diasFaltantesBodega: (i) => _diasFaltantesTexto(i.fechaEsperadaLogistica),
 };

@@ -242,3 +242,25 @@ Aplicar `062_reportes_admin.sql` después de 061 en PRUEBAS. Luego actualizar la
 Carga completa en páginas de 1000 por clave estable y corte temporal del servidor; no existe truncamiento silencioso por el límite de Supabase. Es una consulta de lectura, no un bloqueo del taller: si otras personas corrigen datos durante la carga, actualizar el reporte. Excel usa texto literal (no fórmulas interpretadas desde notas) y cantidades numéricas. Si se exceden límites de Excel, la descarga falla explícitamente y debe acotarse la consulta.
 
 Validación: `node tools/test_admin_sql.mjs` con datos ficticios y sin Supabase, `flutter test --no-pub test/reportes_admin_test.dart`. PRODUCCIÓN requiere su migración específica al preparar el despliegue, conservando todos los registros.
+
+## 063: despacho por cliente y OC (solo DEV)
+
+1. Ejecutar completo `063_despacho_por_oc.sql` en el SQL Editor de **PRUEBAS**, después de 062. No requiere otra Edge Function.
+2. Abrir la aplicación actualizada de master. En la importación habitual de órdenes ERP, volver a cargar el Excel con hojas Orden y Tallas si las líneas existentes no tienen OC. El parser relaciona `Orden.Identificador` con `Tallas.Identificador orden` y toma `Orden.No. OC`; conserva texto y ceros iniciales cuando Excel los almacena como texto.
+3. La reimportación completa OC vacías en líneas existentes. No reemplaza cantidades ni OC ya registradas, ni borra movimientos. No usar «reemplazar tabla» para este paso.
+4. En Logística → Despacho, seleccionar cliente, abrir una card OC y marcar las OP. Cada OP seleccionada muestra sus productos/tallas con cantidades editables; 0 omite esa línea. También se puede completar todo lo pendiente de la OC, incluyendo OP no marcadas.
+5. Revisar los retiros por estante antes de confirmar. La distribución usa estantes con stock en orden de código. Si no alcanza el stock para completar una OC, no se guarda parcialmente: elegir cantidades menores mediante selección.
+
+El SQL agrega la cabecera `despachos_oc`, un vínculo nullable en movimientos y RPC con verificación de cuenta activa de Logística/Administrador. La misma transacción valida todas las líneas, pendiente, stock total y por estante, y registra los retiros con el usuario autenticado. La ruta anterior de despacho individual utiliza la misma validación. El identificador de solicitud evita duplicados al reintentar tras una respuesta perdida; mientras se resuelve ese reintento no se puede cambiar la selección. Un fallo al refrescar la tabla después de guardar se informa como actualización pendiente, sin repetir el despacho.
+
+Historial: incluye movimientos de despacho anteriores y nuevos, con cards plegables por cliente/OC/prenda y filtros combinables de OP y fecha. Los registros anteriores sin identidad muestran «Sin registrar». Las operaciones nuevas conservan cabecera de cliente/OC y nombre del actor; los datos descriptivos de prendas antiguas se consultan desde sus maestros. Las correcciones negativas se conservan en el historial.
+
+Pruebas locales: `node tools/test_admin_sql.mjs` y `flutter test --no-pub test/despachos_oc_test.dart test/responsive_test.dart`. No conectan a Supabase. El SQL no elimina ni reinicia tablas. **No ejecutar en PRODUCCIÓN**: al desplegar, preparar una migración contra el esquema vigente, con respaldo verificado y validación de recuentos/saldos, incluyendo la compatibilidad de recepción de 5 parámetros pendiente de ese despliegue. No reaplicar versiones anteriores de las funciones después de 063.
+
+## 064: fecha de despacho e historial por OC (solo DEV)
+
+Aplicar `064_fecha_despacho.sql` completo después de 063 en PRUEBAS. Agrega a `vista_kardex` la fecha del último movimiento positivo de despacho de cada producto/talla. Incluye despachos previos y futuros, y ajustes positivos de despacho; un ajuste negativo no se considera un envío nuevo. No sobrescribe fechas de entrega de Producción ni modifica movimientos. Sin despachos positivos se muestra «Sin fecha» en Logística.
+
+El historial de despachos permite buscar OC y combinar con OP/fecha. Muestra las OP con movimientos coincidentes. Al buscar OC, su estado actual considera todas sus líneas del kardex (incluidas OP sin despachos y líneas ocultas): Completo si ninguna tiene cantidad pendiente por despachar; Parcial en caso contrario. Se separan clientes aunque usen el mismo número OC. El estado no se recalcula sobre los movimientos filtrados. OC históricas que ya no tienen líneas asociadas muestran «Sin datos actuales».
+
+No ejecutar en PRODUCCIÓN: incluir este cambio aditivo en la migración específica del despliegue, preservando todos los datos existentes.

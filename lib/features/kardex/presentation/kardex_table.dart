@@ -84,7 +84,7 @@ const List<String> kEtiquetasBodega = [
   'DESPACHADAS',
   'PRODUCTO NO CONFORME',
   'ESTADOS',
-  'FECHA DE ENTREGA',
+  'FECHA DE DESPACHO',
   'FECHA ESPERADA',
   'DÍAS FALTANTES',
 ];
@@ -767,7 +767,7 @@ class _KardexRow extends ConsumerWidget {
         alignment: Alignment.center,
       ),
       _Celda(9, anchos, _celdaEstadoLogistica(pal)),
-      _Celda(10, anchos, _chipFecha(item.fechaEntrega, pal)),
+      _Celda(10, anchos, _chipFecha(item.fechaDespacho, pal)),
       _Celda(11, anchos, _chipFecha(item.fechaEsperadaLogistica, pal)),
       _Celda(12, anchos, _chipDiasFaltantes(item.fechaEsperadaLogistica, pal)),
     ];

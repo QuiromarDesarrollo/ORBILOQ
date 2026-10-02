@@ -284,6 +284,7 @@ class ItemKardex {
     required this.ubicaciones,
     this.fechaEntrega,
     this.fechaRecepcion,
+    this.fechaDespacho,
     this.fechaEsperadaProduccion,
     this.fechaEsperadaLogistica,
     this.pendienteReproceso = 0,
@@ -301,6 +302,7 @@ class ItemKardex {
   final Map<String, int> ubicaciones;
   final DateTime? fechaEntrega;
   final DateTime? fechaRecepcion;
+  final DateTime? fechaDespacho;
 
   /// Fecha esperada de entrega desde Producción hacia Logística (viene del
   /// Excel de fechas esperadas, columna "FECHA PROD"). Alimenta el estado

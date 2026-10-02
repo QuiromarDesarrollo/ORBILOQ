@@ -15,6 +15,7 @@ class _Acumulado {
   int pendienteAliados = 0;
   final Map<String, int> ubicaciones = {};
   DateTime? fechaEntrega;
+  DateTime? fechaDespacho;
   DateTime? fechaRecepcion;
 }
 
@@ -417,6 +418,7 @@ class InMemoryWmsRepository implements WmsRepository {
           a.ubicaciones.update(m.ubicacion!, (v) => v + m.cantidad,
               ifAbsent: () => m.cantidad);
         case TipoMovimiento.despacho:
+          if (m.cantidad > 0) a.fechaDespacho = _masReciente(a.fechaDespacho, m.fecha);
           a.despachado += m.cantidad;
           a.ubicaciones.update(m.ubicacion!, (v) => v - m.cantidad,
               ifAbsent: () => -m.cantidad);
@@ -471,6 +473,7 @@ class InMemoryWmsRepository implements WmsRepository {
       fechaEsperadaProduccion: _fechasProduccionAdmin[item.id],
       fechaEsperadaLogistica: _fechasLogisticaAdmin[item.id],
       fechaRecepcion: a.fechaRecepcion,
+      fechaDespacho: a.fechaDespacho,
       pendienteReproceso: a.pendienteReproceso,
       pendienteAliados: a.pendienteAliados,
     );

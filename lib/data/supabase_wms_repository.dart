@@ -216,6 +216,7 @@ class SupabaseWmsRepository implements WmsRepository {
       despachado: (row['despachado'] as num).toInt(),
       ubicaciones: stockPorItem[id] ?? const {},
       fechaEntrega: _fecha(row['fecha_ultima_entrega']),
+      fechaDespacho: _fecha(row['fecha_ultimo_despacho']),
       fechaRecepcion: _fecha(row['fecha_ultima_recepcion']),
       fechaEsperadaProduccion: _fecha(row['fecha_esperada_produccion']),
       fechaEsperadaLogistica: _fecha(row['fecha_esperada_logistica']),

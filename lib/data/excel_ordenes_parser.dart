@@ -119,15 +119,33 @@ class ExcelOrdenesParser {
     );
 
     if (ordenes.isEmpty) {
-      throw ExcelOrdenesParseException('La hoja "Orden" no tiene filas de datos.');
+      throw ExcelOrdenesParseException(
+          'La hoja "Orden" no tiene filas de datos.');
     }
 
+    final porOp = <String, Map<String, String?>>{};
+    for (final orden in ordenes) {
+      final id = orden['identificador']?.trim() ?? '';
+      if (porOp.containsKey(id) &&
+          porOp[id]!['oc_cabecera'] != orden['oc_cabecera']) {
+        throw ExcelOrdenesParseException(
+            'La OP $id tiene más de una OC en Orden.');
+      }
+      porOp[id] = orden;
+    }
+    for (final talla in tallas) {
+      final oc =
+          porOp[talla['identificador_orden']?.trim()]?['oc_cabecera']?.trim();
+      if (oc != null && oc.isNotEmpty) talla['oc'] = oc;
+    }
     return ExcelOrdenesParseado(ordenes: ordenes, tallas: tallas);
   }
 
   static String? _buscarHoja(Excel libro, String nombreAproximado) {
     for (final nombre in libro.tables.keys) {
-      if (nombre.trim().toLowerCase() == nombreAproximado.toLowerCase()) return nombre;
+      if (nombre.trim().toLowerCase() == nombreAproximado.toLowerCase()) {
+        return nombre;
+      }
     }
     return null;
   }
@@ -151,7 +169,8 @@ class ExcelOrdenesParser {
       if (clave != null) indicePorClave[clave] = i;
     }
 
-    final faltantes = requeridas.where((r) => !indicePorClave.containsKey(r)).toList();
+    final faltantes =
+        requeridas.where((r) => !indicePorClave.containsKey(r)).toList();
     if (faltantes.isNotEmpty) {
       throw ExcelOrdenesParseException(
         'No se reconocieron algunas columnas requeridas en la hoja "$nombreHoja" '
@@ -217,7 +236,8 @@ class ExcelOrdenesParser {
       if (valor is DateCellValue) {
         dt = DateTime(valor.year, valor.month, valor.day);
       } else if (valor is DateTimeCellValue) {
-        dt = DateTime(valor.year, valor.month, valor.day, valor.hour, valor.minute, valor.second);
+        dt = DateTime(valor.year, valor.month, valor.day, valor.hour,
+            valor.minute, valor.second);
       }
       if (dt != null) {
         final y = dt.year.toString().padLeft(4, '0');
