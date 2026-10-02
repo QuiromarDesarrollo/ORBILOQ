@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -300,7 +301,7 @@ class _PanelFormulario extends StatelessWidget {
                 ),
                 child: cargando
                     ? const SizedBox(
-                        width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        width: 18, height: 18, child: WmsLoader(strokeWidth: 2, color: Colors.white))
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

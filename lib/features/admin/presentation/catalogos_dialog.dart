@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -150,7 +151,7 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
                     icon: const Icon(Icons.add),
                     label: const Text('Agregar')),
               ]),
-          if (_cargando) const LinearProgressIndicator(),
+          if (_cargando) const WmsLoadingStrip(),
           if (_error != null)
             Text(_error!, style: const TextStyle(color: Colors.red)),
           const Text(
@@ -315,7 +316,7 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
                       _ocupado ? null : (v) => setState(() => _activo = v)),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
-            if (_ocupado) const LinearProgressIndicator(),
+            if (_ocupado) const WmsLoadingStrip(),
             const SizedBox(height: 16),
             FilledButton(
                 onPressed: _ocupado ? null : _guardar,

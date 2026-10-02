@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../shared/widgets/historial_agrupado.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -187,7 +188,7 @@ class _EdicionAdminDialogState extends ConsumerState<EdicionAdminDialog> {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_ocupado) const LinearProgressIndicator(),
+                  if (_ocupado) const WmsLoadingStrip(),
                   if (!admin) const Text('Acceso exclusivo del administrador.'),
                   if (_error != null)
                     Padding(

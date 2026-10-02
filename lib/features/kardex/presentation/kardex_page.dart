@@ -1,4 +1,6 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../admin/presentation/reportes_admin_dialog.dart';
+import '../../admin/presentation/dashboard_ejecutivo_page.dart';
 import '../../admin/presentation/catalogos_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../data/excel_kardex.dart';
@@ -110,10 +112,13 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         text: TextSpan(
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: pal.textPrimary),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium!
+                              .copyWith(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: pal.textPrimary),
                           children: [
                             const TextSpan(text: 'ORBILOQ '),
                             TextSpan(
@@ -212,8 +217,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                       ? const SizedBox(
                           width: 14,
                           height: 14,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                          child: WmsLoader(strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.sync, size: 18),
                   label: Text(
                       _sincronizando ? 'Sincronizando...' : 'Sincronizar BD'),
@@ -228,8 +232,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
               ],
       ),
       body: snapshot.when(
-        loading: () =>
-            Center(child: CircularProgressIndicator(color: pal.accent)),
+        loading: () => Center(child: WmsLoader(color: pal.accent)),
         error: (e, _) => Center(
           child: Text('Error cargando datos: $e',
               style: TextStyle(color: pal.textPrimary)),
@@ -242,17 +245,96 @@ class _KardexPageState extends ConsumerState<KardexPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(rol.etiqueta,
-                      style: TextStyle(
-                          color: pal.accent, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  _Cabecera(rol: rol, enTransito: s.lotesConPendientes),
+                  LayoutBuilder(builder: (context, constraints) {
+                    final titulo = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Container(
+                                width: 4,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                    color: pal.accent,
+                                    borderRadius: BorderRadius.circular(2))),
+                            const SizedBox(width: 14),
+                            Expanded(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                  Text(
+                                      'OPERACIONES / ${rol == Rol.produccion ? 'PRODUCCIÓN' : 'LOGÍSTICA'}',
+                                      style: TextStyle(
+                                          color: pal.textSecondary,
+                                          fontSize: 11,
+                                          letterSpacing: 1,
+                                          fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 4),
+                                  Text('Control de operaciones',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineLarge),
+                                ])),
+                          ]),
+                          const SizedBox(height: 8),
+                          Text(
+                              'Visibilidad del taller, seguimiento de órdenes y movimientos.',
+                              style: TextStyle(color: pal.textSecondary)),
+                        ]);
+                    final acciones =
+                        _Cabecera(rol: rol, enTransito: s.lotesConPendientes);
+                    if (constraints.maxWidth < 1100) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          titulo,
+                          const SizedBox(height: 16),
+                          acciones,
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(flex: 4, child: titulo),
+                        const SizedBox(width: 24),
+                        Expanded(flex: 6, child: acciones),
+                      ],
+                    );
+                  }),
                   const SizedBox(height: 20),
                   const KardexSummaryCards(),
                   const SizedBox(height: 20),
-                  const KardexFiltersBar(),
-                  const SizedBox(height: 16),
-                  const KardexTable(),
+                  Container(
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                        color: pal.card,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: pal.cardBorder)),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                              child: Row(children: [
+                                Icon(Icons.table_rows_outlined,
+                                    color: pal.accent, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                    child: Text('Órdenes y seguimiento',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium)),
+                                Text(
+                                    '${s.kardex.where((i) => !i.eliminada).length} líneas',
+                                    style: TextStyle(
+                                        color: pal.textSecondary,
+                                        fontSize: 12)),
+                              ])),
+                          const KardexFiltersBar(integrada: true),
+                          const KardexTable(integrada: true),
+                        ]),
+                  ),
                 ],
               ),
             )),
@@ -473,6 +555,8 @@ class _AdminDrawer extends ConsumerWidget {
                 () => showCatalogosDialog(pageContext)),
             _enlace(context, Icons.analytics_outlined, 'Reportes y auditoría',
                 () => showReportesAdminDialog(pageContext)),
+            _enlace(context, Icons.dashboard_outlined, 'Dashboard ejecutivo',
+                () => Navigator.of(pageContext).push(MaterialPageRoute<void>(builder: (_) => const DashboardEjecutivoPage()))),
             _enlace(context, Icons.upload_file_outlined, 'Importar tabla',
                 () => showImportarKardexDialog(pageContext, rol)),
             _enlace(context, Icons.file_download_outlined, 'Extraer tabla',
@@ -510,30 +594,19 @@ class _Cabecera extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = palOf(context);
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      runSpacing: 12,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Órdenes activas',
-              style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: pal.textPrimary),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Producción, bodega y despachos en un solo tablero',
-              style: TextStyle(fontSize: 13, color: pal.textSecondary),
-            ),
-          ],
-        ),
+        Text(
+            'ACCIONES ${rol == Rol.produccion ? 'DE PRODUCCIÓN' : 'DE LOGÍSTICA'}',
+            style: TextStyle(
+                fontSize: 10,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w600,
+                color: pal.textSecondary)),
+        const SizedBox(height: 10),
         Wrap(
+          alignment: WrapAlignment.end,
           spacing: 10,
           runSpacing: 10,
           children: [
@@ -541,6 +614,7 @@ class _Cabecera extends ConsumerWidget {
               _BotonAccion(
                 icono: Icons.history,
                 texto: 'Entregar lote y ver historial',
+                principal: true,
                 onPressed: () => showEntregaProduccionDialog(context),
               ),
               _BotonAccion(
@@ -557,6 +631,7 @@ class _Cabecera extends ConsumerWidget {
               _BotonAccion(
                 icono: Icons.move_to_inbox_outlined,
                 texto: 'Recibir lote ($enTransito)',
+                principal: true,
                 onPressed: () => showRecepcionDialog(context),
               ),
               _BotonAccion(
@@ -589,9 +664,13 @@ class _Cabecera extends ConsumerWidget {
 
 class _BotonAccion extends StatelessWidget {
   const _BotonAccion(
-      {required this.icono, required this.texto, required this.onPressed});
+      {required this.icono,
+      required this.texto,
+      required this.onPressed,
+      this.principal = false});
 
   final IconData icono;
+  final bool principal;
   final String texto;
   final VoidCallback onPressed;
 
@@ -602,8 +681,10 @@ class _BotonAccion extends StatelessWidget {
       icon: Icon(icono, size: 16),
       label: Text(texto),
       style: OutlinedButton.styleFrom(
-        foregroundColor: palOf(context).accent,
-        side: const BorderSide(color: AppColors.tealPrimary),
+        backgroundColor:
+            principal ? AppColors.tealPrimary : palOf(context).card,
+        foregroundColor: principal ? Colors.white : palOf(context).textPrimary,
+        side: BorderSide(color: palOf(context).cardBorder),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
     );

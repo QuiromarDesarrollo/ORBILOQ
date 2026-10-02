@@ -1,3 +1,6 @@
+import '../../../shared/widgets/wms_scan_field.dart';
+import '../../../shared/widgets/feedback_banner.dart';
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,6 +87,19 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
       _oc = item.item.oc;
       _ops.add(item.item.op);
     });
+  }
+
+  FeedbackMessage _leerCamara(String raw) {
+    final qr = QrPrenda.tryParse(raw);
+    final item = qr == null ? null : _items.where((i) =>
+        i.item.op == qr.op && i.item.codigo == qr.codigo).firstOrNull;
+    if (item == null) return const FeedbackMessage.error('QR no encontrado.');
+    // La cámara no debe borrar una selección previa al encontrar otra OC.
+    if (_ops.isNotEmpty && (_cliente != item.item.cliente || _oc != item.item.oc)) {
+      return const FeedbackMessage.error('La etiqueta pertenece a otra OC. Termina la selección actual antes de cambiar de orden.');
+    }
+    _escanear(raw);
+    return FeedbackMessage.ok('OP ${item.item.op} · Agregada a la selección de despacho. Define las cantidades al volver.');
   }
 
   Future<void> _preparar({bool completa = false}) async {
@@ -216,7 +232,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         canPop: !congelado,
         child: WmsDialogShell(
             canClose: !congelado,
-            title: 'LOGÍSTICA: DESPACHO POR OC',
+            title: 'Despachos por orden de compra',
             icon: Icons.local_shipping,
             iconColor: Colors.orange,
             expand: true,
@@ -235,7 +251,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                         Padding(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             child: Text(_mensaje!)),
-                      if (estado.isLoading) const LinearProgressIndicator(),
+                      if (estado.isLoading) const WmsLoadingStrip(),
                       if (estado.hasError)
                         const Text(
                             'No se pudo cargar el inventario. Cierra y vuelve a abrir.'),
@@ -262,13 +278,15 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                     _oc = null;
                                   })),
                       const SizedBox(height: 12),
-                      TextField(
-                          controller: _qr,
+                      WmsScanField(
+              permiteManual: false,
+              controller: _qr,
                           enabled: !congelado,
                           decoration: const InputDecoration(
                               labelText: 'O escanear QR para seleccionar la OP',
                               prefixIcon: Icon(Icons.qr_code_scanner)),
-                          onSubmitted: _escanear),
+                          onSubmitted: _escanear,
+                          onCameraSubmitted: _leerCamara),
                       if (_cliente == null)
                         const Padding(
                             padding: EdgeInsets.all(16),
@@ -399,7 +417,7 @@ class _HistorialState extends ConsumerState<_Historial> {
   Widget build(BuildContext context) {
     final inventario = ref.watch(wmsSnapshotProvider);
     return ref.watch(historialDespachosProvider).when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: WmsLoader()),
         error: (e, _) => Center(
             child: Text(
                 'No se pudo cargar el historial. Cierra y vuelve a intentarlo.')),

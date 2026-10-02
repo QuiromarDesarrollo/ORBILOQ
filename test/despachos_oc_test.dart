@@ -94,6 +94,13 @@ void main() {
     await tester.pumpAndSettle();
     final cantidad = find.widgetWithText(TextField, 'Cantidad (0 para omitir)');
     await tester.enterText(cantidad, '8');
+    await tester.scrollUntilVisible(
+        find.text('Revisar y despachar selección'), 160,
+        scrollable: find
+            .descendant(
+                of: find.byType(ListView).first,
+                matching: find.byType(Scrollable))
+            .first);
     await tester.tap(find.text('Revisar y despachar selección'));
     await tester.pumpAndSettle();
     expect(find.textContaining('4 Uds desde A'), findsOneWidget);

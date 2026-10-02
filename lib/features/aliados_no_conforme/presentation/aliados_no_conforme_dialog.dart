@@ -1,3 +1,5 @@
+import '../../../shared/widgets/wms_scan_field.dart';
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../application/auth_providers.dart';
 import '../../../shared/widgets/operario_actual.dart';
 import '../../../shared/widgets/historial_agrupado.dart';
@@ -45,9 +47,9 @@ class AliadosNoConformeDialog extends StatelessWidget {
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
-                Tab(height: 38, icon: Icon(Icons.outbox_outlined, size: 16), text: 'ENVIAR A ALIADO'),
-                Tab(height: 38, icon: Icon(Icons.hourglass_top_outlined, size: 16), text: 'PENDIENTES'),
-                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
+                Tab(height: 48, icon: Icon(Icons.outbox_outlined, size: 16), text: 'ENVIAR A ALIADO'),
+                Tab(height: 48, icon: Icon(Icons.hourglass_top_outlined, size: 16), text: 'PENDIENTES'),
+                Tab(height: 48, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
               ],
             ),
             const SizedBox(height: 8),
@@ -71,7 +73,7 @@ class _CausalDropdownAliados extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final causales = ref.watch(causalesProvider);
     return causales.when(
-      loading: () => const LinearProgressIndicator(),
+      loading: () => const WmsLoadingStrip(),
       error: (e, _) => Text('No se pudieron cargar las causales: $e', style: const TextStyle(color: AppColors.alertRed)),
       data: (lista) {
         final valida=lista.any((c)=>c.id==valor);
@@ -215,11 +217,19 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
           ResponsiveRow(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _opCtrl,
+                child: WmsScanField(
+              permiteManual: true,
+              controller: _opCtrl,
                   autofocus: true,
                   decoration: wmsInput('Escanear prenda o buscar por OP', icon: Icons.qr_code_scanner),
                   onSubmitted: (v) => _procesarEntrada(v),
+                  enabled: !_enviando,
+                  onCameraSubmitted: (raw) {
+                    _procesarEntrada(raw);
+                    return _errorBusqueda != null
+                        ? FeedbackMessage.error(_errorBusqueda!)
+                        : FeedbackMessage.ok('OP ${_resultados.first.item.op} · Prenda localizada. Completa el formulario para enviarla al aliado.');
+                  },
                 ),
               ),
               const SizedBox(width: 10),
@@ -299,7 +309,7 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
                       child: ElevatedButton.icon(
                         onPressed: _enviando ? null : _enviar,
                         icon: _enviando
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            ? const SizedBox(width: 16, height: 16, child: WmsLoader(strokeWidth: 2, color: Colors.white))
                             : const Icon(Icons.outbox_outlined, color: Colors.white, size: 20),
                         label: const Text('ENVIAR A ALIADO'),
                         style: ElevatedButton.styleFrom(
@@ -409,7 +419,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   Widget build(BuildContext context) {
     final todas = ref.watch(noConformesAliadosProvider);
     return todas.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: WmsLoader()),
       error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppColors.alertRed))),
       data: (lista) {
         // Pendientes de verdad + las que se acaban de completar en esta
@@ -577,7 +587,7 @@ class _HistorialTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final solicitudes = ref.watch(noConformesAliadosProvider);
     final liberaciones = ref.watch(liberacionesAliadosProvider);
-    if (solicitudes.isLoading || liberaciones.isLoading) return const Center(child: CircularProgressIndicator());
+    if (solicitudes.isLoading || liberaciones.isLoading) return const Center(child: WmsLoader());
     if (solicitudes.hasError || liberaciones.hasError) return Center(child: Text('Error: ${solicitudes.error ?? liberaciones.error}'));
     return HistorialAgrupado(grupos: [for (final a in solicitudes.requireValue) GrupoHistorial(
       id: a.id, op: a.item.op, titulo: 'OP: ${a.item.op} - ${a.item.descripcion} (${a.item.talla})',

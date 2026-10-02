@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -76,7 +77,7 @@ class AddablePersonDropdown extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(itemsProvider);
     return items.when(
-      loading: () => const LinearProgressIndicator(),
+      loading: () => const WmsLoadingStrip(),
       error: (e, _) => Text('No se pudo cargar la lista: $e', style: const TextStyle(color: AppColors.alertRed)),
       data: (lista) {
         if(valor!=null && !lista.contains(valor)) {

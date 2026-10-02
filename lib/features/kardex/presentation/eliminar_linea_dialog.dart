@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../application/auth_providers.dart';
@@ -116,7 +117,7 @@ class _EliminarLineaState extends ConsumerState<EliminarLineaDialog> {
                     Text(
                         'Recibido: ${_contexto!.valores['recibido']} · Despachado: ${_contexto!.valores['despachado']}'),
                   if (_contexto == null && _error == null)
-                    const LinearProgressIndicator(),
+                    const WmsLoadingStrip(),
                   const SizedBox(height: 16),
                   TextField(
                       controller: _motivo,

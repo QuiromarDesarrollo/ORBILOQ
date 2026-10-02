@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -319,7 +320,7 @@ class _ReportesState extends ConsumerState<ReportesAdminDialog> {
                               style: const TextStyle(fontSize: 12))),
                   ]))),
           if (_cargando)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
+            const Expanded(child: Center(child: WmsLoader()))
           else if (_error != null)
             Expanded(child: SingleChildScrollView(child: Text(_error!)))
           else if (_vista == 'resumen')

@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,7 +39,7 @@ class _PuertaDeEntrada extends ConsumerWidget {
     return sesion.when(
       loading: () => Scaffold(
         backgroundColor: pal.bg,
-        body: Center(child: CircularProgressIndicator(color: pal.accent)),
+        body: Center(child: WmsLoader(color: pal.accent)),
       ),
       error: (e, _) => LoginPage(errorInicial: 'Error verificando la sesión: $e'),
       data: (usuario) => usuario == null ? const LoginPage() : const KardexPage(),

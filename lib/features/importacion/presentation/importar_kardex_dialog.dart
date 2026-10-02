@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -140,7 +141,7 @@ class _ImportarKardexState extends ConsumerState<ImportarKardexDialog> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: SelectableText(_error!,
                       style: const TextStyle(color: Colors.red))),
-            if (_ocupado) const LinearProgressIndicator(),
+            if (_ocupado) const WmsLoadingStrip(),
             if (_preview != null) ...[
               const SizedBox(height: 16),
               Text(

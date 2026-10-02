@@ -7,14 +7,22 @@ import 'edicion_admin.dart';
 abstract interface class WmsRepository {
   Future<List<String>> cargarUbicaciones();
   Future<Result<void>> eliminarLineaAdmin(
-      String itemId, String version, String motivo);
+    String itemId,
+    String version,
+    String motivo,
+  );
 
   Future<ContextoEdicionAdmin> cargarEdicionAdmin(String itemId);
-  Future<Result<Map<String, dynamic>>> editarAdmin(CambioAdmin cambio,
-      {required bool confirmar});
+  Future<Result<Map<String, dynamic>>> editarAdmin(
+    CambioAdmin cambio, {
+    required bool confirmar,
+  });
 
   /// Emite el estado actual y cada cambio posterior.
   Stream<WmsSnapshot> watch();
+
+  /// Consulta puntual, sin suscripción ni publicación de cambios operativos.
+  Future<WmsSnapshot> cargarSnapshot();
 
   Future<void> refrescar();
 

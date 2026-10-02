@@ -1,3 +1,5 @@
+import '../../../shared/widgets/wms_scan_field.dart';
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../application/auth_providers.dart';
 import '../../../shared/widgets/operario_actual.dart';
 import '../../../shared/widgets/historial_agrupado.dart';
@@ -45,9 +47,9 @@ class NoConformeDialog extends StatelessWidget {
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
-                Tab(height: 38, icon: Icon(Icons.qr_code_scanner, size: 16), text: 'ESCANEAR QR'),
-                Tab(height: 38, icon: Icon(Icons.edit_note, size: 16), text: 'BÚSQUEDA MANUAL'),
-                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
+                Tab(height: 48, icon: Icon(Icons.qr_code_scanner, size: 16), text: 'ESCANEAR QR'),
+                Tab(height: 48, icon: Icon(Icons.edit_note, size: 16), text: 'BÚSQUEDA MANUAL'),
+                Tab(height: 48, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
               ],
             ),
             const SizedBox(height: 8),
@@ -161,7 +163,7 @@ class _CausalDropdown extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final causales = ref.watch(causalesProvider);
     return causales.when(
-      loading: () => const LinearProgressIndicator(),
+      loading: () => const WmsLoadingStrip(),
       error: (e, _) => Text('No se pudieron cargar las causales: $e', style: const TextStyle(color: AppColors.alertRed)),
       data: (lista) {
         final valida=lista.any((c)=>c.id==valor);
@@ -245,6 +247,14 @@ class _EscanearTabState extends ConsumerState<_EscanearTab> with AutomaticKeepAl
     _qrFocus.requestFocus();
   }
 
+  FeedbackMessage _leerCamara(String raw) {
+    _procesarQR(raw);
+    if (_msgGeneral != null) return _msgGeneral!;
+    final qr = QrPrenda.tryParse(raw)!;
+    final k = ref.read(wmsSnapshotProvider).value!.kardexPorOpCodigo(qr.op, qr.codigo)!;
+    return FeedbackMessage.ok('OP ${qr.op} · ${k.item.descripcion} (${k.item.talla}) · ${_tarjetaActivaPara(k.id)!.conteo} Uds en la tarjeta.');
+  }
+
   void _quitar(_TarjetaNoConforme t) {
     setState(() {
       t.dispose();
@@ -268,12 +278,15 @@ class _EscanearTabState extends ConsumerState<_EscanearTab> with AutomaticKeepAl
           ],
           OperarioActual(label: 'Reportado por'),
           const SizedBox(height: 12),
-          TextField(
-            controller: _qrCtrl,
+          WmsScanField(
+              permiteManual: false,
+              controller: _qrCtrl,
             focusNode: _qrFocus,
             autofocus: true,
             decoration: wmsInput('PISTOLEE O ESCANEE QR DE LA PRENDA NO CONFORME', icon: Icons.qr_code_scanner),
             onSubmitted: _procesarQR,
+            onCameraSubmitted: _leerCamara,
+            enabled: !_enviandoTodo,
           ),
           const SizedBox(height: 12),
           if (_tarjetas.isEmpty)
@@ -579,7 +592,7 @@ class _TarjetaWidgetState extends State<_TarjetaWidget> {
                 if (enviada)
                   const Icon(Icons.check_circle, color: AppColors.actionGreen)
                 else if (t.enviando)
-                  const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  const SizedBox(width: 18, height: 18, child: WmsLoader(strokeWidth: 2))
                 else
                   IconButton(
                     tooltip: 'Quitar esta tarjeta',
@@ -671,7 +684,7 @@ class _HistorialTabState extends ConsumerState<_HistorialTab> {
       future: _futuro,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: WmsLoader());
         }
         if (snapshot.hasError) {
           return Center(child: Text('No se pudo cargar el historial: ${snapshot.error}'));

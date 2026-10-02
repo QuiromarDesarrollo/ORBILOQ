@@ -52,12 +52,18 @@ void main() {
       expect(scaffold.isDrawerOpen, isTrue);
       for (final accion in [
         'Administración',
+        'Dashboard ejecutivo',
         'Importar tabla',
         'Extraer tabla',
         'Importar fechas'
       ]) {
+        await tester.ensureVisible(find.text(accion));
+        await tester.pumpAndSettle();
         expect(find.text(accion).hitTestable(), findsOneWidget);
       }
+      await tester.scrollUntilVisible(find.byTooltip('Cerrar menú'), -100,
+          scrollable: find.descendant(of: find.byType(Drawer), matching: find.byType(Scrollable)).first);
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Cerrar menú'));
       await tester.pumpAndSettle();
       expect(scaffold.isDrawerOpen, isFalse);

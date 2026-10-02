@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/providers.dart';
@@ -14,7 +15,7 @@ class CatalogoUbicacionDropdown extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) =>
       ref.watch(ubicacionesProvider).when(
-          loading: () => const LinearProgressIndicator(),
+          loading: () => const WmsLoadingStrip(),
           error: (e, _) => const Text(
               'No se pudieron cargar los estantes. Actualiza antes de continuar.'),
           data: (lista) {

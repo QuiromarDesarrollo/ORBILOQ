@@ -27,14 +27,14 @@ abstract final class AppColors {
   static const blueChip = Color(0xFF1D4ED8);
 
   // ---- Paleta oscura (rediseño del Kardex, tema dark) ----
-  static const darkBg = Color(0xFF0B1220);
+  static const darkBg = Color(0xFF0C1421);
   static const darkHeader = Color(0xFF0E1729);
-  static const darkCard = Color(0xFF141B2D);
-  static const darkCardBorder = Color(0xFF232D42);
+  static const darkCard = Color(0xFF141E2D);
+  static const darkCardBorder = Color(0xFF2A3749);
   static const darkInput = Color(0xFF0F1729);
   static const darkTextPrimary = Color(0xFFF1F5F9);
-  static const darkTextSecondary = Color(0xFF8895AC);
-  static const darkTextMuted = Color(0xFF5B6B85);
+  static const darkTextSecondary = Color(0xFFA7B3C5);
+  static const darkTextMuted = Color(0xFF91A0B6);
   static const tealAccent = Color(0xFF2DD4BF);
   static const chipRedBgDark = Color(0xFF3B1219);
   static const chipRedDark = Color(0xFFFCA5A5);
@@ -45,26 +45,117 @@ abstract final class AppColors {
 }
 
 abstract final class AppTheme {
-  static ThemeData get light => ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy),
-        scaffoldBackgroundColor: AppColors.background,
-      );
+  static ThemeData get light => kardex(TemaModo.claro);
 
-  /// Tema del Kardex (pantalla principal), en su variante oscura o clara,
-  /// con [AppPalette] enganchada como [ThemeExtension] para que cualquier
-  /// widget pueda leerla con `palOf(context)`.
   static ThemeData kardex(TemaModo modo) {
-    final pal = modo == TemaModo.claro ? AppPalette.claro : AppPalette.oscuro;
-    return ThemeData(
-      useMaterial3: true,
-      brightness: modo == TemaModo.claro ? Brightness.light : Brightness.dark,
+    final dark = modo == TemaModo.oscuro;
+    final pal = dark ? AppPalette.oscuro : AppPalette.claro;
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppColors.tealPrimary,
+      brightness: dark ? Brightness.dark : Brightness.light,
+    ).copyWith(
+        primary: pal.accent,
+        onPrimary: dark ? AppColors.slate900 : Colors.white,
+        surface: pal.card,
+        onSurface: pal.textPrimary,
+        onSurfaceVariant: pal.textSecondary,
+        outline: pal.textMuted,
+        outlineVariant: pal.cardBorder,
+        error: pal.chipRed);
+    final base = ThemeData(useMaterial3: true, colorScheme: scheme, fontFamily: 'Roboto');
+    final shape =
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(8));
+    return base.copyWith(
       scaffoldBackgroundColor: pal.bg,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.tealPrimary,
-        brightness: modo == TemaModo.claro ? Brightness.light : Brightness.dark,
-      ),
       extensions: [pal],
+      textTheme: base.textTheme.copyWith(
+        headlineLarge: TextStyle(
+            fontSize: 32,
+            height: 1.2,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.8,
+            color: pal.textPrimary),
+        headlineSmall: TextStyle(
+            fontSize: 24,
+            height: 1.3,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.5,
+            color: pal.textPrimary),
+        titleLarge: TextStyle(
+            fontSize: 20,
+            height: 1.3,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.3,
+            color: pal.textPrimary),
+        titleMedium: TextStyle(
+            fontSize: 15,
+            height: 1.4,
+            fontWeight: FontWeight.w600,
+            color: pal.textPrimary),
+        bodyLarge: TextStyle(fontSize: 14, height: 1.5, color: pal.textPrimary),
+        bodyMedium:
+            TextStyle(fontSize: 13, height: 1.5, color: pal.textPrimary),
+        bodySmall:
+            TextStyle(fontSize: 12, height: 1.4, color: pal.textSecondary),
+        labelLarge: const TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.1),
+      ).apply(fontFamily: 'Roboto'),
+      dividerTheme:
+          DividerThemeData(color: pal.cardBorder, thickness: 1, space: 24),
+      iconTheme: IconThemeData(size: 20, color: pal.textSecondary),
+      cardTheme: CardThemeData(
+          color: pal.card,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: pal.cardBorder))),
+      filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+              shape: shape,
+              minimumSize: const Size(0, 42),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12))),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+              shape: shape,
+              elevation: 0,
+              backgroundColor: scheme.primary,
+              foregroundColor: scheme.onPrimary,
+              minimumSize: const Size(0, 42),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12))),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+              shape: shape,
+              foregroundColor: pal.textPrimary,
+              side: BorderSide(color: pal.cardBorder),
+              minimumSize: const Size(0, 42),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12))),
+      textButtonTheme:
+          TextButtonThemeData(style: TextButton.styleFrom(shape: shape)),
+      inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: pal.input,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          labelStyle: TextStyle(color: pal.textSecondary, fontSize: 13),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: pal.cardBorder)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: pal.accent, width: 1.5))),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+          color: pal.accent, linearTrackColor: pal.cardBorder),
+      tooltipTheme: TooltipThemeData(
+          waitDuration: const Duration(milliseconds: 400),
+          decoration: BoxDecoration(
+              color: pal.textPrimary, borderRadius: BorderRadius.circular(6)),
+          textStyle: TextStyle(fontSize: 12, color: pal.card)),
     );
   }
 }
@@ -145,7 +236,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     input: Color(0xFFF8FAFC),
     textPrimary: AppColors.slate900,
     textSecondary: AppColors.slate600,
-    textMuted: AppColors.slate400,
+    textMuted: Color(0xFF627287),
     accent: AppColors.tealPrimary,
     chipRedBg: AppColors.redChipBg,
     chipRed: Color(0xFFB91C1C),
@@ -220,12 +311,19 @@ class AppPalette extends ThemeExtension<AppPalette> {
 }
 
 /// Atajo para leer la paleta activa desde cualquier widget con [context].
-AppPalette palOf(BuildContext context) => Theme.of(context).extension<AppPalette>() ?? AppPalette.oscuro;
+AppPalette palOf(BuildContext context) =>
+    Theme.of(context).extension<AppPalette>() ?? AppPalette.oscuro;
 
-final ThemeData _temaDialogoClaro = ThemeData(
-  useMaterial3: true,
-  brightness: Brightness.light,
-  colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy, brightness: Brightness.light),
+final ThemeData _temaDialogoClaro = AppTheme.light.copyWith(
+  tabBarTheme: TabBarThemeData(
+    indicator: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(8)),
+    indicatorSize: TabBarIndicatorSize.tab,
+    dividerColor: Colors.transparent,
+    labelColor: AppColors.tealDark,
+    unselectedLabelColor: AppColors.slate600,
+    labelStyle: const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w600),
+    labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+  ),
 );
 
 /// Envuelve un diálogo utilitario (filtros, confirmaciones, tickets) para
@@ -234,7 +332,8 @@ final ThemeData _temaDialogoClaro = ThemeData(
 /// pensado para adaptarse, y en tema oscuro el título quedaba casi
 /// invisible. `showDialog` monta cada diálogo como una ruta aparte, así que
 /// esto se aplica en cada `builder`, no una sola vez arriba del árbol.
-Widget dialogoClaro(Widget child) => Theme(data: _temaDialogoClaro, child: child);
+Widget dialogoClaro(Widget child) =>
+    Theme(data: _temaDialogoClaro, child: child);
 
 /// Decoración estándar de campos de texto.
 InputDecoration wmsInput(String label, {IconData? icon, String? hint}) {

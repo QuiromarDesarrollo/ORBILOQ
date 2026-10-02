@@ -137,7 +137,8 @@ String _fechaCorta(DateTime d) => '${d.day} ${_mesesEs[d.month]}';
 
 /// Tabla del kardex, paginada, con columnas distintas según el rol.
 class KardexTable extends ConsumerWidget {
-  const KardexTable({super.key});
+  const KardexTable({super.key, this.integrada = false});
+  final bool integrada;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -170,33 +171,64 @@ class KardexTable extends ConsumerWidget {
       final labels = esProduccion ? kEtiquetasProduccion : kEtiquetasBodega;
       final extraer = esProduccion ? columnasProduccion : columnasBodega;
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (filas.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('Sin resultados para los filtros aplicados.')),
+        if (filas.isEmpty)
+          const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text('Sin resultados para los filtros aplicados.')),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (var n = 0; n < labels.length; n++)
-            if (campos[n] != null) _EncabezadoConFiltro(columna: campos[n]!, etiqueta: labels[n], esOp: n == 0),
+            if (campos[n] != null)
+              _EncabezadoConFiltro(
+                  columna: campos[n]!, etiqueta: labels[n], esOp: n == 0),
         ]),
-        for (final item in filas) Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('OP ${item.item.op} · ${item.item.descripcion}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}'),
-            TextButton.icon(onPressed: () => showObservacionDialog(context, item), icon: const Icon(Icons.comment_outlined), label: const Text('Observaciones')),
-            for (var n = 2; n < labels.length; n++) Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text('${labels[n]}: ${extraer[campos[n]]?.call(item) ?? ""}')),
-            if (esAdmin) Wrap(alignment: WrapAlignment.end, children: [
-              IconButton(tooltip: 'Editar fila', icon: const Icon(Icons.edit_outlined), onPressed: () => showEdicionAdminDialog(context, item, CampoAdmin.cantidad)),
-              IconButton(tooltip: 'Borrar fila', icon: const Icon(Icons.delete_outline), onPressed: () => showWmsEliminarLinea(context, item)),
-            ]),
-          ],
-        ))),
-        _BarraPaginacion(pagina: pagina, totalPaginas: totalPaginas, total: total, filas: filas.length),
+        for (final item in filas)
+          Card(
+              child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('OP ${item.item.op} · ${item.item.descripcion}',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                          '${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}'),
+                      TextButton.icon(
+                          onPressed: () => showObservacionDialog(context, item),
+                          icon: const Icon(Icons.comment_outlined),
+                          label: const Text('Observaciones')),
+                      for (var n = 2; n < labels.length; n++)
+                        Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                                '${labels[n]}: ${extraer[campos[n]]?.call(item) ?? ""}')),
+                      if (esAdmin)
+                        Wrap(alignment: WrapAlignment.end, children: [
+                          IconButton(
+                              tooltip: 'Editar fila',
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () => showEdicionAdminDialog(
+                                  context, item, CampoAdmin.cantidad)),
+                          IconButton(
+                              tooltip: 'Borrar fila',
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () =>
+                                  showWmsEliminarLinea(context, item)),
+                        ]),
+                    ],
+                  ))),
+        _BarraPaginacion(
+            pagina: pagina,
+            totalPaginas: totalPaginas,
+            total: total,
+            filas: filas.length),
       ]);
     }
 
     return Container(
       decoration: BoxDecoration(
         color: pal.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: pal.cardBorder),
+        borderRadius: BorderRadius.circular(integrada ? 0 : 12),
+        border: integrada ? null : Border.all(color: pal.cardBorder),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -356,14 +388,16 @@ class _BarraPaginacion extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Wrap(
         alignment: WrapAlignment.spaceBetween,
-        spacing: 12, runSpacing: 12,
+        spacing: 12,
+        runSpacing: 12,
         children: [
           Text(
             'Mostrando $desde-$hasta de $total registros',
             style: TextStyle(fontSize: 12, color: pal.textSecondary),
           ),
           Wrap(
-            spacing: 8, runSpacing: 8,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: pagina > 0 ? () => notifier.ir(pagina - 1) : null,
@@ -374,7 +408,6 @@ class _BarraPaginacion extends ConsumerWidget {
                   side: BorderSide(color: pal.cardBorder),
                 ),
               ),
-
               ElevatedButton.icon(
                 onPressed: pagina + 1 < totalPaginas
                     ? () => notifier.ir(pagina + 1)
@@ -436,7 +469,8 @@ class _KardexRow extends ConsumerWidget {
       _celdaClienteOc(pal),
       if (esProduccion) ..._celdasProduccion(pal) else ..._celdasBodega(pal)
     ];
-    return Container(
+    return _FilaConHover(
+        child: Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: pal.cardBorder)),
       ),
@@ -463,7 +497,7 @@ class _KardexRow extends ConsumerWidget {
                 ])),
         ],
       ),
-    );
+    ));
   }
 
   Widget _celdaOp(AppPalette pal) {
@@ -836,4 +870,29 @@ class _KardexRow extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Hover estrictamente visual: conserva las acciones de cada celda.
+class _FilaConHover extends StatefulWidget {
+  const _FilaConHover({required this.child});
+  final Widget child;
+  @override
+  State<_FilaConHover> createState() => _FilaConHoverState();
+}
+
+class _FilaConHoverState extends State<_FilaConHover> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          color: _hover
+              ? palOf(context).accent.withValues(alpha: 0.065)
+              : Colors.transparent,
+          child: widget.child));
 }

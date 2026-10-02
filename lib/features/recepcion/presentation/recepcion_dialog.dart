@@ -1,3 +1,5 @@
+import '../../../shared/widgets/wms_scan_field.dart';
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../application/auth_providers.dart';
 import '../../../shared/widgets/operario_actual.dart';
 import '../../../shared/widgets/historial_agrupado.dart';
@@ -34,7 +36,7 @@ class RecepcionDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return WmsDialogShell(
-      title: 'RECEPCIÓN Y REPORTE DE NOVEDADES',
+      title: 'Recepción y novedades',
       icon: Icons.move_to_inbox,
       iconColor: AppColors.primaryNavy,
       expand: true,
@@ -53,8 +55,8 @@ class RecepcionDialog extends StatelessWidget {
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
-                Tab(height: 38, icon: Icon(Icons.move_to_inbox_outlined, size: 16), text: 'PENDIENTES'),
-                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
+                Tab(height: 48, icon: Icon(Icons.move_to_inbox_outlined, size: 16), text: 'PENDIENTES'),
+                Tab(height: 48, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
               ],
             ),
             const SizedBox(height: 8),
@@ -218,6 +220,14 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
     _scanFocus.requestFocus();
+  }
+
+  FeedbackMessage _leerCamara(String raw) {
+    _procesarEntrada(raw);
+    if (_msg != null) return _msg!;
+    final qr = QrPrenda.tryParse(raw);
+    if (qr == null) return FeedbackMessage.ok('OP ${raw.trim()} · Tarjetas pendientes localizadas.');
+    return FeedbackMessage.ok('OP ${qr.op} · ${qr.codigo} · ${_conteos[_lineaAbiertaId] ?? 0} Uds contadas en la tarjeta.');
   }
 
   Future<void> _confirmar(LoteLinea linea) async {
@@ -394,12 +404,15 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
             ],
             const OperarioActual(label: 'Recibido por (Logística)'),
             const SizedBox(height: 10),
-            TextField(
+            WmsScanField(
+              permiteManual: true,
               controller: _scanCtrl,
               focusNode: _scanFocus,
               autofocus: true,
               decoration: wmsInput('ESCANEAR PRENDA O BUSCAR POR OP', icon: Icons.qr_code_scanner),
               onSubmitted: _procesarEntrada,
+              onCameraSubmitted: _leerCamara,
+              enabled: !_confirmando,
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -443,7 +456,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _LogoLoader(size: 72),
+                    WmsLoader(),
                     SizedBox(height: 16),
                     Text(
                       'Procesando…',
@@ -662,50 +675,6 @@ class _MaxValorFormatter extends TextInputFormatter {
     final valor = int.tryParse(newValue.text);
     if (valor == null || valor > maximo) return oldValue;
     return newValue;
-  }
-}
-
-/// Logo de ORBILOQ girando, usado como loader de pantalla completa.
-class _LogoLoader extends StatefulWidget {
-  const _LogoLoader({this.size = 20});
-  final double size;
-
-  @override
-  State<_LogoLoader> createState() => _LogoLoaderState();
-}
-
-class _LogoLoaderState extends State<_LogoLoader> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RotationTransition(
-      turns: _controller,
-      child: ClipOval(
-        child: Container(
-          width: widget.size,
-          height: widget.size,
-          decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
-          padding: EdgeInsets.all(widget.size * 0.08),
-          child: Image.asset(
-            'assets/images/logo_orbiloq.png',
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stack) => SizedBox(
-              width: widget.size,
-              height: widget.size,
-              child: const CircularProgressIndicator(strokeWidth: 3, color: AppColors.tealAccent),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

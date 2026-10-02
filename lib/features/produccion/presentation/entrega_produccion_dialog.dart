@@ -1,3 +1,5 @@
+import '../../../shared/widgets/wms_empty_state.dart';
+import '../../../shared/widgets/wms_scan_field.dart';
 import '../../../application/auth_providers.dart';
 import '../../../shared/widgets/operario_actual.dart';
 import '../../../shared/widgets/historial_agrupado.dart';
@@ -26,7 +28,7 @@ class EntregaProduccionDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return WmsDialogShell(
-      title: 'PRODUCCIÓN: ENTREGA CON LÍMITES E HISTORIAL',
+      title: 'Entregas de Producción',
       icon: Icons.precision_manufacturing,
       iconColor: AppColors.actionGreen,
       expand: true,
@@ -45,9 +47,9 @@ class EntregaProduccionDialog extends StatelessWidget {
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
-                Tab(height: 38, icon: Icon(Icons.qr_code_scanner, size: 16), text: 'ESCANEAR QR'),
-                Tab(height: 38, icon: Icon(Icons.edit_note, size: 16), text: 'ENTREGA MANUAL'),
-                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
+                Tab(height: 48, icon: Icon(Icons.qr_code_scanner, size: 16), text: 'ESCANEAR QR'),
+                Tab(height: 48, icon: Icon(Icons.edit_note, size: 16), text: 'ENTREGA MANUAL'),
+                Tab(height: 48, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
               ],
             ),
             const SizedBox(height: 8),
@@ -192,6 +194,15 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
     _qrFocus.requestFocus();
   }
 
+  FeedbackMessage _leerCamara(String raw) {
+    _procesarQR(raw);
+    if (_msgGeneral != null) return _msgGeneral!;
+    final qr = QrPrenda.tryParse(raw)!;
+    final k = ref.read(wmsSnapshotProvider).value!.kardexPorOpCodigo(qr.op, qr.codigo)!;
+    final tarjeta = _tarjetaActivaPara(k.id)!;
+    return FeedbackMessage.ok('OP ${qr.op} · ${k.item.descripcion} (${k.item.talla}) · ${tarjeta.conteo} Uds en la tarjeta.');
+  }
+
   void _reiniciarConteo(_TarjetaEntrega t) {
     setState(() {
       t.conteo = 0;
@@ -256,12 +267,15 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
           ],
           OperarioActual(label: 'Operario de Producción'),
           const SizedBox(height: 12),
-          TextField(
-            controller: _qrCtrl,
+          WmsScanField(
+              permiteManual: false,
+              controller: _qrCtrl,
             focusNode: _qrFocus,
             autofocus: true,
             decoration: wmsInput('PISTOLEE O ESCANEE QR DE PRENDA A ENTREGAR', icon: Icons.qr_code_scanner),
             onSubmitted: _procesarQR,
+            onCameraSubmitted: _leerCamara,
+            enabled: !_despachandoTodo,
           ),
           const SizedBox(height: 12),
           if (_tarjetas.isEmpty)
@@ -277,8 +291,11 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
               ),
             )
           else ...[
-            ResponsiveRow(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 Text(
                   pendientes > 0
@@ -505,15 +522,15 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: Text(
-                  'Escribe una OP y busca para ver sus tallas pendientes.',
-                  style: TextStyle(color: Colors.grey),
-                ),
+                child: WmsEmptyState(title: 'Busca una orden de producción', message: 'Escribe una OP y busca para ver sus tallas pendientes.'),
               ),
             )
           else if (_tarjetas.isNotEmpty) ...[
-            ResponsiveRow(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 Text(
                   pendientes > 0

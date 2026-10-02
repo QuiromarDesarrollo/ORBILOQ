@@ -8,7 +8,8 @@ import '../../../domain/models.dart';
 
 /// Barra de filtros: búsqueda libre + cliente + estado (tema oscuro).
 class KardexFiltersBar extends ConsumerStatefulWidget {
-  const KardexFiltersBar({super.key});
+  const KardexFiltersBar({super.key, this.integrada = false});
+  final bool integrada;
 
   @override
   ConsumerState<KardexFiltersBar> createState() => _KardexFiltersBarState();
@@ -20,7 +21,8 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
   @override
   void initState() {
     super.initState();
-    _busquedaCtrl = TextEditingController(text: ref.read(kardexFiltersProvider).busqueda);
+    _busquedaCtrl =
+        TextEditingController(text: ref.read(kardexFiltersProvider).busqueda);
   }
 
   @override
@@ -35,7 +37,9 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
     final opciones = ref.watch(opcionesFiltroProvider);
     final notifier = ref.read(kardexFiltersProvider.notifier);
     final rol = ref.watch(rolProvider);
-    final colEstado = rol == Rol.produccion ? ColKardex.estadoProduccion : ColKardex.estadoBodega;
+    final colEstado = rol == Rol.produccion
+        ? ColKardex.estadoProduccion
+        : ColKardex.estadoBodega;
     final pal = palOf(context);
 
     return Container(
@@ -44,7 +48,7 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
       decoration: BoxDecoration(
         color: pal.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: pal.cardBorder),
+        border: widget.integrada ? null : Border.all(color: pal.cardBorder),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -59,11 +63,13 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
                 decoration: InputDecoration(
                   hintText: 'Buscar por OP, cliente, OC o producto',
                   hintStyle: TextStyle(color: pal.textMuted, fontSize: 13),
-                  prefixIcon: Icon(Icons.search, size: 20, color: pal.textMuted),
+                  prefixIcon:
+                      Icon(Icons.search, size: 20, color: pal.textMuted),
                   filled: true,
                   fillColor: pal.input,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: pal.cardBorder),
@@ -84,14 +90,16 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
               etiquetaTodos: 'Todos los clientes',
               valor: filtros.valoresDe(ColKardex.cliente).firstOrNull,
               opciones: opciones.de(ColKardex.cliente),
-              onChanged: (v) => notifier.setColumna(ColKardex.cliente, v == null ? {} : {v}),
+              onChanged: (v) =>
+                  notifier.setColumna(ColKardex.cliente, v == null ? {} : {v}),
             ),
             _Desplegable(
               ancho: estrecho ? double.infinity : 190,
               etiquetaTodos: 'Todos los estados',
               valor: filtros.valoresDe(colEstado).firstOrNull,
               opciones: opciones.de(colEstado),
-              onChanged: (v) => notifier.setColumna(colEstado, v == null ? {} : {v}),
+              onChanged: (v) =>
+                  notifier.setColumna(colEstado, v == null ? {} : {v}),
             ),
             OutlinedButton.icon(
               onPressed: () {
@@ -103,7 +111,8 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: pal.textSecondary,
                 side: BorderSide(color: pal.cardBorder),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             ),
           ];
@@ -152,17 +161,29 @@ class _Desplegable extends StatelessWidget {
             isDense: true,
             value: valor,
             dropdownColor: pal.card,
-            hint: Text(etiquetaTodos, style: TextStyle(fontSize: 13, color: pal.textSecondary)),
+            hint: Text(etiquetaTodos,
+                style: TextStyle(fontSize: 13, color: pal.textSecondary)),
             icon: Icon(Icons.expand_more, size: 18, color: pal.textMuted),
             items: [
+              if (valor != null && !opciones.contains(valor))
+                DropdownMenuItem<String?>(
+                  value: valor,
+                  enabled: false,
+                  child: Text('$valor (sin coincidencias)',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, color: pal.textSecondary)),
+                ),
               DropdownMenuItem<String?>(
                 value: null,
-                child: Text(etiquetaTodos, style: TextStyle(fontSize: 13, color: pal.textPrimary)),
+                child: Text(etiquetaTodos,
+                    style: TextStyle(fontSize: 13, color: pal.textPrimary)),
               ),
               for (final o in opciones)
                 DropdownMenuItem<String?>(
                   value: o,
-                  child: Text(o, style: TextStyle(fontSize: 13, color: pal.textPrimary), overflow: TextOverflow.ellipsis),
+                  child: Text(o,
+                      style: TextStyle(fontSize: 13, color: pal.textPrimary),
+                      overflow: TextOverflow.ellipsis),
                 ),
             ],
             onChanged: onChanged,

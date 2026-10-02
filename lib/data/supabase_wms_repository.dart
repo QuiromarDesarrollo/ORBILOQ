@@ -106,6 +106,9 @@ class SupabaseWmsRepository implements WmsRepository {
   WmsSnapshot? _ultimo;
 
   @override
+  Future<WmsSnapshot> cargarSnapshot() => _cargarSnapshot();
+
+  @override
   Stream<WmsSnapshot> watch() async* {
     if (_ultimo != null) yield _ultimo!;
     yield* _controller.stream;

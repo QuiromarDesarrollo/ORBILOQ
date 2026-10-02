@@ -23,6 +23,8 @@ class _Acumulado {
 /// Todos los saldos se derivan de los movimientos: no hay contadores que puedan divergir.
 class InMemoryWmsRepository implements WmsRepository {
   @override
+  Future<WmsSnapshot> cargarSnapshot() async => _snapshot();
+  @override
   Future<List<String>> cargarUbicaciones() async => WmsConstantes.ubicaciones;
   final Set<String> _eliminadas = {};
   @override

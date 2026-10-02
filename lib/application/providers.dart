@@ -192,11 +192,17 @@ final kardexResumenProvider = Provider<KardexResumen>((ref) {
 });
 
 final opcionesFiltroProvider = Provider<OpcionesFiltro>((ref) {
-  final kardex = ref.watch(kardexProvider);
+  final kardex = ref.watch(kardexProvider).where((i) => !i.eliminada).toList();
+  final filtros = ref.watch(kardexFiltersProvider);
   final extractores = ref.watch(extractoresColumnaProvider);
   final porColumna = <String, List<String>>{};
   for (final entry in extractores.entries) {
-    porColumna[entry.key] = (kardex.map(entry.value).toSet().toList()..sort());
+    // Cada lista depende de la búsqueda y de las OTRAS columnas. Se omite
+    // su propia selección para permitir añadir valores a un filtro múltiple.
+    final otros = filtros.conColumna(entry.key, {});
+    porColumna[entry.key] = (kardex
+        .where((i) => otros.aplica(i, extractores))
+        .map(entry.value).toSet().toList()..sort());
   }
   return OpcionesFiltro(porColumna);
 });

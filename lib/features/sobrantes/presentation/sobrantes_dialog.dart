@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../shared/widgets/historial_agrupado.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,8 +39,8 @@ class SobrantesDialog extends StatelessWidget {
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
-                Tab(height: 38, icon: Icon(Icons.hourglass_top_outlined, size: 16), text: 'PENDIENTES'),
-                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
+                Tab(height: 48, icon: Icon(Icons.hourglass_top_outlined, size: 16), text: 'PENDIENTES'),
+                Tab(height: 48, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
               ],
             ),
             const SizedBox(height: 8),
@@ -107,7 +108,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   Widget build(BuildContext context) {
     final todos = ref.watch(sobrantesProvider);
     return todos.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: WmsLoader()),
       error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppColors.alertRed))),
       data: (lista) {
         final pendientes = lista.where((s) => s.pendiente).toList();
@@ -175,7 +176,7 @@ class _HistorialTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ref.watch(sobrantesProvider).when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: WmsLoader()),
       error: (e, _) => Center(child: Text('Error: $e')),
       data: (lista) => HistorialAgrupado(grupos: [for (final s in lista) GrupoHistorial(
         id: s.id, op: s.item.op, titulo: 'OP: ${s.item.op} - ${s.item.descripcion} (${s.item.talla})',

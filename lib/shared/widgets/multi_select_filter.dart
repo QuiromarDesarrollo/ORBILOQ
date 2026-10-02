@@ -90,7 +90,11 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
   @override
   Widget build(BuildContext context) {
     final q = _query.toLowerCase();
-    final visibles = widget.options.where((o) => widget.labelOf(o).toLowerCase().contains(q)).toList();
+    // Una selección previa sin coincidencias sigue visible para poder quitarla;
+    // no se presenta como una opción disponible ni se borra silenciosamente.
+    final disponibles = widget.options.toSet();
+    final visibles = {...widget.options, ...widget.selected}
+        .where((o) => widget.labelOf(o).toLowerCase().contains(q)).toList();
     if (_orden != _Orden.ninguno) {
       visibles.sort(_comparar);
       if (_orden == _Orden.descendente) {
@@ -100,7 +104,8 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
           ..addAll(invertidos);
       }
     }
-    final todos = _sel.length == widget.options.length;
+    final todos = disponibles.isNotEmpty &&
+        _sel.length == disponibles.length && _sel.containsAll(disponibles);
     final ninguno = _sel.isEmpty;
 
     return AlertDialog(
@@ -176,6 +181,7 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
                       itemBuilder: (_, i) {
                         final opt = visibles[i];
                         return CheckboxListTile(
+                          subtitle: disponibles.contains(opt) ? null : const Text('Sin coincidencias con los otros filtros'),
                           dense: true,
                           activeColor: AppColors.actionGreen,
                           title: Text(widget.labelOf(opt)),
@@ -200,7 +206,7 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
           child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
         ),
         ElevatedButton(
-          onPressed: () => Navigator.pop(context, (todos || ninguno) ? <T>{} : _sel),
+          onPressed: () => Navigator.pop(context, <T>{..._sel}),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primaryNavy,
             foregroundColor: Colors.white,

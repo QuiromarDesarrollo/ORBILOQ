@@ -1,3 +1,5 @@
+import '../../../shared/widgets/wms_scan_field.dart';
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../application/auth_providers.dart';
 import '../../../shared/widgets/operario_actual.dart';
 import 'historial_liberaciones.dart';
@@ -45,8 +47,8 @@ class ReprocesoDialog extends StatelessWidget {
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
-                Tab(height: 38, icon: Icon(Icons.report_problem_outlined, size: 16), text: 'NO CONFORME'),
-                Tab(height: 38, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
+                Tab(height: 48, icon: Icon(Icons.report_problem_outlined, size: 16), text: 'NO CONFORME'),
+                Tab(height: 48, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
               ],
             ),
             const SizedBox(height: 8),
@@ -226,10 +228,15 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
           ],
         ),
         const SizedBox(height: 10),
-        TextField(
-          controller: _qrCtrl,
+        WmsScanField(
+              permiteManual: false,
+              controller: _qrCtrl,
           decoration: wmsInput('O ESCANEAR QR PARA ENCONTRAR UNA PRENDA', icon: Icons.qr_code_scanner),
           onSubmitted: _procesarQR,
+          onCameraSubmitted: (raw) {
+            _procesarQR(raw);
+            return _msgGeneral ?? FeedbackMessage.ok('OP $_filtroOp · Tarjetas de reproceso localizadas.');
+          },
         ),
         const SizedBox(height: 12),
         Expanded(
@@ -382,7 +389,7 @@ class _HistorialTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ref.watch(liberacionesProduccionProvider).when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: WmsLoader()),
       error: (error, _) => Center(child: Text('No se pudo cargar el historial: $error')),
       data: (liberaciones) => HistorialLiberaciones(liberaciones: liberaciones),
     );

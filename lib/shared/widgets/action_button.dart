@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 
 /// Botón de acción estándar (reemplaza los ElevatedButton.icon repetidos).
@@ -25,7 +26,7 @@ class ActionButton extends StatelessWidget {
           ? const SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: WmsLoader(strokeWidth: 2, color: Colors.white),
             )
           : Icon(icon, size: 18),
       label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),

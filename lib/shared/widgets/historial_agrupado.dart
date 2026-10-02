@@ -1,3 +1,4 @@
+import 'wms_empty_state.dart';
 import 'package:flutter/material.dart';
 import '../../core/utils/fecha.dart';
 import '../../domain/models.dart';
@@ -149,7 +150,7 @@ class _HistorialAgrupadoState extends State<HistorialAgrupado> {
     final lista = visibles.isEmpty
         ? Padding(
             padding: const EdgeInsets.all(20),
-            child: Text(filtrado
+            child: WmsEmptyState(icon: Icons.history_rounded, title: filtrado ? 'Sin coincidencias' : 'Historial de movimientos', message: filtrado
                 ? 'No hay movimientos que coincidan con los filtros.'
                 : 'Aún no hay movimientos registrados.'))
         : ListView.builder(
