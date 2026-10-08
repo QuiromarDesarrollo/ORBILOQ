@@ -1,3 +1,5 @@
+import 'application/ciclos_providers.dart';
+import 'data/ciclos_repository.dart';
 import 'data/despachos_oc_repository.dart';
 import 'data/reportes_admin_repository.dart';
 import 'dart:async';
@@ -39,6 +41,8 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [
+        ciclosRepositoryProvider.overrideWith((ref) => usarSupabase
+            ? CiclosRepository(Supabase.instance.client) : null),
         wmsRepositoryProvider.overrideWith((ref) {
           if (usarSupabase) {
             final repo = SupabaseWmsRepository(Supabase.instance.client);

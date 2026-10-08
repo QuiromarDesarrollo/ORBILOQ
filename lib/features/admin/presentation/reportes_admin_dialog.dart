@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -189,8 +190,7 @@ class _ReportesState extends ConsumerState<ReportesAdminDialog> {
       await KardexExcelExportador.exportarReporte('orbiloq_$_vista', hojas);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('No se pudo exportar: $e')));
+        mostrarAvisoSnack(context, SnackBar(content: Text('No se pudo exportar: $e')));
       }
     } finally {
       if (mounted) setState(() => _exportando = false);

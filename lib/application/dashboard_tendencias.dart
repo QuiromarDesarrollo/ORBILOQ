@@ -1,3 +1,4 @@
+import 'dashboard_periodo.dart';
 import '../data/reportes_admin_repository.dart';
 
 const tiposVolumen = ['entrega_produccion', 'recepcion', 'despacho'];
@@ -13,23 +14,30 @@ class TendenciasVolumen {
   final List<SemanaVolumen> semanas;
   final int registrosInvalidos;
   List<int> get totales => [
-        for (var serie = 0; serie < 3; serie++)
-          semanas.fold(0, (n, s) => n + s.unidades[serie])
-      ];
+    for (var serie = 0; serie < 3; serie++)
+      semanas.fold(0, (n, s) => n + s.unidades[serie]),
+  ];
 }
 
 /// Volumen operativo bruto por fecha del movimiento (no saldos del kardex).
 /// Correcciones/importaciones administrativas y movimientos inversos no se
 /// interpretan como producción física realizada en la semana de la corrección.
-TendenciasVolumen calcularTendencias(List<FilaReporte> filas,
-    {required DateTime corte, int semanas = 12}) {
+TendenciasVolumen calcularTendencias(
+  List<FilaReporte> filas, {
+  required DateTime corte,
+  int semanas = 12,
+  PeriodoDashboard? periodo,
+}) {
   final hoy = fechaReporte(corte.toUtc().toIso8601String())!;
   final lunes = DateTime.utc(hoy.year, hoy.month, hoy.day - hoy.weekday + 1);
   final desde = lunes.subtract(Duration(days: 7 * (semanas - 1)));
-  final buckets = [
-    for (var i = 0; i < semanas; i++)
-      SemanaVolumen(desde.add(Duration(days: i * 7)))
-  ];
+  final buckets =
+      periodo != null
+          ? periodo.dias.map(SemanaVolumen.new).toList()
+          : [
+            for (var i = 0; i < semanas; i++)
+              SemanaVolumen(desde.add(Duration(days: i * 7))),
+          ];
   var invalidos = 0;
   for (final f in filas) {
     final serie = tiposVolumen.indexOf('${f['tipo']}');
@@ -48,6 +56,11 @@ TendenciasVolumen calcularTendencias(List<FilaReporte> filas,
     if (cantidad <= 0 || instante.toUtc().isAfter(corte.toUtc())) continue;
     final local = fechaReporte(f['fecha'])!;
     final dia = DateTime.utc(local.year, local.month, local.day);
+    if (periodo != null) {
+      final index = buckets.indexWhere((b) => b.inicio == dia);
+      if (index >= 0) buckets[index].unidades[serie] += cantidad.toInt();
+      continue;
+    }
     final dias = dia.difference(desde).inDays;
     if (dias < 0 || dias >= semanas * 7) continue;
     buckets[dias ~/ 7].unidades[serie] += cantidad.toInt();

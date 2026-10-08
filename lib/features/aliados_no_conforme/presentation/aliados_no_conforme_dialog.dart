@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import '../../../shared/widgets/wms_scan_field.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../application/auth_providers.dart';
@@ -243,7 +244,7 @@ class _EnviarTabState extends ConsumerState<_EnviarTab> {
           ),
           if (_errorBusqueda != null) ...[
             const SizedBox(height: 8),
-            Text(_errorBusqueda!, style: const TextStyle(color: AppColors.alertRed)),
+            AvisoFormulario(_errorBusqueda!),
           ],
           if (_resultados.isNotEmpty && _seleccionado == null) ...[
             const SizedBox(height: 10),
@@ -594,10 +595,12 @@ class _HistorialTab extends ConsumerWidget {
       detalle: 'Código: ${a.item.codigo} | Solicitado: ${a.cantidad} Uds | Causal: ${a.causal} | ${a.pendiente ? 'PENDIENTE' : 'LIBERADO'}',
       eventos: [
         EventoHistorial(id: '${a.id}-solicitud', fecha: a.fechaSolicitud, titulo: 'Envío a Aliado · ${a.cantidad} Uds',
+          cantidad: a.cantidad, categoriaCantidad: 'Prendas enviadas a aliados',
           detalle: 'Entregado a: ${a.personaAliadoEntrega} | Enviado por: ${a.usuarioSolicitud}'
             '${a.notaSolicitud.isEmpty ? '' : '\nNota: ${a.notaSolicitud}'}', color: Colors.blue),
         for (final e in liberaciones.requireValue.where((e) => e.solicitudId == a.id))
           EventoHistorial(id: e.id, fecha: e.fecha,
+            cantidad: e.cantidad, categoriaCantidad: 'Prendas liberadas por aliados',
             titulo: '${e.tipo == 'completa' ? 'ENTREGA COMPLETA' : 'ENTREGA PARCIAL'} · ${e.cantidad} Uds',
             detalle: '${e.operario} ← ${e.personaAliado}${e.nota.isEmpty ? '' : '\nNota: ${e.nota}'}',
             color: e.tipo == 'completa' ? AppColors.actionGreen : Colors.orange.shade700),

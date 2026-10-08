@@ -12,38 +12,36 @@ class ArchivoKardex {
 /// Formato de ida y vuelta: claves estables, números reales y fechas completas.
 class ExcelKardex {
   static Map<String, String> columnas(Rol vista) => {
-        'item_orden_id': 'ID FILA (no modificar)',
-        'numero_op': 'OP',
-        'descripcion': 'PRODUCTO',
-        'codigo': 'CÓDIGO',
-        'talla': 'TALLA',
-        'cliente': 'CLIENTE',
-        'oc': 'OC',
-        'observacion_op': 'OBSERVACIÓN',
-        'cantidad_pedida': 'CANTIDAD',
-        'producido': 'ENTREGADO POR PRODUCCIÓN',
-        'pendiente': 'PENDIENTE (calculado)',
-        if (vista == Rol.logistica) ...{
-          'recibido': 'RECIBIDO EN BODEGA',
-          'despachado': 'DESPACHADO'
-        },
-        'pendiente_reproceso': 'PRODUCTO NO CONFORME',
-        'estado': 'ESTADO (calculado)',
-        'fecha_ultima_entrega': 'FECHA DE ENTREGA',
-        if (vista == Rol.produccion)
-          'fecha_esperada_produccion': 'FECHA ESPERADA',
-        if (vista == Rol.logistica)
-          'fecha_esperada_logistica': 'FECHA ESPERADA',
-        'dias': 'DÍAS FALTANTES (calculado)',
-        'ubicacion_ajuste': 'UBICACIÓN DEL AJUSTE',
-      };
+    'item_orden_id': 'ID FILA (no modificar)',
+    'numero_op': 'OP',
+    'descripcion': 'PRODUCTO',
+    'codigo': 'CÓDIGO',
+    'talla': 'TALLA',
+    'cliente': 'CLIENTE',
+    'oc': 'OC',
+    'observacion_op': 'OBSERVACIÓN',
+    'cantidad_pedida': 'CANTIDAD',
+    'producido': 'ENTREGADO POR PRODUCCIÓN',
+    'pendiente': 'PENDIENTE (calculado)',
+    if (vista != Rol.produccion) ...{
+      'recibido': 'RECIBIDO EN BODEGA',
+      'despachado': 'DESPACHADO',
+    },
+    'pendiente_reproceso': 'PRODUCTO NO CONFORME',
+    'estado': 'ESTADO (calculado)',
+    'fecha_ultima_entrega': 'FECHA DE ENTREGA',
+    if (vista == Rol.produccion) 'fecha_esperada_produccion': 'FECHA ESPERADA',
+    if (vista != Rol.produccion) 'fecha_esperada_logistica': 'FECHA ESPERADA',
+    'dias': 'DÍAS FALTANTES (calculado)',
+    'ubicacion_ajuste': 'UBICACIÓN DEL AJUSTE',
+  };
   static const calculadas = {'pendiente', 'estado', 'dias'};
   static const numericas = {
     'cantidad_pedida',
     'producido',
     'recibido',
     'despachado',
-    'pendiente_reproceso'
+    'pendiente_reproceso',
   };
 
   static Uint8List generar(ArchivoKardex archivo) {
@@ -54,10 +52,14 @@ class ExcelKardex {
     final cols = columnas(archivo.vista);
     hoja.appendRow(cols.values.map(TextCellValue.new).toList());
     for (final fila in archivo.filas) {
-      hoja.appendRow(cols.keys.map<CellValue>((key) {
-        final v = fila[key];
-        return v is int ? IntCellValue(v) : TextCellValue(v?.toString() ?? '');
-      }).toList());
+      hoja.appendRow(
+        cols.keys.map<CellValue>((key) {
+          final v = fila[key];
+          return v is int
+              ? IntCellValue(v)
+              : TextCellValue(v?.toString() ?? '');
+        }).toList(),
+      );
     }
     for (var c = 0; c < cols.length; c++) {
       hoja.setColumnWidth(c, c == 0 ? 40 : 24);
@@ -69,7 +71,7 @@ class ExcelKardex {
     formato.appendRow([
       TextCellValue('ORBILOQ_KARDEX_V1'),
       TextCellValue(archivo.vista.name),
-      TextCellValue(archivo.version)
+      TextCellValue(archivo.version),
     ]);
     for (final texto in [
       'Exportación completa de filas activas, sin filtros ni paginación.',
@@ -102,7 +104,8 @@ class ExcelKardex {
         formato.rows.first.length < 3 ||
         texto(formato.rows.first[0]) != 'ORBILOQ_KARDEX_V1') {
       throw const FormatException(
-          'Usa un Excel generado con Exportar tabla de esta versión.');
+        'Usa un Excel generado con Exportar tabla de esta versión.',
+      );
     }
     if (texto(formato.rows.first[1]) != vista.name) {
       throw const FormatException('El archivo pertenece a la otra vista.');
@@ -116,7 +119,8 @@ class ExcelKardex {
     if (headers.toSet().length != headers.length ||
         cols.values.any((h) => !headers.contains(h))) {
       throw const FormatException(
-          'Faltan columnas o hay encabezados duplicados. Conserva los encabezados de la exportación.');
+        'Faltan columnas o hay encabezados duplicados. Conserva los encabezados de la exportación.',
+      );
     }
     final filas = <Map<String, dynamic>>[];
     final ids = <String>{};
@@ -126,7 +130,8 @@ class ExcelKardex {
       if (row.every((d) => texto(d).isEmpty)) continue;
       if (filas.length >= 5000) {
         throw const FormatException(
-            'Máximo 5000 filas por reemplazo. No dividas una tabla mayor: solicita ampliar el límite.');
+          'Máximo 5000 filas por reemplazo. No dividas una tabla mayor: solicita ampliar el límite.',
+        );
       }
       final fila = <String, dynamic>{};
       for (final e in cols.entries) {
@@ -137,7 +142,8 @@ class ExcelKardex {
         final t = texto(data);
         if (value is FormulaCellValue) {
           throw FormatException(
-              'Fila ${r + 1}, ${e.value}: usa valores, no fórmulas.');
+            'Fila ${r + 1}, ${e.value}: usa valores, no fórmulas.',
+          );
         }
         if (numericas.contains(e.key)) {
           final n = num.tryParse(t);
@@ -147,7 +153,8 @@ class ExcelKardex {
               n != n.roundToDouble() ||
               n > 2147483647) {
             throw FormatException(
-                'Fila ${r + 1}, ${e.value}: escribe un entero no negativo.');
+              'Fila ${r + 1}, ${e.value}: escribe un entero no negativo.',
+            );
           }
           fila[e.key] = n.toInt();
         } else if (e.key.startsWith('fecha_')) {
@@ -157,10 +164,12 @@ class ExcelKardex {
           if (t.isNotEmpty && fecha == null) {
             if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(t)) {
               throw FormatException(
-                  'Fila ${r + 1}: fecha inválida; usa AAAA-MM-DD.');
+                'Fila ${r + 1}: fecha inválida; usa AAAA-MM-DD.',
+              );
             }
             fecha = DateTime.tryParse(t);
-            if (fecha == null || fecha.toIso8601String().substring(0, 10) != t) {
+            if (fecha == null ||
+                fecha.toIso8601String().substring(0, 10) != t) {
               throw FormatException('Fila ${r + 1}: fecha inexistente.');
             }
           }
@@ -174,7 +183,7 @@ class ExcelKardex {
         'descripcion',
         'codigo',
         'talla',
-        'cliente'
+        'cliente',
       ]) {
         if ((fila[k] as String).isEmpty) {
           throw FormatException('Fila ${r + 1}: ${cols[k]} es obligatorio.');
@@ -184,8 +193,11 @@ class ExcelKardex {
       if (id.isNotEmpty && !ids.add(id)) {
         throw FormatException('Fila ${r + 1}: ID repetido.');
       }
-      final clave =
-          [fila['numero_op'], fila['codigo'], fila['talla']].join('\u0000');
+      final clave = [
+        fila['numero_op'],
+        fila['codigo'],
+        fila['talla'],
+      ].join('\u0000');
       if (!claves.add(clave)) {
         throw FormatException('Fila ${r + 1}: OP/producto/talla duplicados.');
       }
@@ -193,7 +205,8 @@ class ExcelKardex {
     }
     if (filas.isEmpty) {
       throw const FormatException(
-          'El archivo está vacío. No se reemplazará la tabla.');
+        'El archivo está vacío. No se reemplazará la tabla.',
+      );
     }
     return ArchivoKardex(vista, version, filas);
   }

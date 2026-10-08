@@ -23,17 +23,24 @@ class _Acumulado {
 /// Todos los saldos se derivan de los movimientos: no hay contadores que puedan divergir.
 class InMemoryWmsRepository implements WmsRepository {
   @override
+  Future<List<Movimiento>> cargarRecepciones() async =>
+      _movimientos.where((m) => m.tipo == TipoMovimiento.recepcion).toList();
+  @override
   Future<WmsSnapshot> cargarSnapshot() async => _snapshot();
   @override
   Future<List<String>> cargarUbicaciones() async => WmsConstantes.ubicaciones;
   final Set<String> _eliminadas = {};
   @override
   Future<Result<void>> eliminarLineaAdmin(
-      String itemId, String version, String motivo) async {
+    String itemId,
+    String version,
+    String motivo,
+  ) async {
     final ctx = await cargarEdicionAdmin(itemId);
     if (ctx.version != version) {
       return const Err(
-          'La fila cambio. Cierra y vuelve a abrir la confirmacion.');
+        'La fila cambio. Cierra y vuelve a abrir la confirmacion.',
+      );
     }
     if (motivo.trim().isEmpty) {
       return const Err('Indica el motivo del borrado.');
@@ -49,7 +56,7 @@ class InMemoryWmsRepository implements WmsRepository {
       'nuevo': DateTime.now().toIso8601String(),
       'motivo': motivo.trim(),
       'actor': 'Administrador demo',
-      'fecha': DateTime.now().toIso8601String()
+      'fecha': DateTime.now().toIso8601String(),
     });
     _emitir();
     return const Ok(null);
@@ -72,31 +79,38 @@ class InMemoryWmsRepository implements WmsRepository {
               'numero': lote.id,
               'enviada': l.cantidadEnviada,
               'recibida': l.cantidadRecibida ?? 0,
-              'origen': l.esReproceso ? 'reproceso' : 'entrega'
-            }
+              'origen': l.esReproceso ? 'reproceso' : 'entrega',
+            },
     ];
     final valores = valoresAdmin(k);
     return ContextoEdicionAdmin.fromJson({
-      'version': jsonEncode(
-          [valores, lotes, _movimientos.length, _auditoriaAdmin.length]),
+      'version': jsonEncode([
+        valores,
+        lotes,
+        _movimientos.length,
+        _auditoriaAdmin.length,
+      ]),
       'valores': valores,
       'lotes': lotes,
       'ubicaciones': [
-        for (final u in WmsConstantes.ubicaciones) {'id': u, 'codigo': u}
+        for (final u in WmsConstantes.ubicaciones) {'id': u, 'codigo': u},
       ],
-      'historial': _auditoriaAdmin
-          .where((a) => a['item_id'] == itemId)
-          .toList()
-          .reversed
-          .take(20)
-          .toList(),
+      'historial':
+          _auditoriaAdmin
+              .where((a) => a['item_id'] == itemId)
+              .toList()
+              .reversed
+              .take(20)
+              .toList(),
       'filas_orden': _items.values.where((i) => i.op == k.item.op).length,
     });
   }
 
   @override
-  Future<Result<Map<String, dynamic>>> editarAdmin(CambioAdmin cambio,
-      {required bool confirmar}) async {
+  Future<Result<Map<String, dynamic>>> editarAdmin(
+    CambioAdmin cambio, {
+    required bool confirmar,
+  }) async {
     final ctx = await cargarEdicionAdmin(cambio.itemId);
     if (ctx.version != cambio.version) {
       return const Err('La fila cambió. Cierra y vuelve a abrir la edición.');
@@ -112,7 +126,29 @@ class InMemoryWmsRepository implements WmsRepository {
     int delta = 0;
     LoteLinea? linea;
     final lineaId = c.lote ? cambio.loteId : null;
-    if (c.lote) {
+    final ajustes = <String, int>{};
+    if (c.lote && cambio.recepciones.isNotEmpty) {
+      for (final e in cambio.recepciones.entries) {
+        final ls = _lotes
+            .expand((l) => l.lineas)
+            .where((l) => l.id == e.key && l.item.id == cambio.itemId);
+        if (ls.length != 1) return const Err("Lote inválido.");
+        final l = ls.single;
+        if (e.value < 0 ||
+            e.value > l.cantidadEnviada ||
+            l.novedad.contains("FALTANTE DEFINITIVO")) {
+          return const Err("Cantidad inválida o lote cerrado.");
+        }
+        ajustes[e.key] = e.value - (l.cantidadRecibida ?? 0);
+      }
+    }
+    if (ajustes.values.where((d) => d < 0).fold<int>(0, (a, d) => a - d) >
+        k.stockDisponible) {
+      return const Err(
+        'La reducción supera las prendas que siguen en bodega. Las despachadas están protegidas.',
+      );
+    }
+    if (c.lote && cambio.recepciones.isEmpty) {
       for (final lote in _lotes) {
         for (final l in lote.lineas) {
           if (l.id == cambio.loteId && l.item.id == cambio.itemId) linea = l;
@@ -121,7 +157,8 @@ class InMemoryWmsRepository implements WmsRepository {
       if (linea == null) return const Err('Selecciona el lote afectado.');
       if (linea.novedad.contains('FALTANTE DEFINITIVO')) {
         return const Err(
-            'El lote está cerrado con faltante. Revisa esa corrección primero.');
+          'El lote está cerrado con faltante. Revisa esa corrección primero.',
+        );
       }
     }
     if (c.ubicacion &&
@@ -136,6 +173,11 @@ class InMemoryWmsRepository implements WmsRepository {
       }
       delta = valor - (antes[c.id] as int);
       if (delta == 0) return const Err('El valor no cambió.');
+      if (c.lote &&
+          cambio.recepciones.isNotEmpty &&
+          ajustes.values.fold<int>(0, (a, b) => a + b) != delta) {
+        return const Err('La suma por lote no coincide con el total.');
+      }
       despues[c.id] = valor;
       if (c == CampoAdmin.noConforme) {
         despues['producido'] = k.producido - delta;
@@ -145,6 +187,12 @@ class InMemoryWmsRepository implements WmsRepository {
       final p = despues['producido'] as int;
       final r = despues['recibido'] as int;
       final d = despues['despachado'] as int;
+      if (c == CampoAdmin.producido && p < r) {
+        return Err(
+          'No puedes dejar lo entregado por Producción en $p prendas: '
+          'Logística ya tiene $r recibidas. Revisa las recepciones relacionadas antes de corregir la entrega.',
+        );
+      }
       final diferenciaPrevia =
           k.recibido > k.producido ? k.recibido - k.producido : 0;
       if (p < 0 ||
@@ -155,38 +203,50 @@ class InMemoryWmsRepository implements WmsRepository {
           d > r ||
           (c != CampoAdmin.producido && r > p && r - p > diferenciaPrevia)) {
         return const Err(
-            'La corrección dejaría cantidades incompatibles. Revisa las operaciones relacionadas.');
+          'La corrección dejaría cantidades incompatibles. Revisa las operaciones relacionadas.',
+        );
       }
       if (c == CampoAdmin.recibido &&
+          cambio.recepciones.isEmpty &&
           ((linea!.cantidadRecibida ?? 0) + delta < 0 ||
               (linea.cantidadRecibida ?? 0) + delta > linea.cantidadEnviada)) {
         return const Err(
-            'La recepción corregida debe estar entre cero y lo enviado en el lote.');
+          'La recepción corregida debe estar entre cero y lo enviado en el lote.',
+        );
       }
       if (c.ubicacion) {
         final stockDelta = c == CampoAdmin.recibido ? delta : -delta;
         if (k.stockEn(cambio.ubicacionId!) + stockDelta < 0) {
           return const Err('Stock insuficiente en la ubicación.');
         }
-        if (c == CampoAdmin.recibido && delta < 0) {
-          final recibidoAlli = _movimientos
-              .where((m) =>
-                  m.itemId == cambio.itemId &&
-                  m.loteLineaId == cambio.loteId &&
-                  m.ubicacion == cambio.ubicacionId &&
-                  m.tipo == TipoMovimiento.recepcion)
-              .fold(0, (a, m) => a + m.cantidad);
-          if (recibidoAlli + delta < 0) {
-            return const Err(
-                'La ubicación no tiene esa cantidad recibida en el lote.');
+        if (c == CampoAdmin.recibido) {
+          final plan =
+              cambio.recepciones.isEmpty ? {cambio.loteId!: delta} : ajustes;
+          for (final e in plan.entries.where((e) => e.value < 0)) {
+            final recibidoAlli = _movimientos
+                .where(
+                  (m) =>
+                      m.itemId == cambio.itemId &&
+                      m.loteLineaId == e.key &&
+                      m.ubicacion == cambio.ubicacionId &&
+                      m.tipo == TipoMovimiento.recepcion,
+                )
+                .fold<int>(0, (a, m) => a + m.cantidad);
+            if (recibidoAlli + e.value < 0) {
+              return const Err(
+                'La ubicación no tiene esa cantidad recibida en el lote.',
+              );
+            }
           }
         }
         if (c == CampoAdmin.despachado && delta < 0) {
           final enviado = _movimientos
-              .where((m) =>
-                  m.itemId == cambio.itemId &&
-                  m.ubicacion == cambio.ubicacionId &&
-                  m.tipo == TipoMovimiento.despacho)
+              .where(
+                (m) =>
+                    m.itemId == cambio.itemId &&
+                    m.ubicacion == cambio.ubicacionId &&
+                    m.tipo == TipoMovimiento.despacho,
+              )
               .fold(0, (a, m) => a + m.cantidad);
           if (enviado + delta < 0) {
             return const Err('La ubicación no tiene esa cantidad despachada.');
@@ -194,14 +254,17 @@ class InMemoryWmsRepository implements WmsRepository {
         }
         if (c == CampoAdmin.noConforme && delta < 0) {
           final registrado = _movimientos
-              .where((m) =>
-                  m.itemId == cambio.itemId &&
-                  m.ubicacion == cambio.ubicacionId &&
-                  m.tipo == TipoMovimiento.devolucionProduccion)
+              .where(
+                (m) =>
+                    m.itemId == cambio.itemId &&
+                    m.ubicacion == cambio.ubicacionId &&
+                    m.tipo == TipoMovimiento.devolucionProduccion,
+              )
               .fold(0, (a, m) => a + m.cantidad);
           if (registrado + delta < 0) {
             return const Err(
-                'No hay suficiente PNC registrado en esa ubicación. Los registros históricos requieren conciliación.');
+              'No hay suficiente PNC registrado en esa ubicación. Los registros históricos requieren conciliación.',
+            );
           }
         }
       }
@@ -219,7 +282,7 @@ class InMemoryWmsRepository implements WmsRepository {
                 CampoAdmin.numeroOp,
                 CampoAdmin.descripcion,
                 CampoAdmin.codigo,
-                CampoAdmin.cliente
+                CampoAdmin.cliente,
               ].contains(c))) {
         return const Err('Completa el valor del campo.');
       }
@@ -230,18 +293,20 @@ class InMemoryWmsRepository implements WmsRepository {
         return const Err('Ya existe otra orden con ese número.');
       }
       if ([CampoAdmin.codigo, CampoAdmin.talla].contains(c) &&
-          _items.values.any((i) =>
-              i.id != k.id &&
-              i.op == k.item.op &&
-              i.codigo == despues['codigo'] &&
-              i.talla == despues['talla'])) {
+          _items.values.any(
+            (i) =>
+                i.id != k.id &&
+                i.op == k.item.op &&
+                i.codigo == despues['codigo'] &&
+                i.talla == despues['talla'],
+          )) {
         return const Err('Ya existe el código y talla en esta OP.');
       }
     }
     final resultado = <String, dynamic>{
       'antes': antes,
       'despues': despues,
-      'guardado': confirmar
+      'guardado': confirmar,
     };
     if (!confirmar) return Ok(resultado);
     if (c.numero && c != CampoAdmin.cantidad) {
@@ -251,37 +316,45 @@ class InMemoryWmsRepository implements WmsRepository {
         CampoAdmin.despachado => TipoMovimiento.despacho,
         _ => TipoMovimiento.devolucionProduccion,
       };
-      _movimientos.add(Movimiento(
-          tipo: tipo,
-          itemId: k.id,
-          cantidad: delta,
-          fecha: k.fechaEntrega ?? DateTime.now(),
-          ubicacion: cambio.ubicacionId,
-          loteLineaId: lineaId,
-          nota: 'Corrección administrativa: ${cambio.motivo}'));
+      for (final e
+          in (ajustes.isEmpty ? <String?, int>{lineaId: delta} : ajustes)
+              .entries) {
+        _movimientos.add(
+          Movimiento(
+            tipo: tipo,
+            itemId: k.id,
+            cantidad: e.value,
+            fecha: k.fechaEntrega ?? DateTime.now(),
+            ubicacion: cambio.ubicacionId,
+            loteLineaId: e.key,
+            nota: 'Corrección administrativa: ${cambio.motivo}',
+          ),
+        );
+      }
     } else {
-      final ids = c.compartido
-          ? _items.values
-              .where((i) => i.op == k.item.op)
-              .map((i) => i.id)
-              .toList()
-          : [k.id];
+      final ids =
+          c.compartido
+              ? _items.values
+                  .where((i) => i.op == k.item.op)
+                  .map((i) => i.id)
+                  .toList()
+              : [k.id];
       for (final id in ids) {
         final i = _items[id]!;
         _items[id] = ItemOrden(
-            id: i.id,
-            op: c == CampoAdmin.numeroOp ? valor as String : i.op,
-            cliente: c == CampoAdmin.cliente ? valor as String : i.cliente,
-            oc: c == CampoAdmin.oc ? valor as String : i.oc,
-            codigo: c == CampoAdmin.codigo ? valor as String : i.codigo,
-            descripcion:
-                c == CampoAdmin.descripcion ? valor as String : i.descripcion,
-            talla: c == CampoAdmin.talla ? valor as String : i.talla,
-            cantidadPedida:
-                c == CampoAdmin.cantidad ? valor as int : i.cantidadPedida,
-            observacionOp: c == CampoAdmin.observacion
-                ? valor as String
-                : i.observacionOp);
+          id: i.id,
+          op: c == CampoAdmin.numeroOp ? valor as String : i.op,
+          cliente: c == CampoAdmin.cliente ? valor as String : i.cliente,
+          oc: c == CampoAdmin.oc ? valor as String : i.oc,
+          codigo: c == CampoAdmin.codigo ? valor as String : i.codigo,
+          descripcion:
+              c == CampoAdmin.descripcion ? valor as String : i.descripcion,
+          talla: c == CampoAdmin.talla ? valor as String : i.talla,
+          cantidadPedida:
+              c == CampoAdmin.cantidad ? valor as int : i.cantidadPedida,
+          observacionOp:
+              c == CampoAdmin.observacion ? valor as String : i.observacionOp,
+        );
         if (c.fecha) {
           final fecha = valor == null ? null : DateTime.parse(valor as String);
           switch (c) {
@@ -297,50 +370,88 @@ class InMemoryWmsRepository implements WmsRepository {
         }
       }
     }
-    for (var n = 0; n < _lotes.length; n++) {
-      if (c == CampoAdmin.producido) {
-        break; // Corrección del total: lotes intactos.
+    final enviosReducidos = <String, int>{};
+    if (c == CampoAdmin.producido && delta < 0) {
+      var restante = -delta;
+      final recientes = [..._lotes]
+        ..sort((a, b) => b.fechaEnvio.compareTo(a.fechaEnvio));
+      for (final lote in recientes) {
+        final lineas = [...lote.lineas]..sort((a, b) => b.id.compareTo(a.id));
+        for (final l in lineas) {
+          if (restante == 0) break;
+          if (l.item.id != k.id ||
+              !l.enTransito ||
+              l.esReproceso ||
+              l.cantidadPendiente <= 0 ||
+              l.novedad.contains('FALTANTE DEFINITIVO')) {
+            continue;
+          }
+          final reducir =
+              restante < l.cantidadPendiente ? restante : l.cantidadPendiente;
+          enviosReducidos[l.id] = reducir;
+          restante -= reducir;
+        }
       }
+    }
+    for (var n = 0; n < _lotes.length; n++) {
       final lote = _lotes[n];
       final lineas = [
         for (final l in lote.lineas)
           LoteLinea(
-              id: l.id,
-              item: _items[l.item.id]!,
-              cantidadEnviada: l.cantidadEnviada +
-                  (l.id == lineaId && c == CampoAdmin.producido ? delta : 0),
-              cantidadRecibida: l.id == lineaId && c == CampoAdmin.recibido
-                  ? (l.cantidadRecibida ?? 0) + delta
-                  : l.cantidadRecibida,
-              estado: l.id == lineaId && c.lote
-                  ? ((l.cantidadRecibida ?? 0) +
-                              (c == CampoAdmin.recibido ? delta : 0) >
-                          l.cantidadEnviada +
-                              (c == CampoAdmin.producido ? delta : 0)
-                      ? EstadoLineaLote.recibidoConNovedad
-                      : (l.cantidadRecibida ?? 0) +
-                                  (c == CampoAdmin.recibido ? delta : 0) ==
-                              l.cantidadEnviada +
-                                  (c == CampoAdmin.producido ? delta : 0)
-                          ? EstadoLineaLote.recibidoConforme
-                          : EstadoLineaLote.enTransito)
-                  : l.estado,
-              ubicacionDestino: l.ubicacionDestino,
-              novedad: l.novedad,
-              fechaRecepcion: l.fechaRecepcion,
-              esReproceso: l.esReproceso,
-              recibidoPor: l.recibidoPor)
+            id: l.id,
+            item: _items[l.item.id]!,
+            cantidadEnviada: l.cantidadEnviada + -(enviosReducidos[l.id] ?? 0),
+            cantidadRecibida:
+                ajustes.containsKey(l.id)
+                    ? (l.cantidadRecibida ?? 0) + ajustes[l.id]!
+                    : l.id == lineaId && c == CampoAdmin.recibido
+                    ? (l.cantidadRecibida ?? 0) + delta
+                    : l.cantidadRecibida,
+            estado:
+                enviosReducidos.containsKey(l.id)
+                    ? (l.cantidadPendiente == enviosReducidos[l.id]
+                        ? EstadoLineaLote.recibidoConNovedad
+                        : EstadoLineaLote.enTransito)
+                    : ajustes.containsKey(l.id)
+                    ? ((l.cantidadRecibida ?? 0) + ajustes[l.id]! ==
+                            l.cantidadEnviada
+                        ? EstadoLineaLote.recibidoConforme
+                        : EstadoLineaLote.enTransito)
+                    : l.id == lineaId && c.lote
+                    ? ((l.cantidadRecibida ?? 0) +
+                                (c == CampoAdmin.recibido ? delta : 0) >
+                            l.cantidadEnviada +
+                                (c == CampoAdmin.producido ? delta : 0)
+                        ? EstadoLineaLote.recibidoConNovedad
+                        : (l.cantidadRecibida ?? 0) +
+                                (c == CampoAdmin.recibido ? delta : 0) ==
+                            l.cantidadEnviada +
+                                (c == CampoAdmin.producido ? delta : 0)
+                        ? EstadoLineaLote.recibidoConforme
+                        : EstadoLineaLote.enTransito)
+                    : l.estado,
+            ubicacionDestino: l.ubicacionDestino,
+            novedad:
+                enviosReducidos.containsKey(l.id)
+                    ? '${l.novedad} | Envío corregido: -${enviosReducidos[l.id]} prendas. ${cambio.motivo}'
+                    : l.novedad,
+            fechaRecepcion: l.fechaRecepcion,
+            esReproceso: l.esReproceso,
+            recibidoPor: l.recibidoPor,
+          ),
       ];
       _lotes[n] = Lote(
-          id: lote.id,
-          operario: lote.operario,
-          fechaEnvio: lote.fechaEnvio,
-          lineas: lineas,
-          estado: lineas.every((l) => !l.enTransito)
-              ? EstadoLote.recibidoCompleto
-              : lineas.any((l) => (l.cantidadRecibida ?? 0) > 0)
-                  ? EstadoLote.recibidoParcial
-                  : EstadoLote.enTransito);
+        id: lote.id,
+        operario: lote.operario,
+        fechaEnvio: lote.fechaEnvio,
+        lineas: lineas,
+        estado:
+            lineas.every((l) => !l.enTransito)
+                ? EstadoLote.recibidoCompleto
+                : lineas.any((l) => (l.cantidadRecibida ?? 0) > 0)
+                ? EstadoLote.recibidoParcial
+                : EstadoLote.enTransito,
+      );
     }
     _auditoriaAdmin.add({
       'item_id': k.id,
@@ -349,7 +460,7 @@ class InMemoryWmsRepository implements WmsRepository {
       'anterior': antes[c.id],
       'nuevo': valor,
       'actor': 'Administrador (memoria)',
-      'fecha': DateTime.now().toIso8601String()
+      'fecha': DateTime.now().toIso8601String(),
     });
     _emitir();
     return Ok(resultado);
@@ -417,13 +528,21 @@ class InMemoryWmsRepository implements WmsRepository {
         case TipoMovimiento.recepcion:
           a.recibido += m.cantidad;
           a.fechaRecepcion = _masReciente(a.fechaRecepcion, m.fecha);
-          a.ubicaciones.update(m.ubicacion!, (v) => v + m.cantidad,
-              ifAbsent: () => m.cantidad);
+          a.ubicaciones.update(
+            m.ubicacion!,
+            (v) => v + m.cantidad,
+            ifAbsent: () => m.cantidad,
+          );
         case TipoMovimiento.despacho:
-          if (m.cantidad > 0) a.fechaDespacho = _masReciente(a.fechaDespacho, m.fecha);
+          if (m.cantidad > 0) {
+            a.fechaDespacho = _masReciente(a.fechaDespacho, m.fecha);
+          }
           a.despachado += m.cantidad;
-          a.ubicaciones.update(m.ubicacion!, (v) => v - m.cantidad,
-              ifAbsent: () => -m.cantidad);
+          a.ubicaciones.update(
+            m.ubicacion!,
+            (v) => v - m.cantidad,
+            ifAbsent: () => -m.cantidad,
+          );
         case TipoMovimiento.devolucionProduccion:
           a.producido -= m.cantidad;
           a.pendienteReproceso += m.cantidad;
@@ -431,8 +550,11 @@ class InMemoryWmsRepository implements WmsRepository {
           // históricos del modo memoria conservan su comportamiento original.
           if (m.ubicacion != null) {
             a.recibido -= m.cantidad;
-            a.ubicaciones.update(m.ubicacion!, (v) => v - m.cantidad,
-                ifAbsent: () => -m.cantidad);
+            a.ubicaciones.update(
+              m.ubicacion!,
+              (v) => v - m.cantidad,
+              ifAbsent: () => -m.cantidad,
+            );
           }
         case TipoMovimiento.liberacionNoConforme:
           a.producido += m.cantidad;
@@ -469,9 +591,10 @@ class InMemoryWmsRepository implements WmsRepository {
         for (final e in a.ubicaciones.entries)
           if (e.value > 0) e.key: e.value,
       }),
-      fechaEntrega: _fechasEntregaAdmin.containsKey(item.id)
-          ? _fechasEntregaAdmin[item.id]
-          : a.fechaEntrega,
+      fechaEntrega:
+          _fechasEntregaAdmin.containsKey(item.id)
+              ? _fechasEntregaAdmin[item.id]
+              : a.fechaEntrega,
       fechaEsperadaProduccion: _fechasProduccionAdmin[item.id],
       fechaEsperadaLogistica: _fechasLogisticaAdmin[item.id],
       fechaRecepcion: a.fechaRecepcion,
@@ -510,7 +633,8 @@ class InMemoryWmsRepository implements WmsRepository {
       final item = _items[linea.itemId];
       if (item == null) {
         return Err<Lote>(
-            'Uno de los productos del lote no existe en el kardex.');
+          'Uno de los productos del lote no existe en el kardex.',
+        );
       }
       if (linea.cantidad <= 0) {
         return Err<Lote>('Cantidad inválida en uno de los productos del lote.');
@@ -518,7 +642,8 @@ class InMemoryWmsRepository implements WmsRepository {
       final pendiente = _pendienteProduccion(linea.itemId);
       if (linea.cantidad > pendiente) {
         return Err<Lote>(
-            'LÍMITE EXCEDIDO en uno de los productos: solo faltan $pendiente Uds por producir.');
+          'LÍMITE EXCEDIDO en uno de los productos: solo faltan $pendiente Uds por producir.',
+        );
       }
     }
 
@@ -544,7 +669,8 @@ class InMemoryWmsRepository implements WmsRepository {
   }) async {
     if (recibidoPor.trim().isEmpty) {
       return Err<LoteLinea>(
-          'Debes indicar quién de Logística recibió esta prenda.');
+        'Debes indicar quién de Logística recibió esta prenda.',
+      );
     }
     Lote? loteEncontrado;
     LoteLinea? lineaEncontrada;
@@ -583,9 +709,10 @@ class InMemoryWmsRepository implements WmsRepository {
     final fecha = DateTime.now();
 
     final lineaActualizada = lineaEncontrada.copyWith(
-      estado: completa
-          ? EstadoLineaLote.recibidoConforme
-          : EstadoLineaLote.enTransito,
+      estado:
+          completa
+              ? EstadoLineaLote.recibidoConforme
+              : EstadoLineaLote.enTransito,
       cantidadRecibida: nuevoRecibido,
       ubicacionDestino: ubicacion,
       fechaRecepcion: fecha,
@@ -603,21 +730,24 @@ class InMemoryWmsRepository implements WmsRepository {
       operario: loteEncontrado.operario,
       fechaEnvio: loteEncontrado.fechaEnvio,
       lineas: nuevasLineas,
-      estado: pendientesEnLote == 0
-          ? EstadoLote.recibidoCompleto
-          : EstadoLote.recibidoParcial,
+      estado:
+          pendientesEnLote == 0
+              ? EstadoLote.recibidoCompleto
+              : EstadoLote.recibidoParcial,
     );
 
-    _movimientos.add(Movimiento(
-      tipo: TipoMovimiento.recepcion,
-      itemId: lineaEncontrada.item.id,
-      cantidad: cantidad,
-      fecha: fecha,
-      ubicacion: ubicacion,
-      loteId: loteEncontrado.id,
-      loteLineaId: loteLineaId,
-      nota: nota,
-    ));
+    _movimientos.add(
+      Movimiento(
+        tipo: TipoMovimiento.recepcion,
+        itemId: lineaEncontrada.item.id,
+        cantidad: cantidad,
+        fecha: fecha,
+        ubicacion: ubicacion,
+        loteId: loteEncontrado.id,
+        loteLineaId: loteLineaId,
+        nota: nota,
+      ),
+    );
 
     _emitir();
     return Ok<LoteLinea>(lineaActualizada);
@@ -650,7 +780,8 @@ class InMemoryWmsRepository implements WmsRepository {
     final faltante = lineaEncontrada.cantidadEnviada - recibido;
     if (faltante <= 0) {
       return Err<void>(
-          'Esta línea ya está completa, no hay faltante que cerrar.');
+        'Esta línea ya está completa, no hay faltante que cerrar.',
+      );
     }
 
     var novedad =
@@ -658,7 +789,9 @@ class InMemoryWmsRepository implements WmsRepository {
     if (nota.trim().isNotEmpty) novedad = '$novedad Obs: ${nota.trim()}';
 
     final lineaActualizada = lineaEncontrada.copyWith(
-        estado: EstadoLineaLote.recibidoConNovedad, novedad: novedad);
+      estado: EstadoLineaLote.recibidoConNovedad,
+      novedad: novedad,
+    );
 
     final idxLote = _lotes.indexWhere((l) => l.id == loteEncontrado!.id);
     final nuevasLineas = [
@@ -671,20 +804,23 @@ class InMemoryWmsRepository implements WmsRepository {
       operario: loteEncontrado.operario,
       fechaEnvio: loteEncontrado.fechaEnvio,
       lineas: nuevasLineas,
-      estado: pendientesEnLote == 0
-          ? EstadoLote.recibidoCompleto
-          : EstadoLote.recibidoParcial,
+      estado:
+          pendientesEnLote == 0
+              ? EstadoLote.recibidoCompleto
+              : EstadoLote.recibidoParcial,
     );
 
-    _movimientos.add(Movimiento(
-      tipo: TipoMovimiento.ajusteFaltanteEntrega,
-      itemId: lineaEncontrada.item.id,
-      cantidad: faltante,
-      fecha: DateTime.now(),
-      loteId: loteEncontrado.id,
-      loteLineaId: loteLineaId,
-      nota: novedad,
-    ));
+    _movimientos.add(
+      Movimiento(
+        tipo: TipoMovimiento.ajusteFaltanteEntrega,
+        itemId: lineaEncontrada.item.id,
+        cantidad: faltante,
+        fecha: DateTime.now(),
+        loteId: loteEncontrado.id,
+        loteLineaId: loteLineaId,
+        nota: novedad,
+      ),
+    );
 
     _emitir();
     return const Ok<void>(null);
@@ -719,8 +855,10 @@ class InMemoryWmsRepository implements WmsRepository {
   }
 
   @override
-  Future<Result<void>> resolverSobrante(
-      {required String id, required String resolucion}) async {
+  Future<Result<void>> resolverSobrante({
+    required String id,
+    required String resolucion,
+  }) async {
     if (resolucion.trim().isEmpty) {
       return Err<void>('Debes indicar qué se decidió hacer con este sobrante.');
     }
@@ -764,7 +902,8 @@ class InMemoryWmsRepository implements WmsRepository {
     final stock = kardex.stockEn(ubicacion);
     if (cantidad > stock) {
       return Err<void>(
-          'Stock insuficiente en $ubicacion (disponible: $stock).');
+        'Stock insuficiente en $ubicacion (disponible: $stock).',
+      );
     }
     if (cantidad > kardex.pendienteDespacho) {
       return Err<void>(
@@ -779,9 +918,9 @@ class InMemoryWmsRepository implements WmsRepository {
 
   @override
   Future<List<Causal>> cargarCausales() async => [
-        for (final nombre in WmsConstantes.causales)
-          Causal(id: nombre, nombre: nombre),
-      ];
+    for (final nombre in WmsConstantes.causales)
+      Causal(id: nombre, nombre: nombre),
+  ];
 
   @override
   Future<List<String>> cargarPersonalLogistica() async =>
@@ -845,7 +984,8 @@ class InMemoryWmsRepository implements WmsRepository {
   }) async {
     if (personaAliadoEntrega.trim().isEmpty) {
       return Err<void>(
-          'Debes indicar a quién de Aliados se le entrega esta prenda.');
+        'Debes indicar a quién de Aliados se le entrega esta prenda.',
+      );
     }
     final item = _items[itemId];
     if (item == null) return Err<void>('El producto no existe en el kardex.');
@@ -853,7 +993,8 @@ class InMemoryWmsRepository implements WmsRepository {
     final producido = _snapshot().kardexPorId(itemId)?.producido ?? 0;
     if (cantidad > producido) {
       return Err<void>(
-          'LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.');
+        'LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.',
+      );
     }
 
     _noConformesAliados.insert(
@@ -870,13 +1011,15 @@ class InMemoryWmsRepository implements WmsRepository {
         notaSolicitud: nota,
       ),
     );
-    _movimientos.add(Movimiento(
-      tipo: TipoMovimiento.envioAliado,
-      itemId: item.id,
-      cantidad: cantidad,
-      fecha: DateTime.now(),
-      nota: nota,
-    ));
+    _movimientos.add(
+      Movimiento(
+        tipo: TipoMovimiento.envioAliado,
+        itemId: item.id,
+        cantidad: cantidad,
+        fecha: DateTime.now(),
+        nota: nota,
+      ),
+    );
     _emitir();
     return const Ok<void>(null);
   }
@@ -901,7 +1044,8 @@ class InMemoryWmsRepository implements WmsRepository {
     }
     if (cantidad > actual.cantidadPendiente) {
       return Err<void>(
-          'LÍMITE EXCEDIDO: solo quedan ${actual.cantidadPendiente} Uds pendientes por liberar de esta solicitud.');
+        'LÍMITE EXCEDIDO: solo quedan ${actual.cantidadPendiente} Uds pendientes por liberar de esta solicitud.',
+      );
     }
 
     final nuevaLiberada = actual.cantidadLiberada + cantidad;
@@ -935,13 +1079,15 @@ class InMemoryWmsRepository implements WmsRepository {
         cantidadTotalSolicitud: actual.cantidad,
       ),
     );
-    _movimientos.add(Movimiento(
-      tipo: TipoMovimiento.liberacionAliado,
-      itemId: actual.item.id,
-      cantidad: cantidad,
-      fecha: fecha,
-      nota: nota,
-    ));
+    _movimientos.add(
+      Movimiento(
+        tipo: TipoMovimiento.liberacionAliado,
+        itemId: actual.item.id,
+        cantidad: cantidad,
+        fecha: fecha,
+        nota: nota,
+      ),
+    );
     _emitir();
     return const Ok<void>(null);
   }
@@ -968,12 +1114,14 @@ class InMemoryWmsRepository implements WmsRepository {
     if (cantidad <= 0) return Err<void>('La cantidad debe ser mayor a 0.');
     if (recibidoDeProduccion.trim().isEmpty) {
       return Err<void>(
-          'Debes indicar quién de Producción entregó esta prenda.');
+        'Debes indicar quién de Producción entregó esta prenda.',
+      );
     }
     final producido = _snapshot().kardexPorId(itemId)?.producido ?? 0;
     if (cantidad > producido) {
       return Err<void>(
-          'LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.');
+        'LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.',
+      );
     }
 
     final fecha = DateTime.now();
@@ -990,13 +1138,15 @@ class InMemoryWmsRepository implements WmsRepository {
         recibidoDeProduccion: recibidoDeProduccion.trim(),
       ),
     );
-    _movimientos.add(Movimiento(
-      tipo: TipoMovimiento.devolucionProduccion,
-      itemId: item.id,
-      cantidad: cantidad,
-      fecha: fecha,
-      nota: '$causalId${nota.trim().isEmpty ? '' : ' - ${nota.trim()}'}',
-    ));
+    _movimientos.add(
+      Movimiento(
+        tipo: TipoMovimiento.devolucionProduccion,
+        itemId: item.id,
+        cantidad: cantidad,
+        fecha: fecha,
+        nota: '$causalId${nota.trim().isEmpty ? '' : ' - ${nota.trim()}'}',
+      ),
+    );
     _emitir();
     return const Ok<void>(null);
   }
@@ -1023,7 +1173,8 @@ class InMemoryWmsRepository implements WmsRepository {
         _snapshot().kardexPorId(itemId)?.pendienteReproceso ?? 0;
     if (cantidad > pendienteReproceso) {
       return Err<void>(
-          'LÍMITE EXCEDIDO: solo hay $pendienteReproceso Uds pendientes por reprocesar.');
+        'LÍMITE EXCEDIDO: solo hay $pendienteReproceso Uds pendientes por reprocesar.',
+      );
     }
 
     final fecha = DateTime.now();
@@ -1044,26 +1195,26 @@ class InMemoryWmsRepository implements WmsRepository {
     // reciba explícitamente por "Recibir lote", marcado como reproceso.
     final numero = _proximoNumero();
     final linea = LoteLinea(
-        id: _nuevoIdLinea(),
-        item: item,
-        cantidadEnviada: cantidad,
-        esReproceso: true);
+      id: _nuevoIdLinea(),
+      item: item,
+      cantidadEnviada: cantidad,
+      esReproceso: true,
+    );
     _lotes.insert(
-        0,
-        Lote(
-            id: numero,
-            operario: operario,
-            fechaEnvio: fecha,
-            lineas: [linea]));
+      0,
+      Lote(id: numero, operario: operario, fechaEnvio: fecha, lineas: [linea]),
+    );
 
-    _movimientos.add(Movimiento(
-      tipo: TipoMovimiento.liberacionNoConforme,
-      itemId: item.id,
-      cantidad: cantidad,
-      fecha: fecha,
-      loteId: numero,
-      nota: nota,
-    ));
+    _movimientos.add(
+      Movimiento(
+        tipo: TipoMovimiento.liberacionNoConforme,
+        itemId: item.id,
+        cantidad: cantidad,
+        fecha: fecha,
+        loteId: numero,
+        nota: nota,
+      ),
+    );
     _emitir();
     return const Ok<void>(null);
   }
@@ -1078,34 +1229,56 @@ class InMemoryWmsRepository implements WmsRepository {
   int _correlativoLinea = 0;
   String _nuevoIdLinea() => 'LI-${_correlativoLinea++}';
 
-  Lote _aplicarEntregaLote(List<ItemCantidad> items, String operario,
-      String numero, DateTime fecha) {
+  Lote _aplicarEntregaLote(
+    List<ItemCantidad> items,
+    String operario,
+    String numero,
+    DateTime fecha,
+  ) {
     final lineas = <LoteLinea>[];
     for (final linea in items) {
       final item = _items[linea.itemId]!;
-      lineas.add(LoteLinea(
-          id: _nuevoIdLinea(), item: item, cantidadEnviada: linea.cantidad));
-      _movimientos.add(Movimiento(
-        tipo: TipoMovimiento.entregaProduccion,
-        itemId: item.id,
-        cantidad: linea.cantidad,
-        fecha: fecha,
-        loteId: numero,
-      ));
+      lineas.add(
+        LoteLinea(
+          id: _nuevoIdLinea(),
+          item: item,
+          cantidadEnviada: linea.cantidad,
+        ),
+      );
+      _movimientos.add(
+        Movimiento(
+          tipo: TipoMovimiento.entregaProduccion,
+          itemId: item.id,
+          cantidad: linea.cantidad,
+          fecha: fecha,
+          loteId: numero,
+        ),
+      );
     }
-    final lote =
-        Lote(id: numero, operario: operario, fechaEnvio: fecha, lineas: lineas);
+    final lote = Lote(
+      id: numero,
+      operario: operario,
+      fechaEnvio: fecha,
+      lineas: lineas,
+    );
     _lotes.insert(0, lote);
     return lote;
   }
 
-  LoteLinea _aplicarRecepcionLinea(Lote lote, LoteLinea linea, int cantidad,
-      String ubicacion, String novedad, DateTime fecha,
-      {String recibidoPor = ''}) {
+  LoteLinea _aplicarRecepcionLinea(
+    Lote lote,
+    LoteLinea linea,
+    int cantidad,
+    String ubicacion,
+    String novedad,
+    DateTime fecha, {
+    String recibidoPor = '',
+  }) {
     final lineaActualizada = linea.copyWith(
-      estado: novedad.isEmpty
-          ? EstadoLineaLote.recibidoConforme
-          : EstadoLineaLote.recibidoConNovedad,
+      estado:
+          novedad.isEmpty
+              ? EstadoLineaLote.recibidoConforme
+              : EstadoLineaLote.recibidoConNovedad,
       cantidadRecibida: cantidad,
       ubicacionDestino: ubicacion,
       novedad: novedad,
@@ -1124,35 +1297,44 @@ class InMemoryWmsRepository implements WmsRepository {
       operario: lote.operario,
       fechaEnvio: lote.fechaEnvio,
       lineas: nuevasLineas,
-      estado: pendientes == 0
-          ? EstadoLote.recibidoCompleto
-          : EstadoLote.recibidoParcial,
+      estado:
+          pendientes == 0
+              ? EstadoLote.recibidoCompleto
+              : EstadoLote.recibidoParcial,
     );
 
     if (cantidad > 0) {
-      _movimientos.add(Movimiento(
-        tipo: TipoMovimiento.recepcion,
-        itemId: linea.item.id,
-        cantidad: cantidad,
-        fecha: fecha,
-        ubicacion: ubicacion,
-        loteId: lote.id,
-        loteLineaId: linea.id,
-        nota: novedad,
-      ));
+      _movimientos.add(
+        Movimiento(
+          tipo: TipoMovimiento.recepcion,
+          itemId: linea.item.id,
+          cantidad: cantidad,
+          fecha: fecha,
+          ubicacion: ubicacion,
+          loteId: lote.id,
+          loteLineaId: linea.id,
+          nota: novedad,
+        ),
+      );
     }
     return lineaActualizada;
   }
 
   void _aplicarDespacho(
-      ItemOrden item, int cantidad, String ubicacion, DateTime fecha) {
-    _movimientos.add(Movimiento(
-      tipo: TipoMovimiento.despacho,
-      itemId: item.id,
-      cantidad: cantidad,
-      fecha: fecha,
-      ubicacion: ubicacion,
-    ));
+    ItemOrden item,
+    int cantidad,
+    String ubicacion,
+    DateTime fecha,
+  ) {
+    _movimientos.add(
+      Movimiento(
+        tipo: TipoMovimiento.despacho,
+        itemId: item.id,
+        cantidad: cantidad,
+        fecha: fecha,
+        ubicacion: ubicacion,
+      ),
+    );
   }
 
   // ---------------------------------------------------------------- datos demo
@@ -1226,8 +1408,14 @@ class InMemoryWmsRepository implements WmsRepository {
       'LOTE-095',
       DateTime(2026, 8, 15, 10),
     );
-    _aplicarRecepcionLinea(lote095, lote095.lineas.first, 160, 'ESTANTE A1', '',
-        DateTime(2026, 8, 16, 11, 20));
+    _aplicarRecepcionLinea(
+      lote095,
+      lote095.lineas.first,
+      160,
+      'ESTANTE A1',
+      '',
+      DateTime(2026, 8, 16, 11, 20),
+    );
     _aplicarDespacho(blusa, 160, 'ESTANTE A1', DateTime(2026, 8, 16, 15));
 
     // ENEL M + ENEL S (100 producidas de golpe): un lote con 2 productos,
@@ -1235,7 +1423,7 @@ class InMemoryWmsRepository implements WmsRepository {
     final lote096 = _aplicarEntregaLote(
       [
         ItemCantidad(itemId: m.id, cantidad: 841),
-        ItemCantidad(itemId: s.id, cantidad: 50)
+        ItemCantidad(itemId: s.id, cantidad: 50),
       ],
       op,
       'LOTE-096',
@@ -1258,8 +1446,12 @@ class InMemoryWmsRepository implements WmsRepository {
       DateTime(2026, 8, 17, 19, 15),
     );
     _aplicarDespacho(s, 20, 'ESTANTE A1', DateTime(2026, 8, 17, 20));
-    _aplicarEntregaLote([ItemCantidad(itemId: s.id, cantidad: 50)], op,
-        'LOTE-102', DateTime(2026, 8, 18, 9));
+    _aplicarEntregaLote(
+      [ItemCantidad(itemId: s.id, cantidad: 50)],
+      op,
+      'LOTE-102',
+      DateTime(2026, 8, 18, 9),
+    );
 
     // ENEL XS: 9 producidas (5 recibidas + 4 en tránsito).
     final lote098 = _aplicarEntregaLote(
@@ -1268,13 +1460,27 @@ class InMemoryWmsRepository implements WmsRepository {
       'LOTE-098',
       DateTime(2026, 8, 17, 17, 30),
     );
-    _aplicarRecepcionLinea(lote098, lote098.lineas.first, 5, 'ESTANTE A1', '',
-        DateTime(2026, 8, 17, 18, 30));
-    _aplicarEntregaLote([ItemCantidad(itemId: xs.id, cantidad: 4)], op,
-        'LOTE-101', DateTime(2026, 8, 17, 18, 30));
+    _aplicarRecepcionLinea(
+      lote098,
+      lote098.lineas.first,
+      5,
+      'ESTANTE A1',
+      '',
+      DateTime(2026, 8, 17, 18, 30),
+    );
+    _aplicarEntregaLote(
+      [ItemCantidad(itemId: xs.id, cantidad: 4)],
+      op,
+      'LOTE-101',
+      DateTime(2026, 8, 17, 18, 30),
+    );
 
     // COLSUBSIDIO: 20 producidas, en tránsito.
-    _aplicarEntregaLote([ItemCantidad(itemId: bata.id, cantidad: 20)], op,
-        'LOTE-103', DateTime(2026, 8, 20, 8));
+    _aplicarEntregaLote(
+      [ItemCantidad(itemId: bata.id, cantidad: 20)],
+      op,
+      'LOTE-103',
+      DateTime(2026, 8, 20, 8),
+    );
   }
 }

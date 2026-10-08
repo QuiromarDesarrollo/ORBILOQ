@@ -21,7 +21,7 @@ export function crearHandler(api) {
       if (!datos || typeof datos !== 'object') return respuesta(400, { error: 'Solicitud invalida.' });
       const { numero, nombre, rol, contrasena } = datos;
       if (typeof numero !== 'string' || !/^\d{1,30}$/.test(numero) || typeof nombre !== 'string' || !nombre.trim() || nombre.trim().length > 150 ||
-          !['admin', 'produccion', 'logistica'].includes(rol) || typeof contrasena !== 'string' || contrasena.length < 12 || contrasena.length > 128) {
+          !['admin', 'produccion', 'logistica', 'despacho', 'seguimiento', 'gerencia'].includes(rol) || typeof contrasena !== 'string' || contrasena.length < 12 || contrasena.length > 128) {
         return respuesta(400, { error: 'Completa numero, nombre, rol y una contraseña de 12 a 128 caracteres.' });
       }
       if (await api.existeNumero(numero)) return respuesta(409, { error: 'El numero de usuario ya existe. Edita la cuenta existente.' });

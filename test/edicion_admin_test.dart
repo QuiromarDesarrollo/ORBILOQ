@@ -9,10 +9,26 @@ import 'package:orbiloq_wms/domain/edicion_admin.dart';
 import 'package:orbiloq_wms/domain/models.dart';
 import 'package:orbiloq_wms/domain/sesion.dart';
 import 'package:orbiloq_wms/features/kardex/presentation/kardex_table.dart';
+import 'package:orbiloq_wms/features/kardex/presentation/edicion_admin_dialog.dart';
 
 const itemId = '19249|ORD-001-ENE|2025289515|S';
 
 void main() {
+  test('anular envío no recibido elimina el pendiente y la revisión no escribe', () async {
+    final r = InMemoryWmsRepository.seeded();
+    addTearDown(r.dispose);
+    final inicial = (await r.watch().first).kardex.firstWhere((k) => k.pendienteProduccion >= 37);
+    expect(await r.crearLote(items: [ItemCantidad(itemId: inicial.id, cantidad: 37)], operario: 'TEST'), isA<Ok>());
+    final c = CambioAdmin(itemId: inicial.id, campo: CampoAdmin.producido, valor: inicial.producido,
+      motivo: 'Error de digitación', version: (await r.cargarEdicionAdmin(inicial.id)).version);
+    expect(await r.editarAdmin(c, confirmar: false), isA<Ok>());
+    expect((await r.watch().first).kardexPorId(inicial.id)!.producido, inicial.producido + 37);
+    expect(await r.editarAdmin(c, confirmar: true), isA<Ok>());
+    final snapshot = await r.watch().first;
+    expect(snapshot.kardexPorId(inicial.id)!.pendienteProduccion, inicial.pendienteProduccion);
+    final lineas = snapshot.lotes.firstWhere((l) => l.operario == 'TEST').lineas;
+    expect(lineas.every((l) => !l.enTransito && l.cantidadPendiente == 0), isTrue);
+  });
   late InMemoryWmsRepository repo;
   setUp(() => repo = InMemoryWmsRepository.seeded());
   tearDown(() => repo.dispose());
@@ -28,6 +44,52 @@ void main() {
           version: (await repo.cargarEdicionAdmin(itemId)).version,
           loteId: lote,
           ubicacionId: ubicacion);
+
+  testWidgets('recepción edita saldo de bodega y muestra despachadas separadas', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final k = await fila();
+    expect(k.despachado, greaterThan(0));
+    await tester.pumpWidget(ProviderScope(overrides: [
+      usarSupabaseProvider.overrideWithValue(false),
+      wmsRepositoryProvider.overrideWithValue(repo),
+    ], child: MaterialApp(home: Scaffold(body: EdicionAdminDialog(item: k, campo: CampoAdmin.recibido)))));
+    await tester.pumpAndSettle();
+    expect(find.text('Valor actual: ${k.stockDisponible}'), findsOneWidget);
+    final campo = find.widgetWithText(TextField, 'Nuevo saldo en bodega');
+    expect(tester.widget<TextField>(campo).controller!.text, '${k.stockDisponible}');
+    await tester.enterText(campo, '-1');
+    await tester.ensureVisible(find.text('Revisar cambios'));
+    await tester.tap(find.text('Revisar cambios'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('El saldo en bodega no puede ser negativo'), findsOneWidget);
+    expect((await fila()).despachado, k.despachado);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('reparte recepción entre lotes y valida toda la suma antes de escribir', () async {
+    final antes = await fila();
+    final ids = <String>[];
+    for (final n in [4, 6, 2]) {
+      expect(await repo.crearLote(items: [ItemCantidad(itemId: itemId, cantidad: n)], operario: 'TEST'), isA<Ok>());
+      ids.add((await repo.watch().first).lotes.first.lineas.single.id);
+    }
+    final ctx = await repo.cargarEdicionAdmin(itemId);
+    CambioAdmin plan(Map<String,int> cantidades) => CambioAdmin(itemId: itemId, campo: CampoAdmin.recibido,
+      valor: antes.recibido + 12, motivo: 'Distribución', version: ctx.version,
+      ubicacionId: 'ESTANTE A1', recepciones: cantidades);
+    expect(await repo.editarAdmin(plan({ids[0]: 4, ids[1]: 7, ids[2]: 1}), confirmar: true), isA<Err>());
+    expect((await fila()).recibido, antes.recibido);
+    final c = plan({ids[0]: 4, ids[1]: 6, ids[2]: 2});
+    expect(await repo.editarAdmin(c, confirmar: false), isA<Ok>());
+    expect((await fila()).recibido, antes.recibido);
+    expect(await repo.editarAdmin(c, confirmar: true), isA<Ok>());
+    expect((await fila()).recibido, antes.recibido + 12);
+    expect((await fila()).stockEn('ESTANTE A1'), antes.stockEn('ESTANTE A1') + 12);
+    expect(await repo.editarAdmin(c, confirmar: true), isA<Err>());
+  });
 
   test('aumentar cantidad recalcula pendientes sin inventar movimientos',
       () async {
@@ -52,10 +114,10 @@ void main() {
     expect((await repo.cargarEdicionAdmin(itemId)).historial.length, 1);
   });
 
-  test('corrige el total incluso a cero sin cambiar lotes ni stock', () async {
+  test('corrige el total y reduce pendientes sin cambiar recepciones ni stock', () async {
     final antes = await fila();
     final lotesAntes = (await repo.cargarEdicionAdmin(itemId)).lotes;
-    for (final total in [10, 2, 0, 20]) {
+    for (final total in [antes.recibido + 1, antes.recibido, antes.recibido + 2]) {
       expect(
           await repo.editarAdmin(await cambio(CampoAdmin.producido, total),
               confirmar: true),
@@ -66,7 +128,24 @@ void main() {
       expect(actual.recibido, antes.recibido);
       expect(actual.despachado, antes.despachado);
       expect(actual.ubicaciones, antes.ubicaciones);
-      expect((await repo.cargarEdicionAdmin(itemId)).lotes, lotesAntes);
+      final lotesDespues = (await repo.cargarEdicionAdmin(itemId)).lotes;
+      expect(lotesDespues.map((l) => l['recibida']).toList(), lotesAntes.map((l) => l['recibida']).toList());
+      expect(lotesDespues.fold<int>(0, (s, l) => s + (l['enviada'] as int) - (l['recibida'] as int)), lessThanOrEqualTo(total - antes.recibido));
+    }
+  });
+  test('bloquea entrega inferior a recepcion en revisión y confirmación sin escribir', () async {
+    final antes = await fila();
+    expect(antes.recibido, greaterThan(0));
+    final contexto = await repo.cargarEdicionAdmin(itemId);
+    for (final confirmar in [false, true]) {
+      final resultado = await repo.editarAdmin(
+        await cambio(CampoAdmin.producido, antes.recibido - 1), confirmar: confirmar);
+      expect(resultado, isA<Err>());
+      expect((await fila()).producido, antes.producido);
+      expect((await fila()).recibido, antes.recibido);
+      expect((await fila()).despachado, antes.despachado);
+      expect((await repo.cargarEdicionAdmin(itemId)).version, contexto.version);
+      expect((await repo.cargarEdicionAdmin(itemId)).historial, contexto.historial);
     }
   });
   test('un cambio inválido no deja escritura parcial', () async {
@@ -181,7 +260,7 @@ void main() {
         }
         await tester.pumpAndSettle();
         expect(
-            find.byIcon(Icons.edit_outlined),
+            find.byTooltip('Editar fila'),
             cuenta == RolCuenta.admin
                 ? findsNWidgets(
                     container.read(kardexPaginaActualProvider).length)
@@ -215,6 +294,10 @@ void main() {
             home:
                 Scaffold(body: SingleChildScrollView(child: KardexTable())))));
     await tester.pumpAndSettle();
+    final filaEditada = ProviderScope.containerOf(tester.element(find.byType(KardexTable)))
+        .read(kardexPaginaActualProvider).first;
+    final objetivo = filaEditada.producido < filaEditada.cantidadPedida
+        ? filaEditada.producido + 1 : filaEditada.recibido;
     await tester.tap(find.byTooltip('Editar fila').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<CampoAdmin>));
@@ -225,7 +308,7 @@ void main() {
     expect(find.text('Lote al que corresponde la diferencia'), findsNothing);
     final antes =
         (await repo.watch().first).kardex.map((k) => k.producido).toList();
-    await tester.enterText(find.byType(TextField).first, '2');
+    await tester.enterText(find.byType(TextField).first, '$objetivo');
     await tester.enterText(
         find.byType(TextField).last, 'Corrección verificada por administrador');
     await tester.tap(find.text('Revisar cambios'));
@@ -237,7 +320,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Confirmar y guardar'), findsNothing);
     expect(
-        (await repo.watch().first).kardex.any((k) => k.producido == 2), isTrue);
+        (await repo.watch().first).kardexPorId(filaEditada.id)!.producido, objetivo);
     expect(tester.takeException(), isNull);
   });
   test(
@@ -301,3 +384,5 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+
+

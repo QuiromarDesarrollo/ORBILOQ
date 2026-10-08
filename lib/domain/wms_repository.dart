@@ -5,6 +5,8 @@ import 'edicion_admin.dart';
 /// Contrato de datos. Las reglas de negocio (límites, stock) deben aplicarse
 /// dentro de cada implementación; en Supabase, mediante funciones RPC transaccionales.
 abstract interface class WmsRepository {
+  /// Recepciones individuales, con su fecha real, sin acumular por lote.
+  Future<List<Movimiento>> cargarRecepciones();
   Future<List<String>> cargarUbicaciones();
   Future<Result<void>> eliminarLineaAdmin(
     String itemId,

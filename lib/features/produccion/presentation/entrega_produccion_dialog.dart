@@ -680,8 +680,9 @@ class _HistorialTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const <Lote>[];
     final registros = [for (final lote in lotes) for (final linea in lote.lineas)  (lote: lote, linea: linea)];
-    return HistorialAgrupado(grupos: agruparHistorial(registros, (e) => e.linea.item,
+    return HistorialAgrupado(etiquetaTotal: 'Prendas entregadas', grupos: agruparHistorial(registros, (e) => e.linea.item,
       (e) => EventoHistorial(id: e.linea.id, fecha: e.lote.fechaEnvio, cantidad: e.linea.cantidadEnviada,
+        cantidadRecibida: e.linea.cantidadRecibida ?? 0,
         titulo: 'Entrega · ${e.linea.cantidadEnviada} Uds · ${e.linea.estado.etiqueta}',
         detalle: 'Lote: ${e.lote.id} | Operario: ${e.lote.operario}\n'
           'Enviadas: ${e.linea.cantidadEnviada} Uds | Recibidas: ${e.linea.cantidadRecibida ?? 0} Uds | Estante: ${e.linea.ubicacionDestino ?? '—'}\n'

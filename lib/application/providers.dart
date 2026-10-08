@@ -16,18 +16,22 @@ import 'kardex_filters.dart';
 
 /// Debe sobrescribirse en `main.dart` (o en tests) con la implementación deseada.
 final wmsRepositoryProvider = Provider<WmsRepository>(
-  (ref) => throw UnimplementedError(
-      'Sobrescribe wmsRepositoryProvider en main.dart'),
+  (ref) =>
+      throw UnimplementedError(
+        'Sobrescribe wmsRepositoryProvider en main.dart',
+      ),
 );
 
 /// Solo disponible cuando la app corre contra Supabase; `null` en modo memoria
 /// (la importación de Excel no tiene sentido sin una base de datos real detrás).
-final importadorOrdenesProvider =
-    Provider<SupabaseImportadorOrdenes?>((ref) => null);
+final importadorOrdenesProvider = Provider<SupabaseImportadorOrdenes?>(
+  (ref) => null,
+);
 
 /// Igual, para el Excel de fechas esperadas.
-final importadorFechasProvider =
-    Provider<SupabaseImportadorFechas?>((ref) => null);
+final importadorFechasProvider = Provider<SupabaseImportadorFechas?>(
+  (ref) => null,
+);
 
 final wmsSnapshotProvider = StreamProvider<WmsSnapshot>(
   (ref) => ref.watch(wmsRepositoryProvider).watch(),
@@ -38,39 +42,31 @@ final kardexProvider = Provider<List<ItemKardex>>(
 );
 
 /// Causales disponibles para reportar un producto como no conforme.
-final causalesProvider = FutureProvider<List<Causal>>(
-  (ref) {
-    ref.watch(catalogosRevisionProvider);
-    return ref.watch(wmsRepositoryProvider).cargarCausales();
-  },
-);
+final causalesProvider = FutureProvider<List<Causal>>((ref) {
+  ref.watch(catalogosRevisionProvider);
+  return ref.watch(wmsRepositoryProvider).cargarCausales();
+});
 
 /// Lista ampliable de personas de Logística que pueden recibir una prenda
 /// liberada por Producción. Se invalida tras agregar un nombre nuevo.
-final personalLogisticaProvider = FutureProvider<List<String>>(
-  (ref) {
-    ref.watch(catalogosRevisionProvider);
-    return ref.watch(wmsRepositoryProvider).cargarPersonalLogistica();
-  },
-);
+final personalLogisticaProvider = FutureProvider<List<String>>((ref) {
+  ref.watch(catalogosRevisionProvider);
+  return ref.watch(wmsRepositoryProvider).cargarPersonalLogistica();
+});
 
 /// Lista ampliable de personas de Producción que pueden entregar una prenda
 /// no conforme a Logística. Se invalida tras agregar un nombre nuevo.
-final personalProduccionProvider = FutureProvider<List<String>>(
-  (ref) {
-    ref.watch(catalogosRevisionProvider);
-    return ref.watch(wmsRepositoryProvider).cargarPersonalProduccion();
-  },
-);
+final personalProduccionProvider = FutureProvider<List<String>>((ref) {
+  ref.watch(catalogosRevisionProvider);
+  return ref.watch(wmsRepositoryProvider).cargarPersonalProduccion();
+});
 
 /// Lista ampliable de personas de Aliados (a quién se entrega / quién libera
 /// un producto no conforme enviado a un taller externo).
-final personalAliadosProvider = FutureProvider<List<String>>(
-  (ref) {
-    ref.watch(catalogosRevisionProvider);
-    return ref.watch(wmsRepositoryProvider).cargarPersonalAliados();
-  },
-);
+final personalAliadosProvider = FutureProvider<List<String>>((ref) {
+  ref.watch(catalogosRevisionProvider);
+  return ref.watch(wmsRepositoryProvider).cargarPersonalAliados();
+});
 
 /// Todas las solicitudes de Producto No Conforme a Aliados (pendientes e
 /// historial), más recientes primero.
@@ -129,7 +125,8 @@ class RolNotifier extends Notifier<Rol> {
     return switch (sesion.rolCuenta) {
       RolCuenta.produccion => Rol.produccion,
       RolCuenta.logistica => Rol.logistica,
-      RolCuenta.admin =>
+      RolCuenta.despacho || RolCuenta.seguimiento => Rol.despacho,
+      RolCuenta.admin || RolCuenta.gerencia =>
         Rol.produccion, // el admin arranca en Producción y puede cambiar
     };
   }
@@ -151,19 +148,29 @@ class RolNotifier extends Notifier<Rol> {
 final rolProvider = NotifierProvider<RolNotifier, Rol>(RolNotifier.new);
 
 /// El mapa de "columna -> valor" que le corresponde a la vista actual.
-final extractoresColumnaProvider =
-    Provider<Map<String, ExtractorColumna>>((ref) {
+final extractoresColumnaProvider = Provider<Map<String, ExtractorColumna>>((
+  ref,
+) {
   final rol = ref.watch(rolProvider);
-  return rol == Rol.produccion ? columnasProduccion : columnasBodega;
+  return switch (rol) {
+    Rol.produccion => columnasProduccion,
+    Rol.logistica => columnasBodega,
+    Rol.despacho => columnasDespacho,
+  };
 });
 
 // --------------------------------------------------------------- filtros
 
 class KardexFiltersNotifier extends Notifier<KardexFilters> {
   @override
-  KardexFilters build() => const KardexFilters();
+  KardexFilters build() {
+    ref.watch(rolProvider);
+    return const KardexFilters();
+  }
 
   void setBusqueda(String v) => state = state.conBusqueda(v);
+  void setFechas(DateTime? desde, DateTime? hasta) =>
+      state = state.conFechas(desde, hasta);
   void setColumna(String columna, Set<String> valores) =>
       state = state.conColumna(columna, valores);
   void limpiar() => state = const KardexFilters();
@@ -171,7 +178,8 @@ class KardexFiltersNotifier extends Notifier<KardexFilters> {
 
 final kardexFiltersProvider =
     NotifierProvider<KardexFiltersNotifier, KardexFilters>(
-        KardexFiltersNotifier.new);
+      KardexFiltersNotifier.new,
+    );
 
 final kardexFiltradoProvider = Provider<List<ItemKardex>>((ref) {
   final kardex = ref
@@ -180,9 +188,10 @@ final kardexFiltradoProvider = Provider<List<ItemKardex>>((ref) {
       .toList(growable: false);
   final filtros = ref.watch(kardexFiltersProvider);
   final extractores = ref.watch(extractoresColumnaProvider);
+  final rol = ref.watch(rolProvider);
   if (!filtros.hayFiltros) return kardex;
   return kardex
-      .where((i) => filtros.aplica(i, extractores))
+      .where((i) => filtros.aplica(i, extractores, rol: rol))
       .toList(growable: false);
 });
 
@@ -192,6 +201,7 @@ final kardexResumenProvider = Provider<KardexResumen>((ref) {
 });
 
 final opcionesFiltroProvider = Provider<OpcionesFiltro>((ref) {
+  final rol = ref.watch(rolProvider);
   final kardex = ref.watch(kardexProvider).where((i) => !i.eliminada).toList();
   final filtros = ref.watch(kardexFiltersProvider);
   final extractores = ref.watch(extractoresColumnaProvider);
@@ -200,9 +210,13 @@ final opcionesFiltroProvider = Provider<OpcionesFiltro>((ref) {
     // Cada lista depende de la búsqueda y de las OTRAS columnas. Se omite
     // su propia selección para permitir añadir valores a un filtro múltiple.
     final otros = filtros.conColumna(entry.key, {});
-    porColumna[entry.key] = (kardex
-        .where((i) => otros.aplica(i, extractores))
-        .map(entry.value).toSet().toList()..sort());
+    porColumna[entry.key] =
+        (kardex
+            .where((i) => otros.aplica(i, extractores, rol: rol))
+            .map(entry.value)
+            .toSet()
+            .toList()
+          ..sort());
   }
   return OpcionesFiltro(porColumna);
 });
@@ -223,8 +237,9 @@ class KardexPaginaNotifier extends Notifier<int> {
   void ir(int pagina) => state = pagina;
 }
 
-final kardexPaginaProvider =
-    NotifierProvider<KardexPaginaNotifier, int>(KardexPaginaNotifier.new);
+final kardexPaginaProvider = NotifierProvider<KardexPaginaNotifier, int>(
+  KardexPaginaNotifier.new,
+);
 
 final kardexPaginaActualProvider = Provider<List<ItemKardex>>((ref) {
   final filtrado = ref.watch(kardexFiltradoProvider);
@@ -235,12 +250,14 @@ final kardexPaginaActualProvider = Provider<List<ItemKardex>>((ref) {
   return filtrado.sublist(desde, hasta);
 });
 
-final importadorKardexProvider =
-    Provider<SupabaseImportadorKardex?>((ref) => null);
+final importadorKardexProvider = Provider<SupabaseImportadorKardex?>(
+  (ref) => null,
+);
 
 final catalogosAdminProvider = Provider<CatalogosRepository?>((ref) => null);
-final catalogosRevisionProvider =
-    StreamProvider<int>((ref) => const Stream.empty());
+final catalogosRevisionProvider = StreamProvider<int>(
+  (ref) => const Stream.empty(),
+);
 final ubicacionesProvider = FutureProvider<List<String>>((ref) {
   ref.watch(catalogosRevisionProvider);
   return ref.watch(wmsRepositoryProvider).cargarUbicaciones();
@@ -249,13 +266,15 @@ final ubicacionesProvider = FutureProvider<List<String>>((ref) {
 /// Historial de liberaciones internas; se actualiza al cambiar los movimientos.
 final liberacionesProduccionProvider =
     FutureProvider.autoDispose<List<Liberacion>>((ref) {
-  ref.watch(wmsSnapshotProvider);
-  return ref.watch(wmsRepositoryProvider).cargarLiberaciones();
-});
+      ref.watch(wmsSnapshotProvider);
+      return ref.watch(wmsRepositoryProvider).cargarLiberaciones();
+    });
 
 final reportesAdminProvider = Provider<ReportesAdminRepository?>((ref) => null);
 
 final despachosOcProvider = Provider<DespachosOcRepository?>((ref) => null);
 final historialDespachosProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>(
-        (ref) async => await ref.watch(despachosOcProvider)?.historial() ?? []);
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+      ref.watch(wmsSnapshotProvider);
+      return await ref.watch(despachosOcProvider)?.historial() ?? [];
+    });

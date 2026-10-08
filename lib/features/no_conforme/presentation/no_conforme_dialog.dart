@@ -690,7 +690,7 @@ class _HistorialTabState extends ConsumerState<_HistorialTab> {
           return Center(child: Text('No se pudo cargar el historial: ${snapshot.error}'));
         }
         final devoluciones = snapshot.data ?? const [];
-        return HistorialAgrupado(grupos: agruparHistorial(devoluciones, (d) => d.item,
+        return HistorialAgrupado(etiquetaTotal: 'Prendas no conformes', grupos: agruparHistorial(devoluciones, (d) => d.item,
           (d) => EventoHistorial(id: d.id, fecha: d.fecha, cantidad: d.cantidad,
             titulo: 'No conforme · ${d.cantidad} Uds · ${d.causal}',
             detalle: 'Reportado por: ${d.operario}\nRecibido de Producción: ${d.recibidoDeProduccion.isEmpty ? 'Sin registrar' : d.recibidoDeProduccion}'

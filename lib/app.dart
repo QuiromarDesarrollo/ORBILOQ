@@ -1,3 +1,5 @@
+import 'domain/sesion.dart';
+import 'features/ciclos/presentation/dashboard_catalogo.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +44,7 @@ class _PuertaDeEntrada extends ConsumerWidget {
         body: Center(child: WmsLoader(color: pal.accent)),
       ),
       error: (e, _) => LoginPage(errorInicial: 'Error verificando la sesión: $e'),
-      data: (usuario) => usuario == null ? const LoginPage() : const KardexPage(),
+      data: (usuario) => usuario == null ? const LoginPage() : usuario.rolCuenta == RolCuenta.gerencia ? const DashboardCatalogoPage() : const KardexPage(),
     );
   }
 }

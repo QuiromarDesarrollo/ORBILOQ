@@ -1,3 +1,5 @@
+import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
+import '../../despacho/presentation/lista_empaque_dialog.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../application/providers.dart';
 import '../../../application/auth_providers.dart';
 import '../../../data/catalogos_repository.dart';
+import '../../../data/empaques_repository.dart';
+import 'empaque_editor.dart';
 import '../../../data/error_crear_usuario.dart';
 import '../../../domain/sesion.dart';
 import '../../../shared/widgets/wms_dialog.dart';
@@ -14,13 +18,14 @@ Future<void> showCatalogosDialog(BuildContext context) =>
 bool _admin(WidgetRef ref) =>
     !ref.read(usarSupabaseProvider) ||
     ref.read(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
-String _errorTexto(Object e) => e is PostgrestException
-    ? e.message
-    : e is FunctionException
+String _errorTexto(Object e) =>
+    e is PostgrestException
+        ? e.message
+        : e is FunctionException
         ? mensajeErrorCrearUsuario(e)
         : e is FormatException
-            ? e.message.toString()
-            : 'No se pudo completar la operación. Actualiza la lista antes de reintentar.';
+        ? e.message.toString()
+        : 'No se pudo completar la operación. Actualiza la lista antes de reintentar.';
 
 class CatalogosDialog extends ConsumerStatefulWidget {
   const CatalogosDialog({super.key});
@@ -29,7 +34,8 @@ class CatalogosDialog extends ConsumerStatefulWidget {
 }
 
 class _CatalogosState extends ConsumerState<CatalogosDialog> {
-  String _tipo = 'usuarios', _busqueda = '', _estado = 'Todos';
+  final _selectorCatalogo = GlobalKey<FormFieldState<String>>();
+  String _tipo = 'usuarios', _busqueda = '', _estado = 'Activos';
   List<Map<String, dynamic>> _filas = [];
   bool _cargando = false;
   String? _error;
@@ -46,8 +52,11 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
     }
     final repo = ref.read(catalogosAdminProvider);
     if (repo == null) {
-      setState(() => _error =
-          'Conecta la aplicación a Supabase de pruebas para administrar los catálogos.');
+      setState(
+        () =>
+            _error =
+                'Conecta la aplicación a Supabase de pruebas para administrar los catálogos.',
+      );
       return;
     }
     setState(() {
@@ -55,7 +64,10 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
       _error = null;
     });
     try {
-      final filas = await repo.listar(_tipo);
+      final filas =
+          _tipo == 'empaques'
+              ? await ref.read(empaquesRepositoryProvider)!.listar(todos: true)
+              : await repo.listar(_tipo);
       if (mounted) setState(() => _filas = filas);
     } catch (e) {
       if (mounted) setState(() => _error = _errorTexto(e));
@@ -67,7 +79,12 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
   Future<void> _editar(Map<String, dynamic>? fila) async {
     if (!_admin(ref)) return;
     final ok = await showWmsDialog<bool>(
-        context, (_) => _EditorCatalogo(tipo: _tipo, fila: fila));
+      context,
+      (_) =>
+          _tipo == 'empaques'
+              ? EmpaqueEditor(fila: fila)
+              : _EditorCatalogo(tipo: _tipo, fila: fila),
+    );
     if (ok == true && mounted) {
       ref.invalidate(causalesProvider);
       ref.invalidate(personalLogisticaProvider);
@@ -80,38 +97,111 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
     }
   }
 
+  Future<void> _eliminar(Map<String, dynamic> fila) async {
+    if (_cargando || !_admin(ref)) return;
+    final tipo = _tipo;
+    final nombre = '${fila['nombre'] ?? fila['codigo']}';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Eliminar del catálogo'),
+            content: Text(
+              '¿Eliminar «$nombre» de las opciones activas? Se desactivará y se conservará su historial. '
+              '${tipo == 'usuarios' ? 'La cuenta dejará de tener acceso.' : 'No podrá seleccionarse en nuevas operaciones.'}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Confirmar eliminación'),
+              ),
+            ],
+          ),
+    );
+    if (ok != true || !mounted || !_admin(ref)) return;
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
+    try {
+      if (tipo == 'empaques') {
+        await ref.read(empaquesRepositoryProvider)!.guardar({
+          ...fila,
+          'activo': false,
+        }, fila);
+      } else {
+        await ref
+            .read(catalogosAdminProvider)!
+            .guardar(tipo, fila, nombre, false, fila['rol'] ?? 'produccion');
+      }
+      ref.invalidate(empaquesProvider);
+      ref.invalidate(causalesProvider);
+      ref.invalidate(personalLogisticaProvider);
+      ref.invalidate(personalProduccionProvider);
+      ref.invalidate(personalAliadosProvider);
+      ref.invalidate(ubicacionesProvider);
+      if (mounted) await _cargar();
+    } catch (e) {
+      if (mounted) setState(() => _error = _errorTexto(e));
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (ref.watch(usarSupabaseProvider) &&
         ref.watch(usuarioSesionProvider).value?.rolCuenta != RolCuenta.admin) {
-      return const WmsDialogShell(title: 'Administración', icon: Icons.lock_outline,
-        iconColor: Colors.teal, child: Text('Acceso exclusivo del administrador.'));
-    }
-    final visibles = _filas.where((f) {
-      final activo = f['activo'] ?? f['activa'] ?? false;
-      return (_estado == 'Todos' || activo == (_estado == 'Activos')) &&
-          '${f['nombre'] ?? f['codigo']} ${f['numero_usuario'] ?? ''}'
-              .toLowerCase()
-              .contains(_busqueda.toLowerCase());
-    }).toList();
-    return WmsDialogShell(
-        title: 'Administración de catálogos',
-        icon: Icons.manage_accounts,
+      return const WmsDialogShell(
+        title: 'Administración',
+        icon: Icons.lock_outline,
         iconColor: Colors.teal,
-        expand: true,
-        child:
-            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        child: Text('Acceso exclusivo del administrador.'),
+      );
+    }
+    final visibles =
+        _filas.where((f) {
+          final activo = f['activo'] ?? f['activa'] ?? false;
+          return (_estado == 'Todos' || activo == (_estado == 'Activos')) &&
+              '${f['nombre'] ?? f['codigo']} ${f['numero_usuario'] ?? ''}'
+                  .toLowerCase()
+                  .contains(_busqueda.toLowerCase());
+        }).toList();
+    return WmsDialogShell(
+      title: 'Administración de catálogos',
+      icon: Icons.manage_accounts,
+      iconColor: Colors.teal,
+      expand: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           DropdownButtonFormField<String>(
-              initialValue: _tipo,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Catálogo'),
-              items: [
-                for (final e in catalogosAdministrables.entries)
-                  DropdownMenuItem(value: e.key, child: Text(e.value))
-              ],
-              onChanged: _cargando
-                  ? null
-                  : (v) {
+            key: _selectorCatalogo,
+            initialValue: _tipo,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Catálogo'),
+            items: [
+              for (final e in catalogosAdministrables.entries)
+                DropdownMenuItem(value: e.key, child: Text(e.value)),
+              DropdownMenuItem(
+                value: 'destinatarios',
+                enabled: ref.watch(usarSupabaseProvider),
+                child: const Text('Destinatarios'),
+              ),
+            ],
+            onChanged:
+                _cargando
+                    ? null
+                    : (v) {
+                      if (v == 'destinatarios') {
+                        _selectorCatalogo.currentState?.didChange(_tipo);
+                        mostrarListaEmpaque(context, '');
+                        return;
+                      }
                       if (v != null) {
                         setState(() {
                           _tipo = v;
@@ -119,62 +209,93 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
                         });
                         _cargar();
                       }
-                    }),
+                    },
+          ),
           const SizedBox(height: 8),
           TextField(
-              decoration: const InputDecoration(
-                  labelText: 'Buscar por nombre o número',
-                  prefixIcon: Icon(Icons.search)),
-              onChanged: (v) => setState(() => _busqueda = v)),
+            decoration: const InputDecoration(
+              labelText: 'Buscar por nombre o número',
+              prefixIcon: Icon(Icons.search),
+            ),
+            onChanged: (v) => setState(() => _busqueda = v),
+          ),
           Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                DropdownButton<String>(
-                    value: _estado,
-                    items: [
-                      for (final s in ['Todos', 'Activos', 'Inactivos'])
-                        DropdownMenuItem(value: s, child: Text(s))
-                    ],
-                    onChanged: (v) => setState(() => _estado = v!)),
-                OutlinedButton.icon(
-                    onPressed: _cargando ? null : _cargar,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Actualizar')),
-                FilledButton.icon(
-                    onPressed: _cargando ||
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              DropdownButton<String>(
+                value: _estado,
+                items: [
+                  for (final s in ['Todos', 'Activos', 'Inactivos'])
+                    DropdownMenuItem(value: s, child: Text(s)),
+                ],
+                onChanged: (v) => setState(() => _estado = v!),
+              ),
+              OutlinedButton.icon(
+                onPressed: _cargando ? null : _cargar,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Actualizar'),
+              ),
+              FilledButton.icon(
+                onPressed:
+                    _cargando ||
                             !_admin(ref) ||
                             ref.watch(catalogosAdminProvider) == null
                         ? null
                         : () => _editar(null),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Agregar')),
-              ]),
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar'),
+              ),
+            ],
+          ),
           if (_cargando) const WmsLoadingStrip(),
           if (_error != null)
-            Text(_error!, style: const TextStyle(color: Colors.red)),
+            AvisoFormulario(_error!),
           const Text(
-              'Desactivar conserva los registros y su historial. Los nombres corregidos se usan en operaciones nuevas.'),
+            'Desactivar conserva los registros y su historial. Los nombres corregidos se usan en operaciones nuevas.',
+          ),
           Expanded(
-              child: ListView.builder(
-                  itemCount: visibles.length,
-                  itemBuilder: (context, i) {
-                    final f = visibles[i];
-                    final activo = f['activo'] ?? f['activa'] ?? false;
-                    return ListTile(
-                        title: Text(f['nombre'] ?? f['codigo'] ?? ''),
-                        subtitle: Text(
-                            '${activo ? 'Activo' : 'Inactivo'}${_tipo == 'usuarios' ? ' · Usuario ${f['numero_usuario'] ?? 'sin número'} · ${f['rol']} · ${f['auth_id'] == null ? 'Sin cuenta de acceso' : 'Con acceso'}' : ''}'),
-                        trailing: IconButton(
-                            tooltip: 'Editar registro',
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: _cargando || !_admin(ref)
+            child: ListView.builder(
+              itemCount: visibles.length,
+              itemBuilder: (context, i) {
+                final f = visibles[i];
+                final activo = f['activo'] ?? f['activa'] ?? false;
+                return ListTile(
+                  title: Text(f['nombre'] ?? f['codigo'] ?? ''),
+                  subtitle: Text(
+                    _tipo == 'empaques'
+                        ? '${activo ? 'Activo' : 'Inactivo'} · ${descripcionEmpaque(f)}\nTara: ${f['peso_neto_kg']} kg · Peso bruto aprox.: ${f['peso_bruto_kg']} kg'
+                        : '${activo ? 'Activo' : 'Inactivo'}${_tipo == 'usuarios' ? ' · Usuario ${f['numero_usuario'] ?? 'sin número'} · ${f['rol']} · ${f['auth_id'] == null ? 'Sin cuenta de acceso' : 'Con acceso'}' : ''}',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Editar registro',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed:
+                            _cargando || !_admin(ref) ? null : () => _editar(f),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar registro',
+                        icon: const Icon(Icons.delete_outline),
+                        color: Theme.of(context).colorScheme.error,
+                        onPressed:
+                            _cargando || !_admin(ref) || activo != true
                                 ? null
-                                : () => _editar(f)));
-                  })),
+                                : () => _eliminar(f),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
           Text('${visibles.length} registros'),
-        ]));
+        ],
+      ),
+    );
   }
 }
 
@@ -188,7 +309,8 @@ class _EditorCatalogo extends ConsumerStatefulWidget {
 
 class _EditorState extends ConsumerState<_EditorCatalogo> {
   late final _nombre = TextEditingController(
-      text: widget.fila?['nombre'] ?? widget.fila?['codigo'] ?? '');
+    text: widget.fila?['nombre'] ?? widget.fila?['codigo'] ?? '',
+  );
   final _numero = TextEditingController(), _clave = TextEditingController();
   late bool _activo = widget.fila?['activo'] ?? widget.fila?['activa'] ?? true;
   late String _rol = widget.fila?['rol'] ?? 'produccion';
@@ -214,24 +336,37 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
         (!RegExp(r'^\d{1,30}$').hasMatch(_numero.text.trim()) ||
             _clave.text.length < 12 ||
             _clave.text.length > 128)) {
-      setState(() => _error =
-          'Indica un número de usuario y una contraseña de 12 a 128 caracteres.');
+      setState(
+        () =>
+            _error =
+                'Indica un número de usuario y una contraseña de 12 a 128 caracteres.',
+      );
       return;
     }
     final confirmado = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-                title: const Text('Confirmar cambios'),
-                content: Text(
-                    '${widget.fila == null ? 'Crear' : _activo ? 'Guardar' : 'Desactivar'} «${_nombre.text.trim()}»${_usuario ? ' con rol $_rol' : ''}. ${!_activo ? 'Dejará de estar disponible para operaciones nuevas. Se conserva el historial.' : ''}'),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancelar')),
-                  FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Confirmar'))
-                ]));
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Confirmar cambios'),
+            content: Text(
+              '${widget.fila == null
+                  ? 'Crear'
+                  : _activo
+                  ? 'Guardar'
+                  : 'Desactivar'} «${_nombre.text.trim()}»${_usuario ? ' con rol $_rol' : ''}. ${!_activo ? 'Dejará de estar disponible para operaciones nuevas. Se conserva el historial.' : ''}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Confirmar'),
+              ),
+            ],
+          ),
+    );
     if (confirmado != true || !mounted || !_admin(ref)) return;
     setState(() {
       _ocupado = true;
@@ -242,17 +377,31 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
       bool recuperada = false;
       if (_usuario && widget.fila == null) {
         recuperada = await repo.crearUsuario(
-            _numero.text.trim(), _nombre.text.trim(), _rol, _clave.text);
+          _numero.text.trim(),
+          _nombre.text.trim(),
+          _rol,
+          _clave.text,
+        );
       } else {
         await repo.guardar(
-            widget.tipo, widget.fila, _nombre.text.trim(), _activo, _rol);
+          widget.tipo,
+          widget.fila,
+          _nombre.text.trim(),
+          _activo,
+          _rol,
+        );
       }
       if (!mounted) return;
       Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(recuperada
-              ? 'Alta recuperada. Se conserva la contraseña del primer intento.'
-              : 'Cambios guardados.')));
+      mostrarAvisoSnack(context, 
+        SnackBar(
+          content: Text(
+            recuperada
+                ? 'Alta recuperada. Se conserva la contraseña del primer intento.'
+                : 'Cambios guardados.',
+          ),
+        ),
+      );
     } catch (e) {
       if (mounted) setState(() => _error = _errorTexto(e));
     } finally {
@@ -262,64 +411,73 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
 
   @override
   Widget build(BuildContext context) => PopScope(
-      canPop: !_ocupado,
-      child: WmsDialogShell(
-          title:
-              '${widget.fila == null ? 'Agregar' : 'Editar'} · ${catalogosAdministrables[widget.tipo]}',
-          icon: Icons.edit_note,
-          iconColor: Colors.teal,
-          canClose: !_ocupado,
-          maxWidth: 620,
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    canPop: !_ocupado,
+    child: WmsDialogShell(
+      title:
+          '${widget.fila == null ? 'Agregar' : 'Editar'} · ${catalogosAdministrables[widget.tipo]}',
+      icon: Icons.edit_note,
+      iconColor: Colors.teal,
+      canClose: !_ocupado,
+      maxWidth: 620,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _nombre,
+            enabled: !_ocupado,
+            decoration: InputDecoration(
+              labelText:
+                  widget.tipo == 'ubicaciones'
+                      ? 'Código del estante'
+                      : 'Nombre',
+            ),
+          ),
+          if (_usuario && widget.fila == null) ...[
             TextField(
-                controller: _nombre,
-                enabled: !_ocupado,
-                decoration: InputDecoration(
-                    labelText: widget.tipo == 'ubicaciones'
-                        ? 'Código del estante'
-                        : 'Nombre')),
-            if (_usuario && widget.fila == null) ...[
-              TextField(
-                  controller: _numero,
-                  enabled: !_ocupado,
-                  keyboardType: TextInputType.number,
-                  decoration:
-                      const InputDecoration(labelText: 'Número de usuario')),
-              TextField(
-                  controller: _clave,
-                  enabled: !_ocupado,
-                  obscureText: true,
-                  enableSuggestions: false,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                      labelText: 'Contraseña inicial (mínimo 12 caracteres)')),
-            ],
-            if (_usuario)
-              DropdownButtonFormField<String>(
-                  initialValue: _rol,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Rol'),
-                  items: [
-                    for (final r in RolCuenta.values)
-                      DropdownMenuItem(
-                          value: r.valorBd, child: Text(r.etiqueta))
-                  ],
-                  onChanged:
-                      _ocupado ? null : (v) => setState(() => _rol = v!)),
-            if (!_usuario || widget.fila != null)
-              SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Activo'),
-                  value: _activo,
-                  onChanged:
-                      _ocupado ? null : (v) => setState(() => _activo = v)),
-            if (_error != null)
-              Text(_error!, style: const TextStyle(color: Colors.red)),
-            if (_ocupado) const WmsLoadingStrip(),
-            const SizedBox(height: 16),
-            FilledButton(
-                onPressed: _ocupado ? null : _guardar,
-                child: const Text('Guardar cambios')),
-          ])));
+              controller: _numero,
+              enabled: !_ocupado,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Número de usuario'),
+            ),
+            TextField(
+              controller: _clave,
+              enabled: !_ocupado,
+              obscureText: true,
+              enableSuggestions: false,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                labelText: 'Contraseña inicial (mínimo 12 caracteres)',
+              ),
+            ),
+          ],
+          if (_usuario)
+            DropdownButtonFormField<String>(
+              initialValue: _rol,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Rol'),
+              items: [
+                for (final r in RolCuenta.values)
+                  DropdownMenuItem(value: r.valorBd, child: Text(r.etiqueta)),
+              ],
+              onChanged: _ocupado ? null : (v) => setState(() => _rol = v!),
+            ),
+          if (!_usuario || widget.fila != null)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Activo'),
+              value: _activo,
+              onChanged: _ocupado ? null : (v) => setState(() => _activo = v),
+            ),
+          if (_error != null)
+            AvisoFormulario(_error!),
+          if (_ocupado) const WmsLoadingStrip(),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _ocupado ? null : _guardar,
+            child: const Text('Guardar cambios'),
+          ),
+        ],
+      ),
+    ),
+  );
 }

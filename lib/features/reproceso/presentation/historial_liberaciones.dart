@@ -6,7 +6,7 @@ class HistorialLiberaciones extends StatelessWidget {
   const HistorialLiberaciones({super.key, required this.liberaciones});
   final List<Liberacion> liberaciones;
   @override
-  Widget build(BuildContext context) => HistorialAgrupado(
+  Widget build(BuildContext context) => HistorialAgrupado(etiquetaTotal: 'Prendas liberadas', 
       grupos: agruparHistorial(
           liberaciones,
           (l) => l.item,

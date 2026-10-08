@@ -36,7 +36,7 @@ void main() {
       expect(res.filas.single['cantidad_pedida'], 20);
       expect(res.filas.single['fecha_ultima_entrega'], '2026-10-01');
       expect(res.filas.single.containsKey('estado'), isFalse);
-      expect(res.filas.single.containsKey('recibido'), vista == Rol.logistica);
+      expect(res.filas.single.containsKey('recibido'), vista != Rol.produccion);
     });
   }
   test('rechaza vista incorrecta, vacíos, duplicados y cantidades negativas',

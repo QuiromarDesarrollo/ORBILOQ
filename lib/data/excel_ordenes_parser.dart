@@ -85,6 +85,8 @@ final _columnasTallas = <String, String>{
 /// mapeadas a claves consistentes. Lanza [ExcelOrdenesParseException] con un
 /// mensaje entendible si el archivo no tiene el formato esperado.
 class ExcelOrdenesParser {
+  static List<String> get encabezadosOrden => _columnasOrden.keys.toList();
+  static List<String> get encabezadosTallas => _columnasTallas.keys.toList();
   static ExcelOrdenesParseado parsear(Uint8List bytes) {
     late final Excel libro;
     try {

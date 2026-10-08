@@ -21,8 +21,8 @@ class _Catalogos extends CatalogosRepository {
       'rol': 'produccion',
       'activo': true,
       'auth_id': 'auth',
-      'version': 'v1'
-    }
+      'version': 'v1',
+    },
   ];
   int lecturas = 0, guardados = 0, altas = 0;
   @override
@@ -32,43 +32,103 @@ class _Catalogos extends CatalogosRepository {
   }
 
   @override
-  Future<void> guardar(String tipo, Map<String, dynamic>? anterior,
-      String nombre, bool activo, String rol) async {
+  Future<void> guardar(
+    String tipo,
+    Map<String, dynamic>? anterior,
+    String nombre,
+    bool activo,
+    String rol,
+  ) async {
     guardados++;
     filas[0] = {...filas[0], 'nombre': nombre, 'activo': activo, 'rol': rol};
   }
 
   @override
   Future<bool> crearUsuario(
-      String numero, String nombre, String rol, String contrasena) async {
+    String numero,
+    String nombre,
+    String rol,
+    String contrasena,
+  ) async {
     altas++;
     return false;
   }
 }
 
 void main() {
-  test('Revalidar la sesión conserva la vista elegida por el administrador', () async {
-    final container=ProviderContainer(overrides:[usarSupabaseProvider.overrideWithValue(true),usuarioSesionProvider.overrideWith((ref)async=>const UsuarioSesion(numeroUsuario:'1',nombre:'Admin',rolCuenta:RolCuenta.admin))]);
-    addTearDown(container.dispose);
-    await container.read(usuarioSesionProvider.future);
-    container.read(rolProvider.notifier).cambiar(Rol.logistica);
-    container.invalidate(usuarioSesionProvider);
-    await container.read(usuarioSesionProvider.future);
-    expect(container.read(rolProvider),Rol.logistica);
+  testWidgets('Eliminar exige confirmacion y conserva la fila inactiva', (
+    tester,
+  ) async {
+    final cat = _Catalogos(), repo = InMemoryWmsRepository.seeded();
+    addTearDown(repo.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          usarSupabaseProvider.overrideWithValue(false),
+          catalogosAdminProvider.overrideWithValue(cat),
+          wmsRepositoryProvider.overrideWithValue(repo),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CatalogosDialog())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Eliminar registro'));
+    await tester.pumpAndSettle();
+    expect(cat.guardados, 0);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(cat.guardados, 0);
+    await tester.tap(find.byTooltip('Eliminar registro'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmar eliminación'));
+    await tester.pumpAndSettle();
+    expect(cat.guardados, 1);
+    expect(cat.filas.single['activo'], false);
+    expect(cat.filas.single['nombre'], 'Ana');
+    expect(find.text('Ana'), findsNothing);
   });
-  testWidgets('Editar y desactivar exige confirmación, pantalla móvil',
-      (tester) async {
+  test(
+    'Revalidar la sesión conserva la vista elegida por el administrador',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          usarSupabaseProvider.overrideWithValue(true),
+          usuarioSesionProvider.overrideWith(
+            (ref) async => const UsuarioSesion(
+              numeroUsuario: '1',
+              nombre: 'Admin',
+              rolCuenta: RolCuenta.admin,
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(usuarioSesionProvider.future);
+      container.read(rolProvider.notifier).cambiar(Rol.logistica);
+      container.invalidate(usuarioSesionProvider);
+      await container.read(usuarioSesionProvider.future);
+      expect(container.read(rolProvider), Rol.logistica);
+    },
+  );
+  testWidgets('Editar y desactivar exige confirmación, pantalla móvil', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final catalogos = _Catalogos(), repo = InMemoryWmsRepository.seeded();
     addTearDown(repo.dispose);
-    await tester.pumpWidget(ProviderScope(overrides: [
-      usarSupabaseProvider.overrideWithValue(false),
-      catalogosAdminProvider.overrideWithValue(catalogos),
-      wmsRepositoryProvider.overrideWithValue(repo)
-    ], child: const MaterialApp(home: Scaffold(body: CatalogosDialog()))));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          usarSupabaseProvider.overrideWithValue(false),
+          catalogosAdminProvider.overrideWithValue(catalogos),
+          wmsRepositoryProvider.overrideWithValue(repo),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CatalogosDialog())),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Ana'), findsOneWidget);
     await tester.tap(find.byTooltip('Editar registro'));
@@ -88,70 +148,118 @@ void main() {
     await tester.pumpAndSettle();
     expect(catalogos.guardados, 1);
     expect(catalogos.filas.first['activo'], false);
-    expect(find.text('Ana corregida'), findsOneWidget);
+    expect(find.text('Ana corregida'), findsNothing);
   });
-  testWidgets('Crear una cuenta requiere datos válidos y confirmación', (tester) async {
-    final cat=_Catalogos(),repo=InMemoryWmsRepository.seeded();addTearDown(repo.dispose);
-    await tester.pumpWidget(ProviderScope(overrides:[usarSupabaseProvider.overrideWithValue(false),catalogosAdminProvider.overrideWithValue(cat),wmsRepositoryProvider.overrideWithValue(repo)],child:const MaterialApp(home:Scaffold(body:CatalogosDialog()))));
-    await tester.pumpAndSettle();await tester.tap(find.text('Agregar'));await tester.pumpAndSettle();
-    Finder campo(String label)=>find.byWidgetPredicate((w)=>w is TextField && w.decoration?.labelText==label);
-    await tester.enterText(campo('Nombre'),'Nueva persona');
-    await tester.enterText(campo('Número de usuario'),'003');
-    await tester.enterText(campo('Contraseña inicial (mínimo 12 caracteres)'),'Clave-segura-2026');
-    await tester.tap(find.text('Guardar cambios'));await tester.pumpAndSettle();expect(cat.altas,0);
-    await tester.tap(find.text('Confirmar'));await tester.pumpAndSettle();expect(cat.altas,1);
+  testWidgets('Crear una cuenta requiere datos válidos y confirmación', (
+    tester,
+  ) async {
+    final cat = _Catalogos(), repo = InMemoryWmsRepository.seeded();
+    addTearDown(repo.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          usarSupabaseProvider.overrideWithValue(false),
+          catalogosAdminProvider.overrideWithValue(cat),
+          wmsRepositoryProvider.overrideWithValue(repo),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CatalogosDialog())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Agregar'));
+    await tester.pumpAndSettle();
+    Finder campo(String label) => find.byWidgetPredicate(
+      (w) => w is TextField && w.decoration?.labelText == label,
+    );
+    await tester.enterText(campo('Nombre'), 'Nueva persona');
+    await tester.enterText(campo('Número de usuario'), '003');
+    await tester.enterText(
+      campo('Contraseña inicial (mínimo 12 caracteres)'),
+      'Clave-segura-2026',
+    );
+    await tester.tap(find.text('Guardar cambios'));
+    await tester.pumpAndSettle();
+    expect(cat.altas, 0);
+    await tester.tap(find.text('Confirmar'));
+    await tester.pumpAndSettle();
+    expect(cat.altas, 1);
   });
-  testWidgets('Un operario no puede cargar catálogos de administración',
-      (tester) async {
+  testWidgets('Un operario no puede cargar catálogos de administración', (
+    tester,
+  ) async {
     final cat = _Catalogos();
-    await tester.pumpWidget(ProviderScope(overrides: [
-      usarSupabaseProvider.overrideWithValue(true),
-      catalogosAdminProvider.overrideWithValue(cat),
-      usuarioSesionProvider.overrideWith((ref) async => const UsuarioSesion(
-          numeroUsuario: '2',
-          nombre: 'Operario',
-          rolCuenta: RolCuenta.produccion))
-    ], child: const MaterialApp(home: Scaffold(body: CatalogosDialog()))));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          usarSupabaseProvider.overrideWithValue(true),
+          catalogosAdminProvider.overrideWithValue(cat),
+          usuarioSesionProvider.overrideWith(
+            (ref) async => const UsuarioSesion(
+              numeroUsuario: '2',
+              nombre: 'Operario',
+              rolCuenta: RolCuenta.produccion,
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CatalogosDialog())),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(cat.lecturas, 0);
     expect(find.text('Acceso exclusivo del administrador.'), findsOneWidget);
   });
   testWidgets(
-      'Estantes vienen del catálogo; una selección retirada se reemplaza',
-      (tester) async {
-    String elegido = 'ESTANTE ANTIGUO';
-    await tester.pumpWidget(ProviderScope(
-        overrides: [
-          ubicacionesProvider.overrideWith((ref) async => ['ESTANTE NUEVO'])
-        ],
-        child: MaterialApp(
+    'Estantes vienen del catálogo; una selección retirada se reemplaza',
+    (tester) async {
+      String elegido = 'ESTANTE ANTIGUO';
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ubicacionesProvider.overrideWith((ref) async => ['ESTANTE NUEVO']),
+          ],
+          child: MaterialApp(
             home: Scaffold(
-                body: CatalogoUbicacionDropdown(
-                    label: 'Estante',
-                    value: elegido,
-                    onChanged: (v) => elegido = v)))));
-    await tester.pumpAndSettle();
-    expect(elegido, 'ESTANTE NUEVO');
-    expect(find.text('ESTANTE NUEVO'), findsOneWidget);
-  });
-  testWidgets('Un nombre retirado limpia la selección sin romper el formulario',
-      (tester) async {
-    String? elegido = 'TYPO';
-    await tester.pumpWidget(ProviderScope(
-        overrides: [
-          personalLogisticaProvider
-              .overrideWith((ref) async => ['NOMBRE CORRECTO'])
-        ],
-        child: MaterialApp(
+              body: CatalogoUbicacionDropdown(
+                label: 'Estante',
+                value: elegido,
+                onChanged: (v) => elegido = v,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(elegido, 'ESTANTE NUEVO');
+      expect(find.text('ESTANTE NUEVO'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'Un nombre retirado limpia la selección sin romper el formulario',
+    (tester) async {
+      String? elegido = 'TYPO';
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            personalLogisticaProvider.overrideWith(
+              (ref) async => ['NOMBRE CORRECTO'],
+            ),
+          ],
+          child: MaterialApp(
             home: Scaffold(
-                body: AddablePersonDropdown(
-                    label: 'Persona',
-                    valor: elegido,
-                    onChanged: (v) => elegido = v,
-                    itemsProvider: personalLogisticaProvider,
-                    onAgregar: (_, v) async => Ok(v),
-                    tituloDialogo: 'Agregar')))));
-    await tester.pumpAndSettle();
-    expect(elegido, isNull);
-  });
+              body: AddablePersonDropdown(
+                label: 'Persona',
+                valor: elegido,
+                onChanged: (v) => elegido = v,
+                itemsProvider: personalLogisticaProvider,
+                onAgregar: (_, v) async => Ok(v),
+                tituloDialogo: 'Agregar',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(elegido, isNull);
+    },
+  );
 }

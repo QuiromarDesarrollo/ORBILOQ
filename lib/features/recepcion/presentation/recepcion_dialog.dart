@@ -13,6 +13,7 @@ import '../../../application/providers.dart';
 import '../../../core/result.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/models.dart';
+import '../../../domain/recepcion_agrupada.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
 import '../../../shared/widgets/feedback_banner.dart';
@@ -21,14 +22,6 @@ import '../../../shared/widgets/wms_dialog.dart';
 
 Future<void> showRecepcionDialog(BuildContext context) =>
     showWmsDialog<void>(context, (_) => const RecepcionDialog());
-
-/// Empareja una línea con su lote de origen — solo para mostrar la
-/// referencia ("LOTE-101") en la lista plana; no cambia el modelo de datos.
-class _LineaConLote {
-  const _LineaConLote(this.lote, this.linea);
-  final Lote lote;
-  final LoteLinea linea;
-}
 
 class RecepcionDialog extends StatelessWidget {
   const RecepcionDialog({super.key});
@@ -55,8 +48,16 @@ class RecepcionDialog extends StatelessWidget {
               labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               unselectedLabelStyle: TextStyle(fontSize: 11),
               tabs: [
-                Tab(height: 48, icon: Icon(Icons.move_to_inbox_outlined, size: 16), text: 'PENDIENTES'),
-                Tab(height: 48, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
+                Tab(
+                  height: 48,
+                  icon: Icon(Icons.move_to_inbox_outlined, size: 16),
+                  text: 'PENDIENTES',
+                ),
+                Tab(
+                  height: 48,
+                  icon: Icon(Icons.history, size: 16),
+                  text: 'HISTORIAL',
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -120,20 +121,23 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     super.dispose();
   }
 
-  List<_LineaConLote> get _todasPendientes {
+  List<LineaRecepcionPendiente> get _todasPendientes {
     final lotes = ref.read(wmsSnapshotProvider).value?.lotes ?? const <Lote>[];
-    final resultado = <_LineaConLote>[];
+    final resultado = <LineaRecepcionPendiente>[];
     for (final l in lotes) {
       for (final li in l.lineas) {
-        if (li.enTransito) resultado.add(_LineaConLote(l, li));
+        if (li.enTransito && li.cantidadPendiente > 0) {
+          resultado.add(LineaRecepcionPendiente(l, li));
+        }
       }
     }
     return resultado;
   }
 
-  List<_LineaConLote> _ordenar(List<_LineaConLote> items) {
-    final restantes = [...items]..sort((a, b) => a.linea.item.op.compareTo(b.linea.item.op));
-    final resultado = <_LineaConLote>[];
+  List<LineaRecepcionPendiente> _ordenar(List<LineaRecepcionPendiente> items) {
+    final restantes = [...items]
+      ..sort((a, b) => a.linea.item.op.compareTo(b.linea.item.op));
+    final resultado = <LineaRecepcionPendiente>[];
     for (final id in _ordenManual) {
       final idx = restantes.indexWhere((e) => e.linea.id == id);
       if (idx != -1) resultado.add(restantes.removeAt(idx));
@@ -156,7 +160,11 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     _ordenManual.remove(lineaId);
     _ordenManual.insert(0, lineaId);
     if (_scrollController.hasClients) {
-      _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -167,21 +175,43 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
 
     final qr = QrPrenda.tryParse(raw);
     if (qr != null) {
-      final encontrada = todas
-          .where((e) => e.linea.item.op == qr.op && e.linea.item.codigo == qr.codigo)
-          .map((e) => e.linea)
-          .firstOrNull;
+      final coincidenciasQr =
+          todas
+              .where(
+                (e) =>
+                    e.linea.item.op == qr.op &&
+                    e.linea.item.codigo == qr.codigo,
+              )
+              .map((e) => e.linea)
+              .toList();
+      final encontrada =
+          coincidenciasQr.where((e) => e.id == _lineaAbiertaId).firstOrNull ??
+          coincidenciasQr.firstOrNull;
       if (encontrada == null) {
-        setState(() => _msg = const FeedbackMessage.error('No hay ninguna línea pendiente por recibir para esta prenda.'));
+        setState(
+          () =>
+              _msg = const FeedbackMessage.error(
+                'No hay ninguna línea pendiente por recibir para esta prenda.',
+              ),
+        );
         _scanFocus.requestFocus();
         return;
       }
 
+      final totalGrupo =
+          agruparRecepcionPendiente(todas)
+              .firstWhere(
+                (g) => g.lineas.any((e) => e.linea.id == encontrada.id),
+              )
+              .cantidadPendiente;
       final actual = _conteos[encontrada.id] ?? 0;
-      if (actual >= encontrada.cantidadEnviada) {
-        setState(() => _msg = FeedbackMessage.error(
-              'LÍMITE ALCANZADO: ya se contaron las ${encontrada.cantidadEnviada} Uds declaradas de esta prenda.',
-            ));
+      if (actual >= totalGrupo) {
+        setState(
+          () =>
+              _msg = FeedbackMessage.error(
+                'LÍMITE ALCANZADO: ya se contaron las $totalGrupo Uds pendientes de esta prenda.',
+              ),
+        );
         _scanFocus.requestFocus();
         return;
       }
@@ -206,7 +236,12 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     final op = raw.trim();
     final coincidencias = todas.where((e) => e.linea.item.op == op).toList();
     if (coincidencias.isEmpty) {
-      setState(() => _msg = FeedbackMessage.error('No hay líneas pendientes por recibir para la OP $op.'));
+      setState(
+        () =>
+            _msg = FeedbackMessage.error(
+              'No hay líneas pendientes por recibir para la OP $op.',
+            ),
+      );
       _scanFocus.requestFocus();
       return;
     }
@@ -217,7 +252,11 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
       }
     });
     if (_scrollController.hasClients) {
-      _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
     _scanFocus.requestFocus();
   }
@@ -226,92 +265,150 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     _procesarEntrada(raw);
     if (_msg != null) return _msg!;
     final qr = QrPrenda.tryParse(raw);
-    if (qr == null) return FeedbackMessage.ok('OP ${raw.trim()} · Tarjetas pendientes localizadas.');
-    return FeedbackMessage.ok('OP ${qr.op} · ${qr.codigo} · ${_conteos[_lineaAbiertaId] ?? 0} Uds contadas en la tarjeta.');
+    if (qr == null) {
+      return FeedbackMessage.ok(
+        'OP ${raw.trim()} · Tarjetas pendientes localizadas.',
+      );
+    }
+    return FeedbackMessage.ok(
+      'OP ${qr.op} · ${qr.codigo} · ${_conteos[_lineaAbiertaId] ?? 0} Uds contadas en la tarjeta.',
+    );
   }
 
-  Future<void> _confirmar(LoteLinea linea) async {
-    if(!(ref.read(ubicacionesProvider).value??[]).contains(_ubicacion)){
-      setState(()=>_msg=const FeedbackMessage.error('Selecciona un estante activo antes de recibir.'));
+  Future<void> _confirmar(GrupoRecepcionPendiente grupo) async {
+    final linea = grupo.lineas.first.linea;
+    if (!(ref.read(ubicacionesProvider).value ?? []).contains(_ubicacion)) {
+      setState(
+        () =>
+            _msg = const FeedbackMessage.error(
+              'Selecciona un estante activo antes de recibir.',
+            ),
+      );
       return;
     }
     final cantidad = int.tryParse(_cantidadCtrl.text.trim());
     if (cantidad == null || cantidad <= 0) {
-      setState(() => _msg = const FeedbackMessage.error('Ingresa una cantidad mayor a 0 para confirmar la recepción.'));
+      setState(
+        () =>
+            _msg = const FeedbackMessage.error(
+              'Ingresa una cantidad mayor a 0 para confirmar la recepción.',
+            ),
+      );
       return;
     }
     if (_recibidoPor == null || _recibidoPor!.trim().isEmpty) {
-      setState(() => _msg = const FeedbackMessage.error('Selecciona quién de Logística está recibiendo.'));
+      setState(
+        () =>
+            _msg = const FeedbackMessage.error(
+              'Selecciona quién de Logística está recibiendo.',
+            ),
+      );
       return;
     }
 
+    if (cantidad > grupo.cantidadPendiente) {
+      setState(
+        () =>
+            _msg = const FeedbackMessage.error(
+              'La cantidad supera el pendiente por recibir.',
+            ),
+      );
+      return;
+    }
+    final repo = ref.read(wmsRepositoryProvider);
+    final plan = grupo.distribuir(cantidad);
+    final ubicacion = _ubicacion,
+        operario = _recibidoPor!,
+        nota = _notaCtrl.text;
     setState(() {
       _confirmando = true;
       _msg = null;
     });
-    final res = await ref.read(wmsRepositoryProvider).recibirLoteLinea(
-          loteLineaId: linea.id,
-          cantidad: cantidad,
-          ubicacion: _ubicacion,
-          recibidoPor: _recibidoPor!,
-          nota: _notaCtrl.text,
+    var recibidas = 0;
+    String? error;
+    try {
+      for (final parte in plan) {
+        final res = await repo.recibirLoteLinea(
+          loteLineaId: parte.lineaId,
+          cantidad: parte.cantidad,
+          ubicacion: ubicacion,
+          recibidoPor: operario,
+          nota: nota,
         );
-    if (!mounted) return;
-
-    switch (res) {
-      case Ok(:final value):
-        setState(() {
-          _confirmando = false;
-          if (value.enTransito) {
-            // Recepción parcial: la tarjeta se queda en Pendientes.
-            _msg = FeedbackMessage.ok(
-              '${linea.item.codigo} (${linea.item.talla}): recibidas $cantidad Uds — faltan ${value.cantidadPendiente} Uds.',
-            );
-            _cantidadCtrl.text = '0';
-            _conteos[linea.id] = 0;
-          } else {
-            _msg = FeedbackMessage.ok(
-              '${linea.item.codigo} (${linea.item.talla}): ${value.estado.etiqueta}. Ingresada a $_ubicacion.',
-            );
-            _lineaAbiertaId = null;
-            _ordenManual.remove(linea.id);
-            _conteos.remove(linea.id);
-          }
-        });
-      case Err(:final message):
-        setState(() {
-          _confirmando = false;
-          _msg = FeedbackMessage.error(message);
-        });
+        if (res case Err(:final message)) {
+          error = message;
+          break;
+        }
+        recibidas += parte.cantidad;
+      }
+    } catch (e) {
+      error = 'No se pudo confirmar la respuesta del servidor.';
     }
+    if (error != null) {
+      try {
+        await repo.refrescar();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _confirmando = false;
+      _cantidadCtrl.text = '0';
+      _lineaAbiertaId = null;
+      for (final e in grupo.lineas) {
+        _conteos.remove(e.linea.id);
+        _ordenManual.remove(e.linea.id);
+      }
+      _msg =
+          error == null
+              ? FeedbackMessage.ok(
+                '${linea.item.codigo} (${linea.item.talla}): recibidas $recibidas Uds — quedan ${grupo.cantidadPendiente - recibidas} Uds pendientes.',
+              )
+              : FeedbackMessage.error(
+                'Se confirmaron $recibidas Uds. $error Revisa el saldo actualizado antes de ingresar otra cantidad.',
+              );
+    });
   }
 
-  Future<void> _cerrarConFaltante(LoteLinea linea) async {
+  Future<void> _cerrarConFaltante(GrupoRecepcionPendiente grupo) async {
+    final linea = grupo.lineas.first.linea;
     final confirmado = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('¿Cerrar con faltante?'),
-        content: Text(
-          'Faltan ${linea.cantidadPendiente} Uds de ${linea.item.descripcion} (${linea.item.talla}) que nunca llegaron. '
-          'Al cerrar, esas unidades van a volver a aparecer como pendientes por entregar en Producción. Esta acción no se puede deshacer.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('CANCELAR')),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('CERRAR CON FALTANTE', style: TextStyle(color: AppColors.alertRed)),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('¿Cerrar con faltante?'),
+            content: Text(
+              'Faltan ${grupo.cantidadPendiente} Uds de ${linea.item.descripcion} (${linea.item.talla}) que nunca llegaron. '
+              'Al cerrar, esas unidades van a volver a aparecer como pendientes por entregar en Producción. Esta acción no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('CANCELAR'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text(
+                  'CERRAR CON FALTANTE',
+                  style: TextStyle(color: AppColors.alertRed),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
     if (confirmado != true) return;
     if (!mounted) return;
 
     setState(() => _confirmando = true);
-    final res = await ref.read(wmsRepositoryProvider).cerrarLoteItemConFaltante(
-          loteLineaId: linea.id,
-          nota: _notaCtrl.text,
-        );
+    Result<void> res = const Ok(null);
+    for (final e in grupo.lineas) {
+      res = await ref
+          .read(wmsRepositoryProvider)
+          .cerrarLoteItemConFaltante(
+            loteLineaId: e.linea.id,
+            nota: _notaCtrl.text,
+          );
+      if (res is Err<void>) break;
+    }
     if (!mounted) return;
     setState(() {
       _confirmando = false;
@@ -334,40 +431,59 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     final ctrlNota = TextEditingController();
     final confirmado = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Reportar sobrante'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('¿Cuántas unidades de más llegaron de ${linea.item.descripcion} (${linea.item.talla})?'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrlCantidad,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: wmsInput('Cantidad de sobra'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Reportar sobrante'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '¿Cuántas unidades de más llegaron de ${linea.item.descripcion} (${linea.item.talla})?',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ctrlCantidad,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: wmsInput('Cantidad de sobra'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: ctrlNota,
+                  decoration: wmsInput('Nota (opcional)'),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(controller: ctrlNota, decoration: wmsInput('Nota (opcional)')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('CANCELAR')),
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('REGISTRAR')),
-        ],
-      ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('CANCELAR'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('REGISTRAR'),
+              ),
+            ],
+          ),
     );
     if (confirmado != true) return;
     final cantidad = int.tryParse(ctrlCantidad.text.trim());
     if (cantidad == null || cantidad <= 0) {
       if (!mounted) return;
-      setState(() => _msg = const FeedbackMessage.error('Ingresa una cantidad de sobrante mayor a 0.'));
+      setState(
+        () =>
+            _msg = const FeedbackMessage.error(
+              'Ingresa una cantidad de sobrante mayor a 0.',
+            ),
+      );
       return;
     }
     if (!mounted) return;
 
-    final res = await ref.read(wmsRepositoryProvider).registrarSobrante(
+    final res = await ref
+        .read(wmsRepositoryProvider)
+        .registrarSobrante(
           itemId: linea.item.id,
           loteLineaId: linea.id,
           cantidad: cantidad,
@@ -391,7 +507,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   Widget build(BuildContext context) {
     // Se observa el snapshot para reconstruir cuando cambian los lotes.
     ref.watch(wmsSnapshotProvider);
-    final pendientes = _ordenar(_todasPendientes);
+    final pendientes = agruparRecepcionPendiente(_ordenar(_todasPendientes));
 
     return Stack(
       children: [
@@ -409,42 +525,58 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
               controller: _scanCtrl,
               focusNode: _scanFocus,
               autofocus: true,
-              decoration: wmsInput('ESCANEAR PRENDA O BUSCAR POR OP', icon: Icons.qr_code_scanner),
+              decoration: wmsInput(
+                'ESCANEAR PRENDA O BUSCAR POR OP',
+                icon: Icons.qr_code_scanner,
+              ),
               onSubmitted: _procesarEntrada,
               onCameraSubmitted: _leerCamara,
               enabled: !_confirmando,
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: pendientes.isEmpty
-                  ? const Center(
-                      child: Text('No hay nada pendiente por recibir en este momento.',
-                          style: TextStyle(color: Colors.grey)),
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      itemCount: pendientes.length,
-                      itemBuilder: (_, i) {
-                        final e = pendientes[i];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _TarjetaLinea(
-                            lote: e.lote,
-                            linea: e.linea,
-                            abierta: e.linea.id == _lineaAbiertaId,
-                            onValidar: () => _abrirValidacion(e.linea),
-                            onCerrar: () => setState(() => _lineaAbiertaId = null),
-                            cantidadCtrl: _cantidadCtrl,
-                            notaCtrl: _notaCtrl,
-                            ubicacion: _ubicacion,
-                            onUbicacion: (v) => setState(() => _ubicacion = v),
-                            onConfirmar: () => _confirmar(e.linea),
-                            onCerrarConFaltante: () => _cerrarConFaltante(e.linea),
-                            onReportarSobrante: () => _reportarSobrante(e.linea),
-                          ),
-                        );
-                      },
-                    ),
+              child:
+                  pendientes.isEmpty
+                      ? const Center(
+                        child: Text(
+                          'No hay nada pendiente por recibir en este momento.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                      : ListView.builder(
+                        controller: _scrollController,
+                        itemCount: pendientes.length,
+                        itemBuilder: (_, i) {
+                          final grupo = pendientes[i];
+                          final e =
+                              grupo.lineas
+                                  .where((e) => e.linea.id == _lineaAbiertaId)
+                                  .firstOrNull ??
+                              grupo.lineas.first;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _TarjetaLinea(
+                              grupo: grupo,
+                              lote: e.lote,
+                              linea: e.linea,
+                              abierta: e.linea.id == _lineaAbiertaId,
+                              onValidar: () => _abrirValidacion(e.linea),
+                              onCerrar:
+                                  () => setState(() => _lineaAbiertaId = null),
+                              cantidadCtrl: _cantidadCtrl,
+                              notaCtrl: _notaCtrl,
+                              ubicacion: _ubicacion,
+                              onUbicacion:
+                                  (v) => setState(() => _ubicacion = v),
+                              onConfirmar: () => _confirmar(grupo),
+                              onCerrarConFaltante:
+                                  () => _cerrarConFaltante(grupo),
+                              onReportarSobrante:
+                                  () => _reportarSobrante(e.linea),
+                            ),
+                          );
+                        },
+                      ),
             ),
           ],
         ),
@@ -460,7 +592,11 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                     SizedBox(height: 16),
                     Text(
                       'Procesando…',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ],
                 ),
@@ -474,6 +610,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
 
 class _TarjetaLinea extends StatelessWidget {
   const _TarjetaLinea({
+    required this.grupo,
     required this.lote,
     required this.linea,
     required this.abierta,
@@ -488,6 +625,7 @@ class _TarjetaLinea extends StatelessWidget {
     required this.onReportarSobrante,
   });
 
+  final GrupoRecepcionPendiente grupo;
   final Lote lote;
   final LoteLinea linea;
   final bool abierta;
@@ -508,9 +646,10 @@ class _TarjetaLinea extends StatelessWidget {
       color: abierta ? Colors.green.shade50 : colorBase,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color: abierta
-              ? AppColors.actionGreen
-              : linea.esReproceso
+          color:
+              abierta
+                  ? AppColors.actionGreen
+                  : linea.esReproceso
                   ? Colors.amber.shade700
                   : Colors.grey.shade300,
           width: abierta ? 2 : 1,
@@ -535,34 +674,59 @@ class _TarjetaLinea extends StatelessWidget {
                         children: [
                           Text(
                             'OP: ${linea.item.op} (${linea.item.talla}) - ${linea.item.descripcion}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primaryNavy),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: AppColors.primaryNavy,
+                            ),
                           ),
                           if (linea.esReproceso)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.amber.shade700,
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: const Text('PRODUCTO REPROCESADO',
-                                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                              child: const Text(
+                                'PRODUCTO REPROCESADO',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                         ],
                       ),
                       Text(
-                        'No. OC: ${linea.item.oc} | ${linea.cantidadEnviada} Uds | '
-                        'Lote: ${lote.id} (${lote.operario})',
-                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                        'No. OC: ${linea.item.oc} | ${grupo.cantidadPendiente} Uds pendientes',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
                       ),
-                      if ((linea.cantidadRecibida ?? 0) > 0)
+                      if (grupo.cantidadRecibida > 0)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
                             child: Text(
-                              'Ya recibidas: ${linea.cantidadRecibida} · Faltan: ${linea.cantidadPendiente} Uds',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
+                              'Ya recibidas: ${grupo.cantidadRecibida} · Faltan: ${grupo.cantidadPendiente} Uds',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryNavy,
+                              ),
                             ),
                           ),
                         ),
@@ -570,9 +734,18 @@ class _TarjetaLinea extends StatelessWidget {
                   ),
                 ),
                 if (!abierta)
-                  ActionButton(icon: Icons.qr_code, label: 'VALIDAR', color: AppColors.primaryNavy, onPressed: onValidar)
+                  ActionButton(
+                    icon: Icons.qr_code,
+                    label: 'VALIDAR',
+                    color: AppColors.primaryNavy,
+                    onPressed: onValidar,
+                  )
                 else
-                  IconButton(tooltip: 'Cerrar', icon: const Icon(Icons.close), onPressed: onCerrar),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    icon: const Icon(Icons.close),
+                    onPressed: onCerrar,
+                  ),
               ],
             ),
             if (abierta) ...[
@@ -580,16 +753,30 @@ class _TarjetaLinea extends StatelessWidget {
               if (linea.esReproceso) ...[
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(6)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                   child: ResponsiveRow(
                     children: [
-                      Icon(Icons.autorenew, size: 16, color: Colors.amber.shade900),
+                      Icon(
+                        Icons.autorenew,
+                        size: 16,
+                        color: Colors.amber.shade900,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           'Esta prenda era producto no conforme, ya fue reprocesada por Producción.',
-                          style: TextStyle(color: Colors.amber.shade900, fontWeight: FontWeight.w600, fontSize: 12.5),
+                          style: TextStyle(
+                            color: Colors.amber.shade900,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12.5,
+                          ),
                         ),
                       ),
                     ],
@@ -615,9 +802,11 @@ class _TarjetaLinea extends StatelessWidget {
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
-                        _MaxValorFormatter(linea.cantidadPendiente),
+                        _MaxValorFormatter(grupo.cantidadPendiente),
                       ],
-                      decoration: wmsInput('Cant. a recibir ahora (máx ${linea.cantidadPendiente})'),
+                      decoration: wmsInput(
+                        'Cant. a recibir ahora (máx ${grupo.cantidadPendiente})',
+                      ),
                     ),
                   ),
                 ],
@@ -625,7 +814,10 @@ class _TarjetaLinea extends StatelessWidget {
               const SizedBox(height: 10),
               TextField(
                 controller: notaCtrl,
-                decoration: wmsInput('Nota de novedad para Producción (opcional)', icon: Icons.warning_amber),
+                decoration: wmsInput(
+                  'Nota de novedad para Producción (opcional)',
+                  icon: Icons.warning_amber,
+                ),
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -634,13 +826,22 @@ class _TarjetaLinea extends StatelessWidget {
                 children: [
                   ElevatedButton.icon(
                     onPressed: onConfirmar,
-                    icon: const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                    icon: const Icon(
+                      Icons.check_circle,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     label: const Text('INGRESAR A ESTANTE & CONFIRMAR'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.actionGreen,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                   OutlinedButton.icon(
@@ -648,11 +849,18 @@ class _TarjetaLinea extends StatelessWidget {
                     icon: const Icon(Icons.add_box_outlined, size: 18),
                     label: const Text('¿Llegó de más? Reportar sobrante'),
                   ),
-                  if ((linea.cantidadRecibida ?? 0) > 0)
+                  if (grupo.cantidadRecibida > 0)
                     TextButton.icon(
                       onPressed: onCerrarConFaltante,
-                      icon: const Icon(Icons.block, size: 18, color: AppColors.alertRed),
-                      label: const Text('Cerrar con faltante', style: TextStyle(color: AppColors.alertRed)),
+                      icon: const Icon(
+                        Icons.block,
+                        size: 18,
+                        color: AppColors.alertRed,
+                      ),
+                      label: const Text(
+                        'Cerrar con faltante',
+                        style: TextStyle(color: AppColors.alertRed),
+                      ),
                     ),
                 ],
               ),
@@ -670,7 +878,10 @@ class _MaxValorFormatter extends TextInputFormatter {
   final int maximo;
 
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (newValue.text.isEmpty) return newValue;
     final valor = int.tryParse(newValue.text);
     if (valor == null || valor > maximo) return oldValue;
@@ -682,19 +893,86 @@ class _MaxValorFormatter extends TextInputFormatter {
 // Reutiliza datos que YA están cargados en memoria (WmsSnapshot.lotes trae
 // todo, no solo lo pendiente) — no hace ninguna consulta nueva.
 
+final _recepcionesHistorialProvider =
+    FutureProvider.autoDispose<List<GrupoHistorial>>((ref) async {
+      final snapshot = ref.watch(wmsSnapshotProvider).value;
+      final items = <String, ItemOrden>{
+        for (final fila in snapshot?.kardex ?? <ItemKardex>[])
+          fila.item.id: fila.item,
+        for (final lote in snapshot?.lotes ?? <Lote>[])
+          for (final linea in lote.lineas) linea.item.id: linea.item,
+      };
+      final movimientos =
+          await ref.watch(wmsRepositoryProvider).cargarRecepciones();
+      if (movimientos.any((m) => !items.containsKey(m.itemId))) {
+        throw StateError(
+          'Faltan órdenes para calcular el total de recepciones.',
+        );
+      }
+      return agruparHistorial(
+        movimientos,
+        (m) => items[m.itemId]!,
+        (m) => EventoHistorial(
+          id: '${m.itemId}-${m.fecha}',
+          titulo: 'Recepción',
+          detalle: m.nota,
+          fecha: m.fecha,
+          cantidad: m.cantidad,
+        ),
+      );
+    });
+
 class _HistorialTab extends ConsumerWidget {
   const _HistorialTab();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const <Lote>[];
-    final registros = [for (final lote in lotes) for (final linea in lote.lineas) if (!linea.enTransito || linea.fechaRecepcion != null || (linea.cantidadRecibida ?? 0) > 0) (lote: lote, linea: linea)];
-    return HistorialAgrupado(grupos: agruparHistorial(registros, (e) => e.linea.item,
-      (e) => EventoHistorial(id: e.linea.id, fecha: e.linea.fechaRecepcion, cantidad: e.linea.cantidadRecibida ?? 0,
-        titulo: 'Recepción acumulada · ${e.linea.cantidadRecibida ?? 0} Uds · ${e.linea.estado.etiqueta}',
-        detalle: 'Lote: ${e.lote.id} | Operario: ${e.lote.operario}\n'
-          'Enviadas: ${e.linea.cantidadEnviada} Uds | Recibidas: ${e.linea.cantidadRecibida ?? 0} Uds | Estante: ${e.linea.ubicacionDestino ?? '—'}\n'
-          'Última recepción registrada por: ${e.linea.recibidoPor.isEmpty ? 'Sin registrar' : e.linea.recibidoPor}'
-          '${e.linea.novedad.isEmpty ? '' : '\nNovedad: ${e.linea.novedad}'}',
-        color: colorDeEstadoLinea(e.linea.estado))));
+    final recepciones = ref.watch(_recepcionesHistorialProvider);
+    final registros = [
+      for (final lote in lotes)
+        for (final linea in lote.lineas)
+          if (!linea.enTransito ||
+              linea.fechaRecepcion != null ||
+              (linea.cantidadRecibida ?? 0) > 0)
+            (lote: lote, linea: linea),
+    ];
+    return Column(
+      children: [
+        if (recepciones.isLoading)
+          const WmsLoadingStrip(label: 'Calculando prendas recibidas…'),
+        if (recepciones.hasError)
+          TextButton.icon(
+            onPressed: () => ref.invalidate(_recepcionesHistorialProvider),
+            icon: const Icon(Icons.refresh),
+            label: const Text('No se pudo calcular el total. Reintentar'),
+          ),
+        Expanded(
+          child: HistorialAgrupado(
+            mostrarTotal: !recepciones.isLoading && !recepciones.hasError,
+            gruposRecepciones:
+                recepciones.isLoading || recepciones.hasError
+                    ? null
+                    : recepciones.value,
+            grupos: agruparHistorial(
+              registros,
+              (e) => e.linea.item,
+              (e) => EventoHistorial(
+                id: e.linea.id,
+                fecha: e.linea.fechaRecepcion,
+                cantidad: e.linea.cantidadRecibida ?? 0,
+                titulo:
+                    'Recepción acumulada · ${e.linea.cantidadRecibida ?? 0} Uds · ${e.linea.estado.etiqueta}',
+                detalle:
+                    'Lote: ${e.lote.id} | Operario: ${e.lote.operario}\n'
+                    'Enviadas: ${e.linea.cantidadEnviada} Uds | Recibidas: ${e.linea.cantidadRecibida ?? 0} Uds | Estante: ${e.linea.ubicacionDestino ?? '—'}\n'
+                    'Última recepción registrada por: ${e.linea.recibidoPor.isEmpty ? 'Sin registrar' : e.linea.recibidoPor}'
+                    '${e.linea.novedad.isEmpty ? '' : '\nNovedad: ${e.linea.novedad}'}',
+                color: colorDeEstadoLinea(e.linea.estado),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

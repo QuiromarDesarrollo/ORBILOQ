@@ -1,3 +1,4 @@
+import '../../../application/dashboard_periodo.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,14 +8,13 @@ import '../../../application/providers.dart';
 import '../../../application/dashboard_recepcion.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/reportes_admin_repository.dart';
-import '../../../domain/sesion.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_loader.dart';
 
 final dashboardRecepcionProvider =
     FutureProvider.autoDispose<List<FilaReporte>>((ref) async {
-      if (ref.watch(dashboardAccesoProvider).$2 != RolCuenta.admin) {
-        throw StateError('Acceso exclusivo del administrador.');
+      if (!(ref.watch(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false)) {
+        throw StateError('Acceso exclusivo de Administración y Gerencia.');
       }
       final repo = ref.watch(reportesAdminProvider);
       if (repo == null) throw StateError('Reportes no disponibles.');
@@ -30,10 +30,12 @@ class DashboardRecepcionSection extends ConsumerWidget {
     required this.movimientos,
     required this.corte,
     required this.semanas,
+    this.periodo,
   });
   final List<FilaReporte> movimientos;
   final DateTime corte;
   final int semanas;
+  final PeriodoDashboard? periodo;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final datos = ref.watch(dashboardRecepcionProvider);
@@ -79,6 +81,7 @@ class DashboardRecepcionSection extends ConsumerWidget {
                   movimientos,
                   corte: corte,
                   semanas: semanas,
+                  periodo: periodo,
                 ),
               ),
         ),
@@ -206,7 +209,7 @@ class IndicadoresRecepcion extends StatelessWidget {
                     detalle:
                         '${datos.resueltos} registros resueltos · tiempo promedio',
                     nota:
-                        'Desde el registro hasta su resolución. Excluye pendientes; agrupa por semana de resolución.',
+                        'Desde el registro hasta su resolución. Excluye pendientes; agrupa por día de resolución.',
                     valores: datos.diasSemanales,
                   ),
                 ),
@@ -216,7 +219,7 @@ class IndicadoresRecepcion extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Text(
-          'Conformidad: estado actual de cada línea de lote, agrupada por su última fecha de recepción. Las tendencias usan semanas de lunes a domingo; la actual está en curso.',
+          'Conformidad: estado actual de cada línea de lote, agrupada por su última fecha de recepción. Las tendencias usan días de lunes a viernes dentro del calendario seleccionado.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         if (datos.invalidos > 0)
@@ -225,13 +228,13 @@ class IndicadoresRecepcion extends StatelessWidget {
             style: TextStyle(color: pal.chipRed),
           ),
         ExpansionTile(
-          title: const Text('Ver detalle de recepción por semana'),
+          title: const Text('Ver detalle de recepción por día'),
           children: [
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
                 columns: const [
-                  DataColumn(label: Text('Semana del')),
+                  DataColumn(label: Text('Día')),
                   DataColumn(label: Text('Tasa de sobrantes')),
                   DataColumn(label: Text('Días de resolución')),
                 ],
@@ -322,7 +325,7 @@ class _MetricaTendencia extends StatelessWidget {
                   )
                   : Semantics(
                     label:
-                        'Tendencia semanal. Consulta las cifras en el detalle por semana.',
+                        'Tendencia diaria. Consulta las cifras en el detalle por día.',
                     child: CustomPaint(
                       painter: TendenciaRecepcionPainter(valores, color),
                     ),
@@ -330,7 +333,7 @@ class _MetricaTendencia extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          'Tendencia semanal · huecos = sin base de cálculo',
+          'Tendencia diaria · huecos = sin base de cálculo',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 18),

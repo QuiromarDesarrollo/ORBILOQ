@@ -16,6 +16,11 @@ dependencies:
   excel: ^4.0.6
   file_picker: ^8.1.6
   mobile_scanner: ^7.4.2
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  archive: ^3.6.1
+  xml: ^6.6.1
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -25,4 +30,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/fonts/
     - assets/images/logo_orbiloq.png
+    - assets/images/logo_quiromar_lista.jpg
+    - assets/images/logo_quiromar_formato.jpg

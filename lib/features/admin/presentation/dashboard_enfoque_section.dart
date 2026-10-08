@@ -1,3 +1,4 @@
+import '../../../application/dashboard_periodo.dart';
 import '../../../application/dashboard_snapshot.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -7,15 +8,14 @@ import '../../../application/dashboard_acceso.dart';
 import '../../../application/providers.dart';
 import '../../../application/dashboard_enfoque.dart';
 import '../../../data/reportes_admin_repository.dart';
-import '../../../domain/sesion.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_loader.dart';
 
 final dashboardEnfoqueProvider = FutureProvider.autoDispose<List<FilaReporte>>((
   ref,
 ) async {
-  if (ref.watch(dashboardAccesoProvider).$2 != RolCuenta.admin) {
-    throw StateError('Acceso exclusivo del administrador.');
+  if (!(ref.watch(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false)) {
+    throw StateError('Acceso exclusivo de Administración y Gerencia.');
   }
   final repo = ref.watch(reportesAdminProvider);
   if (repo == null) throw StateError('Reportes no disponibles.');
@@ -38,10 +38,12 @@ class DashboardEnfoqueSection extends ConsumerWidget {
     required this.movimientos,
     required this.corte,
     required this.semanas,
+    this.periodo,
   });
   final List<FilaReporte> movimientos;
   final DateTime corte;
   final int semanas;
+  final PeriodoDashboard? periodo;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final nc = ref.watch(dashboardEnfoqueProvider);
@@ -50,6 +52,7 @@ class DashboardEnfoqueSection extends ConsumerWidget {
       movimientos,
       corte: corte,
       semanas: semanas,
+      periodo: periodo,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -149,9 +152,9 @@ class DashboardEnfoqueSection extends ConsumerWidget {
                   _Panel(
                     titulo: 'Causales de no conformidad',
                     detalle:
-                        'Unidades reportadas · Logística + Aliados · últimas 4 semanas frente al histórico (que incluye esas 4 semanas).',
+                        'Unidades reportadas · Logística + Aliados · período seleccionado (lunes a viernes) frente al histórico.',
                     child: BarrasCausales(
-                      datos: compararCausales(filas, corte),
+                      datos: compararCausales(filas, corte, periodo: periodo),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -184,6 +187,7 @@ class DashboardEnfoqueSection extends ConsumerWidget {
                             filas,
                             corte: corte,
                             semanas: semanas,
+                            periodo: periodo,
                           ),
                         ),
                   ),
@@ -268,7 +272,7 @@ class BarrasCausales extends StatelessWidget {
           spacing: 20,
           runSpacing: 8,
           children: [
-            StatusChip(label: 'Últimas 4 semanas', color: _teal(context)),
+            StatusChip(label: 'Período seleccionado', color: _teal(context)),
             StatusChip(label: 'Histórico', color: _azul(context)),
           ],
         ),
@@ -296,7 +300,7 @@ class BarrasCausales extends StatelessWidget {
                             barra(
                               c.recientes,
                               _teal(context),
-                              '${c.nombre}, últimas 4 semanas',
+                              '${c.nombre}, período seleccionado',
                             ),
                             barra(
                               c.historico,

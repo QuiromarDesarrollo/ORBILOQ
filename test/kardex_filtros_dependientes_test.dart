@@ -10,6 +10,26 @@ import 'package:orbiloq_wms/shared/widgets/multi_select_filter.dart';
 
 void main() {
   for (final columnas in [columnasProduccion, columnasBodega]) {
+    test('Filtrar por OC se combina con cliente: ${columnas.keys.last}', () async {
+      final repo = InMemoryWmsRepository.seeded();
+      addTearDown(repo.dispose);
+      final items = (await repo.watch().first).kardex;
+      final container = ProviderContainer(overrides: [
+        kardexProvider.overrideWithValue(items),
+        extractoresColumnaProvider.overrideWithValue(columnas),
+      ]);
+      addTearDown(container.dispose);
+      final filtros = container.read(kardexFiltersProvider.notifier);
+      filtros.setColumna(ColKardex.oc, {'ORD-001-ENE'});
+      expect(container.read(kardexFiltradoProvider),
+          orderedEquals(items.where((i) => i.item.oc == 'ORD-001-ENE')));
+      filtros.setColumna(ColKardex.cliente, {'MEDICALL'});
+      expect(container.read(kardexFiltradoProvider), isEmpty);
+      filtros.setColumna(ColKardex.oc, {});
+      expect(container.read(opcionesFiltroProvider).de(ColKardex.oc),
+          orderedEquals(items.where((i) => i.item.cliente == 'MEDICALL')
+              .map((i) => i.item.oc).toSet().toList()..sort()));
+    });
     test(
         'Opciones dependen de cliente, OP y búsqueda, sin limitar su propia selección: ${columnas.keys.last}',
         () async {

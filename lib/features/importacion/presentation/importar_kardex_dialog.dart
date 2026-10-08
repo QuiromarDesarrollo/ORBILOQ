@@ -1,3 +1,5 @@
+import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
+import '../../../shared/widgets/boton_plantilla_excel.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
@@ -90,7 +92,7 @@ class _ImportarKardexState extends ConsumerState<ImportarKardexDialog> {
         if (!mounted) return;
         ref.read(kardexPaginaProvider.notifier).ir(0);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        mostrarAvisoSnack(context, const SnackBar(
             content:
                 Text('Importación completada. Ambas vistas actualizadas.')));
       } else {
@@ -120,11 +122,16 @@ class _ImportarKardexState extends ConsumerState<ImportarKardexDialog> {
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text(
-                'Usa el archivo de «Exportar tabla». Incluye todas las filas, sin filtros ni paginación. Las OP son compartidas: los cambios se reflejan en ambas vistas.'),
+                'Descarga la plantilla con los datos actuales o usa el archivo de «Exportar tabla». Incluye todas las filas, sin filtros ni paginación. Las OP son compartidas: los cambios se reflejan en ambas vistas.'),
             const SizedBox(height: 12),
             const Text(
                 'Pendientes, estados y días faltantes se recalculan. Los ajustes se registran sin borrar movimientos ni lotes. Si cambias recibido, despachado o no conforme, indica el estante en «UBICACIÓN DEL AJUSTE».'),
             const SizedBox(height: 12),
+            BotonPlantillaExcel(
+              nombre: "kardex_${widget.vista.name}",
+              habilitado: _admin && !_ocupado && ref.watch(importadorKardexProvider) != null,
+              generar: () async => ExcelKardex.generar(await ref.read(importadorKardexProvider)!.exportar(widget.vista)),
+            ),
             OutlinedButton.icon(
                 onPressed: _ocupado ? null : _elegir,
                 icon: const Icon(Icons.folder_open),
@@ -139,8 +146,7 @@ class _ImportarKardexState extends ConsumerState<ImportarKardexDialog> {
             if (_error != null)
               Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: SelectableText(_error!,
-                      style: const TextStyle(color: Colors.red))),
+                  child: AvisoFormulario(_error!)),
             if (_ocupado) const WmsLoadingStrip(),
             if (_preview != null) ...[
               const SizedBox(height: 16),

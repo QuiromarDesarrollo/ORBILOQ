@@ -1,3 +1,4 @@
+import 'dashboard_periodo.dart';
 import '../data/reportes_admin_repository.dart';
 import '../domain/models.dart';
 import 'dashboard_tendencias.dart';
@@ -30,17 +31,23 @@ Map<String, int> volumenClientes(
   List<FilaReporte> filas, {
   required DateTime corte,
   required int semanas,
+  PeriodoDashboard? periodo,
   String tipo = 'despacho',
 }) {
   final desde =
+      periodo?.inicio ??
       calcularTendencias(
         [],
         corte: corte,
         semanas: semanas,
+        periodo: periodo,
       ).semanas.first.inicio;
   final grupos = <String, int>{};
   for (final f in filas) {
-    if (f['tipo'] != tipo || !_operativo(f) || !_enRango(f, corte, desde)) {
+    if ((periodo != null && !periodo.contiene(f['fecha'])) ||
+        f['tipo'] != tipo ||
+        !_operativo(f) ||
+        !_enRango(f, corte, desde)) {
       continue;
     }
     final n = _cantidad(f);
@@ -64,9 +71,11 @@ class CausalComparada {
 
 List<CausalComparada> compararCausales(
   List<FilaReporte> filas,
-  DateTime corte,
-) {
+  DateTime corte, {
+  PeriodoDashboard? periodo,
+}) {
   final desde =
+      periodo?.inicio ??
       calcularTendencias([], corte: corte, semanas: 4).semanas.first.inicio;
   final grupos = <String, CausalComparada>{};
   final vistos = <String>{};
@@ -81,7 +90,10 @@ List<CausalComparada> compararCausales(
       () => CausalComparada(nombre.isEmpty ? 'Sin causal registrada' : nombre),
     );
     c.historico += n;
-    if (_enRango(f, corte, desde)) c.recientes += n;
+    if (_enRango(f, corte, desde) &&
+        (periodo == null || periodo.contiene(f['fecha']))) {
+      c.recientes += n;
+    }
   }
   return grupos.values.toList()..sort((a, b) {
     final orden = b.historico.compareTo(a.historico);
@@ -120,12 +132,15 @@ List<SaludCliente> saludClientes(
   List<FilaReporte> nc, {
   required DateTime corte,
   required int semanas,
+  PeriodoDashboard? periodo,
 }) {
   final desde =
+      periodo?.inicio ??
       calcularTendencias(
         [],
         corte: corte,
         semanas: semanas,
+        periodo: periodo,
       ).semanas.first.inicio;
   final hoyLocal = fechaReporte(corte.toUtc().toIso8601String())!;
   final hoy = DateTime.utc(hoyLocal.year, hoyLocal.month, hoyLocal.day);
@@ -167,6 +182,7 @@ List<SaludCliente> saludClientes(
     movimientos,
     corte: corte,
     semanas: semanas,
+    periodo: periodo,
     tipo: 'entrega_produccion',
   );
   for (final e in entregado.entries) {
@@ -174,7 +190,10 @@ List<SaludCliente> saludClientes(
   }
   final vistos = <String>{};
   for (final f in nc) {
-    if (!_enRango(f, corte, desde)) continue;
+    if (!_enRango(f, corte, desde) ||
+        (periodo != null && !periodo.contiene(f['fecha']))) {
+      continue;
+    }
     if (f['registro'] != null && !vistos.add('${f['registro']}')) continue;
     grupo(f['cliente']).noConforme += _cantidad(f);
   }

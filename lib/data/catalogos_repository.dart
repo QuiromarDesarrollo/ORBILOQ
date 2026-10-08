@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const catalogosAdministrables = {
+  'empaques': 'Empaques',
   'usuarios': 'Usuarios',
   'ubicaciones': 'Ubicaciones / estantes',
   'causales_devolucion': 'Causales de devolución',

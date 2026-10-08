@@ -1,3 +1,5 @@
+import 'package:orbiloq_wms/application/dashboard_periodo.dart';
+import 'package:orbiloq_wms/features/admin/presentation/dashboard_calendario.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -106,7 +108,7 @@ void main() {
       rol = RolCuenta.logistica;
       container.invalidate(usuarioSesionProvider);
       await tester.pumpAndSettle();
-      expect(find.text('Acceso exclusivo del administrador.'), findsOneWidget);
+      expect(find.text('Acceso exclusivo de Administración y Gerencia.'), findsOneWidget);
       expect(find.text('4 activas · 1 completas'), findsNothing);
       expect(reportes.llamadas, 12);
       expect(repo.lecturas, 3);
@@ -144,9 +146,7 @@ void main() {
       repo.eventos.add(repo.actual);
       await tester.pump(const Duration(minutes: 2));
       expect(find.text('4 activas · 1 completas'), findsOneWidget);
-      await tester.tap(find.text('Últimas 12 semanas'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Últimas 4 semanas').last);
+      tester.widget<DashboardCalendario>(find.byType(DashboardCalendario)).onChanged(PeriodoDashboard(DateTime(2026, 9, 28), DateTime(2026, 10, 2)));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Vista detallada'));
       await tester.pumpAndSettle();

@@ -1,3 +1,4 @@
+import '../../../shared/widgets/boton_plantilla_excel.dart';
 import '../../../application/auth_providers.dart';
 import '../../../shared/widgets/responsive_row.dart';
 import 'package:file_picker/file_picker.dart';
@@ -109,6 +110,7 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          BotonPlantillaExcel(tipo: PlantillaExcel.ordenes, habilitado: !_cargando),
           if (!disponible)
             const FeedbackBanner(
               message: FeedbackMessage.error(

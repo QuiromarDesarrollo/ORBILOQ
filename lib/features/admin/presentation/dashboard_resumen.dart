@@ -1,3 +1,5 @@
+import 'dashboard_calendario.dart';
+import '../../../application/dashboard_periodo.dart';
 import '../../../application/dashboard_snapshot.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -19,11 +21,15 @@ class DashboardResumen extends ConsumerStatefulWidget {
     super.key,
     required this.datos,
     required this.semanas,
+    this.periodo,
     required this.cambiarSemanas,
+    this.cambiarPeriodo,
   });
   final DatosDashboard datos;
   final int semanas;
+  final PeriodoDashboard? periodo;
   final ValueChanged<int> cambiarSemanas;
+  final ValueChanged<PeriodoDashboard>? cambiarPeriodo;
   @override
   ConsumerState<DashboardResumen> createState() => _DashboardResumenState();
 }
@@ -62,11 +68,13 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
       movimientos,
       corte: widget.datos.corte,
       semanas: widget.semanas,
+      periodo: widget.periodo,
     );
     final volumen = volumenClientes(
       movimientos,
       corte: widget.datos.corte,
       semanas: widget.semanas,
+      periodo: widget.periodo,
     );
     final kardex =
         snapshot.value?.kardex
@@ -111,12 +119,13 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
       movimientos,
       corte: widget.datos.corte,
       semanas: widget.semanas,
+      periodo: widget.periodo,
     );
     return LayoutBuilder(
       builder: (context, c) {
         final desktop = c.maxWidth >= 1100;
         final rowHeight =
-            desktop ? math.max(180.0, (c.maxHeight - 132) / 3) : 270.0;
+            desktop ? math.max(160.0, (c.maxHeight - 152) / 3) : 270.0;
         Widget tile(
           String titulo,
           String ayuda,
@@ -130,8 +139,8 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
         );
         final cards = <Widget>[
           tile(
-            'Volumen semanal',
-            'Unidades positivas entregadas por Producción, recibidas y despachadas por semana en Bogotá. Excluye ajustes administrativos y movimientos inversos. La semana actual es parcial. El cliente y el período seleccionados se aplican a las tres líneas.',
+            'Volumen diario',
+            'Unidades positivas entregadas por Producción, recibidas y despachadas por día en Bogotá. Excluye ajustes administrativos y movimientos inversos. El día actual puede estar incompleto. El cliente y el período seleccionados se aplican a las tres líneas.',
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -210,7 +219,7 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
           ),
           tile(
             'Sobrantes y resolución',
-            'Tasa = unidades sobrantes registradas / unidades recibidas del período × 100; puede superar 100 %. Resolución = promedio de días entre creación y resolución de los registros resueltos dentro del período. Las mini líneas son semanales; los huecos indican falta de base.',
+            'Tasa = unidades sobrantes registradas / unidades recibidas del período × 100; puede superar 100 %. Resolución = promedio de días entre creación y resolución de los registros resueltos dentro del período. Las mini líneas son diarias; los huecos indican falta de base.',
             datosAud((f) {
               final d = recepcion(f);
               Widget metrica(
@@ -255,8 +264,8 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                                   title: Text(label),
                                   content: Text(
                                     sufijo == '%'
-                                        ? 'Unidades sobrantes registradas divididas entre unidades recibidas en el período, por 100. Puede superar el 100 %. La mini línea muestra la tasa por semana; sin recepción base no se calcula.'
-                                        : 'Promedio por registro de los días entre creación y resolución. Incluye registros resueltos en el período aunque se hayan creado antes. Excluye pendientes. La mini línea agrupa por semana de resolución.',
+                                        ? 'Unidades sobrantes registradas divididas entre unidades recibidas en el período, por 100. Puede superar el 100 %. La mini línea muestra la tasa por día; sin recepción base no se calcula.'
+                                        : 'Promedio por registro de los días entre creación y resolución. Incluye registros resueltos en el período aunque se hayan creado antes. Excluye pendientes. La mini línea agrupa por día de resolución.',
                                   ),
                                   actions: [
                                     TextButton(
@@ -341,10 +350,14 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
           ),
           tile(
             'Causales de no conformidad',
-            'Unidades reportadas en Logística y Aliados, agrupadas por causal. Compara últimas 4 semanas calendario con todo el histórico hasta el corte. El histórico incluye esas 4 semanas. El filtro de cliente sí aplica; este comparativo conserva sus ventanas fijas. Una prenda puede tener varios reportes.',
+            'Unidades reportadas en Logística y Aliados, agrupadas por causal. Compara el período seleccionado (lunes a viernes) con todo el histórico hasta el corte. El histórico incluye el período seleccionado. El filtro de cliente también aplica. Una prenda puede tener varios reportes.',
             datosNc(
               (f) => _CausalesCompactas(
-                datos: compararCausales(f, widget.datos.corte),
+                datos: compararCausales(
+                  f,
+                  widget.datos.corte,
+                  periodo: widget.periodo,
+                ),
                 alto: rowHeight - 90,
               ),
             ),
@@ -360,6 +373,7 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                   f,
                   corte: widget.datos.corte,
                   semanas: widget.semanas,
+                  periodo: widget.periodo,
                 );
                 return Column(
                   children: [
@@ -416,6 +430,7 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                     f,
                     corte: widget.datos.corte,
                     semanas: widget.semanas,
+                    periodo: widget.periodo,
                   ),
                 ),
               ),
@@ -586,25 +601,11 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                       'Resumen ejecutivo',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    SizedBox(
-                      width: 185,
-                      child: DropdownButtonFormField<int>(
-                        initialValue: widget.semanas,
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Período'),
-                        items: [
-                          for (final n in [4, 8, 12, 26])
-                            DropdownMenuItem(
-                              value: n,
-                              child: Text(
-                                'Últimas $n semanas',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                        ],
-                        onChanged: (v) => widget.cambiarSemanas(v!),
+                    if (widget.periodo != null)
+                      DashboardCalendario(
+                        periodo: widget.periodo!,
+                        onChanged: widget.cambiarPeriodo ?? (_) {},
                       ),
-                    ),
                     SizedBox(
                       width: 225,
                       child: DropdownButtonFormField<String>(
@@ -779,7 +780,7 @@ class _CausalesCompactas extends StatelessWidget {
           spacing: 12,
           children: [
             Text(
-              '● 4 semanas',
+              '● Período',
               style: TextStyle(fontSize: 10, color: pal.accent),
             ),
             Text(
@@ -850,4 +851,3 @@ class _CausalesCompactas extends StatelessWidget {
     );
   }
 }
-

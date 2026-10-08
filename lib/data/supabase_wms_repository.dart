@@ -14,88 +14,139 @@ import '../domain/wms_repository.dart';
 /// carrera entre usuarios concurrentes.
 class SupabaseWmsRepository implements WmsRepository {
   @override
+  Future<List<Movimiento>> cargarRecepciones() async {
+    final filas = await _traerTodo(
+      (a, b) => _client
+          .from('movimientos')
+          .select('item_orden_id,cantidad,fecha,lote_id,lote_item_id,nota')
+          .eq('tipo', 'recepcion')
+          .order('id')
+          .range(a, b),
+    );
+    return [
+      for (final f in filas)
+        Movimiento(
+          tipo: TipoMovimiento.recepcion,
+          itemId: f['item_orden_id'] as String,
+          cantidad: (f['cantidad'] as num).toInt(),
+          fecha: DateTime.parse(f['fecha'] as String),
+          loteId: f['lote_id'] as String?,
+          loteLineaId: f['lote_item_id'] as String?,
+          nota: f['nota'] as String? ?? '',
+        ),
+    ];
+  }
+
+  @override
   Future<List<String>> cargarUbicaciones() async {
-    final filas = await _traerTodo((a,b) => _client.from('ubicaciones').select('codigo').eq('activa',true).order('codigo').range(a,b));
-    return [for(final f in filas) f['codigo'] as String];
+    final filas = await _traerTodo(
+      (a, b) => _client
+          .from('ubicaciones')
+          .select('codigo')
+          .eq('activa', true)
+          .order('codigo')
+          .range(a, b),
+    );
+    return [for (final f in filas) f['codigo'] as String];
   }
 
   @override
   Future<Result<void>> eliminarLineaAdmin(
-      String itemId, String version, String motivo) async {
+    String itemId,
+    String version,
+    String motivo,
+  ) async {
     try {
-      await _client.rpc('admin_eliminar_linea', params: {
-        'p_item_id': itemId,
-        'p_version': version,
-        'p_motivo': motivo,
-      });
+      await _client.rpc(
+        'admin_eliminar_linea',
+        params: {'p_item_id': itemId, 'p_version': version, 'p_motivo': motivo},
+      );
       await refrescar();
       return const Ok(null);
     } on PostgrestException catch (e) {
       return Err(e.message);
     } catch (e) {
       return const Err(
-          'No se pudo verificar la operacion. Actualiza antes de reintentar.');
+        'No se pudo verificar la operacion. Actualiza antes de reintentar.',
+      );
     }
   }
 
   @override
   Future<ContextoEdicionAdmin> cargarEdicionAdmin(String itemId) async {
-    final data = await _client
-        .rpc('admin_contexto_edicion', params: {'p_item_id': itemId});
+    final data = await _client.rpc(
+      'admin_contexto_edicion',
+      params: {'p_item_id': itemId},
+    );
     return ContextoEdicionAdmin.fromJson(
-        Map<String, dynamic>.from(data as Map));
+      Map<String, dynamic>.from(data as Map),
+    );
   }
 
   @override
-  Future<Result<Map<String, dynamic>>> editarAdmin(CambioAdmin cambio,
-      {required bool confirmar}) async {
+  Future<Result<Map<String, dynamic>>> editarAdmin(
+    CambioAdmin cambio, {
+    required bool confirmar,
+  }) async {
     try {
-      final data = await _client.rpc('admin_editar_kardex',
-          params: cambio.parametros(confirmar));
+      final data = await _client.rpc(
+        cambio.recepciones.isEmpty
+            ? 'admin_editar_kardex'
+            : 'admin_editar_recepciones',
+        params: cambio.parametros(confirmar),
+      );
       if (confirmar) await refrescar();
       return Ok(Map<String, dynamic>.from(data as Map));
     } on PostgrestException catch (e) {
       return Err(e.message);
     } catch (e) {
       return Err(
-          'No se pudo verificar la operación. Actualiza antes de reintentar: $e');
+        'No se pudo verificar la operación. Actualiza antes de reintentar: $e',
+      );
     }
   }
 
   SupabaseWmsRepository(this._client) {
-    _channel = _client
-        .channel('wms_cambios')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'items_orden',
-          callback: (_) => refrescar(),
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'ordenes_produccion',
-          callback: (_) => refrescar(),
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'movimientos',
-          callback: (_) => refrescar(),
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'lotes',
-          callback: (_) => refrescar(),
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'lote_items',
-          callback: (_) => refrescar(),
-        )
-        .subscribe();
+    _channel =
+        _client
+            .channel('wms_cambios')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'items_orden',
+              callback: (_) => refrescar(),
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'ordenes_produccion',
+              callback: (_) => refrescar(),
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'movimientos',
+              callback: (_) => refrescar(),
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'lotes',
+              callback: (_) => refrescar(),
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'lote_items',
+              callback: (_) => refrescar(),
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'reservas_despacho',
+              callback: (_) => refrescar(),
+            )
+            .subscribe();
     refrescar();
   }
 
@@ -188,8 +239,27 @@ class SupabaseWmsRepository implements WmsRepository {
       stockPorItem.putIfAbsent(itemId, () => {})[ubicacion] = cantidad;
     }
 
+    final reservasRows = await _traerTodo(
+      (desde, hasta) => _client
+          .from('reservas_despacho')
+          .select('item_id,ubicacion:ubicaciones(codigo),cantidad')
+          .order('despacho_id')
+          .order('item_id')
+          .order('ubicacion_id')
+          .range(desde, hasta),
+    );
+    final reservasPorItem = <String, Map<String, int>>{};
+    for (final r in reservasRows) {
+      final porUbicacion = reservasPorItem.putIfAbsent(
+        '${r['item_id']}',
+        () => {},
+      );
+      final u = '${r['ubicacion']['codigo']}';
+      porUbicacion[u] = (porUbicacion[u] ?? 0) + (r['cantidad'] as num).toInt();
+    }
     final kardex = [
-      for (final row in kardexRows) _kardexDesdeFila(row, stockPorItem),
+      for (final row in kardexRows)
+        _kardexDesdeFila(row, stockPorItem, reservasPorItem),
     ];
 
     return WmsSnapshot(kardex: kardex, lotes: _agruparLotes(loteItemsRows));
@@ -198,6 +268,7 @@ class SupabaseWmsRepository implements WmsRepository {
   ItemKardex _kardexDesdeFila(
     Map<String, dynamic> row,
     Map<String, Map<String, int>> stockPorItem,
+    Map<String, Map<String, int>> reservasPorItem,
   ) {
     final id = row['item_orden_id'] as String;
     final item = ItemOrden(
@@ -218,6 +289,7 @@ class SupabaseWmsRepository implements WmsRepository {
       recibido: (row['recibido'] as num).toInt(),
       despachado: (row['despachado'] as num).toInt(),
       ubicaciones: stockPorItem[id] ?? const {},
+      reservas: reservasPorItem[id] ?? const {},
       fechaEntrega: _fecha(row['fecha_ultima_entrega']),
       fechaDespacho: _fecha(row['fecha_ultimo_despacho']),
       fechaRecepcion: _fecha(row['fecha_ultima_recepcion']),
@@ -249,11 +321,12 @@ class SupabaseWmsRepository implements WmsRepository {
     final primera = filas.first;
     final lineas = [for (final f in filas) _lineaDesdeFila(f)];
     final pendientes = lineas.where((l) => l.enTransito).length;
-    final estado = pendientes == 0
-        ? EstadoLote.recibidoCompleto
-        : (pendientes == lineas.length
-            ? EstadoLote.enTransito
-            : EstadoLote.recibidoParcial);
+    final estado =
+        pendientes == 0
+            ? EstadoLote.recibidoCompleto
+            : (pendientes == lineas.length
+                ? EstadoLote.enTransito
+                : EstadoLote.recibidoParcial);
     return Lote(
       id: numero,
       operario: primera['operario_nombre'] as String,
@@ -290,21 +363,22 @@ class SupabaseWmsRepository implements WmsRepository {
   }
 
   EstadoLineaLote _estadoLineaDesde(String v) => switch (v) {
-        'recibido_conforme' => EstadoLineaLote.recibidoConforme,
-        'recibido_con_novedad' => EstadoLineaLote.recibidoConNovedad,
-        _ => EstadoLineaLote.enTransito,
-      };
+    'recibido_conforme' => EstadoLineaLote.recibidoConforme,
+    'recibido_con_novedad' => EstadoLineaLote.recibidoConNovedad,
+    _ => EstadoLineaLote.enTransito,
+  };
 
   DateTime? _fecha(dynamic v) =>
       v == null ? null : DateTime.parse(v as String).toLocal();
 
   Future<String?> _idDeUbicacion(String codigo) async {
-    final fila = await _client
-        .from('ubicaciones')
-        .select('id')
-        .eq('codigo', codigo)
-        .eq('activa', true)
-        .maybeSingle();
+    final fila =
+        await _client
+            .from('ubicaciones')
+            .select('id')
+            .eq('codigo', codigo)
+            .eq('activa', true)
+            .maybeSingle();
     return fila?['id'] as String?;
   }
 
@@ -325,22 +399,27 @@ class SupabaseWmsRepository implements WmsRepository {
   }) async {
     if (items.isEmpty) return Err<Lote>('El lote no tiene productos.');
     try {
-      final res = await _client.rpc('crear_lote', params: {
-        'p_items': [
-          for (final i in items)
-            {'item_orden_id': i.itemId, 'cantidad': i.cantidad},
-        ],
-        'p_operario_nombre': operario,
-        'p_numero_lote': (numeroLote == null || numeroLote.trim().isEmpty)
-            ? null
-            : numeroLote.trim(),
-      });
+      final res = await _client.rpc(
+        'crear_lote',
+        params: {
+          'p_items': [
+            for (final i in items)
+              {'item_orden_id': i.itemId, 'cantidad': i.cantidad},
+          ],
+          'p_operario_nombre': operario,
+          'p_numero_lote':
+              (numeroLote == null || numeroLote.trim().isEmpty)
+                  ? null
+                  : numeroLote.trim(),
+        },
+      );
       final numero = (res as Map)['numero'] as String;
       await refrescar();
       final lote = _buscarLotePorNumero(numero);
       if (lote == null) {
         return Err<Lote>(
-            'El lote $numero se creó, pero no se pudo leer de vuelta.');
+          'El lote $numero se creó, pero no se pudo leer de vuelta.',
+        );
       }
       return Ok<Lote>(lote);
     } on PostgrestException catch (e) {
@@ -363,13 +442,16 @@ class SupabaseWmsRepository implements WmsRepository {
       if (ubicacionId == null) {
         return Err<LoteLinea>('Ubicación no válida: $ubicacion.');
       }
-      await _client.rpc('recibir_lote_item', params: {
-        'p_lote_item_id': loteLineaId,
-        'p_cantidad': cantidad,
-        'p_ubicacion_id': ubicacionId,
-        'p_nota': nota,
-        'p_recibido_por': recibidoPor,
-      });
+      await _client.rpc(
+        'recibir_lote_item',
+        params: {
+          'p_lote_item_id': loteLineaId,
+          'p_cantidad': cantidad,
+          'p_ubicacion_id': ubicacionId,
+          'p_nota': nota,
+          'p_recibido_por': recibidoPor,
+        },
+      );
       await refrescar();
       for (final lote in _ultimo?.lotes ?? const <Lote>[]) {
         for (final linea in lote.lineas) {
@@ -377,7 +459,8 @@ class SupabaseWmsRepository implements WmsRepository {
         }
       }
       return Err<LoteLinea>(
-          'La línea se actualizó, pero no se pudo leer de vuelta.');
+        'La línea se actualizó, pero no se pudo leer de vuelta.',
+      );
     } on PostgrestException catch (e) {
       return Err<LoteLinea>(e.message);
     } catch (e) {
@@ -391,10 +474,10 @@ class SupabaseWmsRepository implements WmsRepository {
     String nota = '',
   }) async {
     try {
-      await _client.rpc('cerrar_lote_item_con_faltante', params: {
-        'p_lote_item_id': loteLineaId,
-        'p_nota': nota,
-      });
+      await _client.rpc(
+        'cerrar_lote_item_con_faltante',
+        params: {'p_lote_item_id': loteLineaId, 'p_nota': nota},
+      );
       await refrescar();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
@@ -413,13 +496,16 @@ class SupabaseWmsRepository implements WmsRepository {
     String nota = '',
   }) async {
     try {
-      await _client.rpc('registrar_sobrante', params: {
-        'p_item_orden_id': itemId,
-        'p_lote_item_id': loteLineaId,
-        'p_cantidad': cantidad,
-        'p_operario_nombre': operario,
-        'p_nota': nota,
-      });
+      await _client.rpc(
+        'registrar_sobrante',
+        params: {
+          'p_item_orden_id': itemId,
+          'p_lote_item_id': loteLineaId,
+          'p_cantidad': cantidad,
+          'p_operario_nombre': operario,
+          'p_nota': nota,
+        },
+      );
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);
@@ -429,11 +515,15 @@ class SupabaseWmsRepository implements WmsRepository {
   }
 
   @override
-  Future<Result<void>> resolverSobrante(
-      {required String id, required String resolucion}) async {
+  Future<Result<void>> resolverSobrante({
+    required String id,
+    required String resolucion,
+  }) async {
     try {
-      await _client.rpc('resolver_sobrante',
-          params: {'p_id': id, 'p_resolucion': resolucion});
+      await _client.rpc(
+        'resolver_sobrante',
+        params: {'p_id': id, 'p_resolucion': resolucion},
+      );
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);
@@ -487,11 +577,14 @@ class SupabaseWmsRepository implements WmsRepository {
       if (ubicacionId == null) {
         return Err<void>('Ubicación no válida: $ubicacion.');
       }
-      await _client.rpc('despachar', params: {
-        'p_item_orden_id': itemId,
-        'p_cantidad': cantidad,
-        'p_ubicacion_id': ubicacionId,
-      });
+      await _client.rpc(
+        'despachar',
+        params: {
+          'p_item_orden_id': itemId,
+          'p_cantidad': cantidad,
+          'p_ubicacion_id': ubicacionId,
+        },
+      );
       await refrescar();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
@@ -523,15 +616,17 @@ class SupabaseWmsRepository implements WmsRepository {
         .order('nombre');
     return [
       for (final f in (filas as List).cast<Map<String, dynamic>>())
-        f['nombre'] as String
+        f['nombre'] as String,
     ];
   }
 
   @override
   Future<Result<String>> agregarPersonalLogistica(String nombre) async {
     try {
-      final res = await _client
-          .rpc('agregar_personal_logistica', params: {'p_nombre': nombre});
+      final res = await _client.rpc(
+        'agregar_personal_logistica',
+        params: {'p_nombre': nombre},
+      );
       final fila = res as Map<String, dynamic>;
       return Ok<String>(fila['nombre'] as String);
     } on PostgrestException catch (e) {
@@ -550,15 +645,17 @@ class SupabaseWmsRepository implements WmsRepository {
         .order('nombre');
     return [
       for (final f in (filas as List).cast<Map<String, dynamic>>())
-        f['nombre'] as String
+        f['nombre'] as String,
     ];
   }
 
   @override
   Future<Result<String>> agregarPersonalProduccion(String nombre) async {
     try {
-      final res = await _client
-          .rpc('agregar_personal_produccion', params: {'p_nombre': nombre});
+      final res = await _client.rpc(
+        'agregar_personal_produccion',
+        params: {'p_nombre': nombre},
+      );
       final fila = res as Map<String, dynamic>;
       return Ok<String>(fila['nombre'] as String);
     } on PostgrestException catch (e) {
@@ -577,15 +674,17 @@ class SupabaseWmsRepository implements WmsRepository {
         .order('nombre');
     return [
       for (final f in (filas as List).cast<Map<String, dynamic>>())
-        f['nombre'] as String
+        f['nombre'] as String,
     ];
   }
 
   @override
   Future<Result<String>> agregarPersonalAliado(String nombre) async {
     try {
-      final res = await _client
-          .rpc('agregar_personal_aliado', params: {'p_nombre': nombre});
+      final res = await _client.rpc(
+        'agregar_personal_aliado',
+        params: {'p_nombre': nombre},
+      );
       final fila = res as Map<String, dynamic>;
       return Ok<String>(fila['nombre'] as String);
     } on PostgrestException catch (e) {
@@ -605,14 +704,17 @@ class SupabaseWmsRepository implements WmsRepository {
     String nota = '',
   }) async {
     try {
-      await _client.rpc('enviar_no_conforme_aliado', params: {
-        'p_item_orden_id': itemId,
-        'p_cantidad': cantidad,
-        'p_causal_id': causalId,
-        'p_operario_nombre': operario,
-        'p_persona_aliado_entrega': personaAliadoEntrega,
-        'p_nota': nota,
-      });
+      await _client.rpc(
+        'enviar_no_conforme_aliado',
+        params: {
+          'p_item_orden_id': itemId,
+          'p_cantidad': cantidad,
+          'p_causal_id': causalId,
+          'p_operario_nombre': operario,
+          'p_persona_aliado_entrega': personaAliadoEntrega,
+          'p_nota': nota,
+        },
+      );
       await refrescar();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
@@ -631,13 +733,16 @@ class SupabaseWmsRepository implements WmsRepository {
     String nota = '',
   }) async {
     try {
-      await _client.rpc('liberar_no_conforme_aliado', params: {
-        'p_solicitud_id': id,
-        'p_cantidad': cantidad,
-        'p_operario_nombre': operario,
-        'p_persona_aliado_libera': personaAliadoLibera,
-        'p_nota': nota,
-      });
+      await _client.rpc(
+        'liberar_no_conforme_aliado',
+        params: {
+          'p_solicitud_id': id,
+          'p_cantidad': cantidad,
+          'p_operario_nombre': operario,
+          'p_persona_aliado_libera': personaAliadoLibera,
+          'p_nota': nota,
+        },
+      );
       await refrescar();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
@@ -730,14 +835,17 @@ class SupabaseWmsRepository implements WmsRepository {
     String nota = '',
   }) async {
     try {
-      await _client.rpc('registrar_no_conforme', params: {
-        'p_item_orden_id': itemId,
-        'p_cantidad': cantidad,
-        'p_causal_id': causalId,
-        'p_operario_nombre': operario,
-        'p_nota': nota,
-        'p_recibido_de_produccion': recibidoDeProduccion,
-      });
+      await _client.rpc(
+        'registrar_no_conforme',
+        params: {
+          'p_item_orden_id': itemId,
+          'p_cantidad': cantidad,
+          'p_causal_id': causalId,
+          'p_operario_nombre': operario,
+          'p_nota': nota,
+          'p_recibido_de_produccion': recibidoDeProduccion,
+        },
+      );
       await refrescar();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
@@ -756,13 +864,16 @@ class SupabaseWmsRepository implements WmsRepository {
     String nota = '',
   }) async {
     try {
-      await _client.rpc('liberar_no_conforme', params: {
-        'p_item_orden_id': itemId,
-        'p_cantidad': cantidad,
-        'p_operario_nombre': operario,
-        'p_nota': nota,
-        'p_recibido_por_logistica': recibidoPorLogistica,
-      });
+      await _client.rpc(
+        'liberar_no_conforme',
+        params: {
+          'p_item_orden_id': itemId,
+          'p_cantidad': cantidad,
+          'p_operario_nombre': operario,
+          'p_nota': nota,
+          'p_recibido_por_logistica': recibidoPorLogistica,
+        },
+      );
       await refrescar();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {

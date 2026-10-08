@@ -178,13 +178,15 @@ class _HistorialTab extends ConsumerWidget {
     return ref.watch(sobrantesProvider).when(
       loading: () => const Center(child: WmsLoader()),
       error: (e, _) => Center(child: Text('Error: $e')),
-      data: (lista) => HistorialAgrupado(grupos: [for (final s in lista) GrupoHistorial(
+      data: (lista) => HistorialAgrupado(etiquetaTotal: 'Prendas sobrantes registradas', grupos: [for (final s in lista) GrupoHistorial(
         id: s.id, op: s.item.op, titulo: 'OP: ${s.item.op} - ${s.item.descripcion} (${s.item.talla})',
         detalle: 'Código: ${s.item.codigo} | ${s.cantidad} Uds de más | ${s.pendiente ? 'PENDIENTE' : 'RESUELTO'}',
         eventos: [
           EventoHistorial(id: '${s.id}-registro', fecha: s.fecha, titulo: 'Sobrante registrado · ${s.cantidad} Uds',
+            cantidad: s.cantidad, categoriaCantidad: 'Prendas sobrantes registradas',
             detalle: 'Registrado por: ${s.operario}${s.nota.isEmpty ? '' : '\nNota: ${s.nota}'}', color: Colors.blue),
           if (!s.pendiente) EventoHistorial(id: '${s.id}-resolucion', fecha: s.fechaResolucion,
+            cantidad: s.cantidad, categoriaCantidad: 'Prendas sobrantes resueltas',
             titulo: 'Sobrante resuelto', detalle: 'Resolución: ${s.resolucion ?? 'Sin registrar'}'),
         ])]),
     );

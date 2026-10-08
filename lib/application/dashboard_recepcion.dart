@@ -1,3 +1,4 @@
+import 'dashboard_periodo.dart';
 import '../data/reportes_admin_repository.dart';
 import 'dashboard_tendencias.dart';
 
@@ -37,20 +38,28 @@ ResumenRecepcion calcularRecepcion(
   List<FilaReporte> movimientos, {
   required DateTime corte,
   required int semanas,
+  PeriodoDashboard? periodo,
 }) {
   final volumen = calcularTendencias(
     movimientos,
     corte: corte,
     semanas: semanas,
+    periodo: periodo,
   );
   final inicios = volumen.semanas.map((s) => s.inicio).toList();
-  final sobrantesSemana = List<int>.filled(semanas, 0);
-  final diasSemana = List<double>.filled(semanas, 0);
-  final resueltosSemana = List<int>.filled(semanas, 0);
+  final sobrantesSemana = List<int>.filled(inicios.length, 0);
+  final diasSemana = List<double>.filled(inicios.length, 0);
+  final resueltosSemana = List<int>.filled(inicios.length, 0);
   var conformes = 0, novedades = 0, enTransito = 0, invalidos = 0;
   int? indice(DateTime? fecha) {
     if (fecha == null || fecha.toUtc().isAfter(corte.toUtc())) return null;
     final local = fechaReporte(fecha.toUtc().toIso8601String())!;
+    if (periodo != null) {
+      final index = inicios.indexOf(
+        DateTime.utc(local.year, local.month, local.day),
+      );
+      return index < 0 ? null : index;
+    }
     final dias =
         DateTime.utc(
           local.year,
@@ -130,13 +139,13 @@ ResumenRecepcion calcularRecepcion(
             ? null
             : diasSemana.fold(0.0, (a, b) => a + b) / resueltos,
     tasasSemanales: [
-      for (var i = 0; i < semanas; i++)
+      for (var i = 0; i < inicios.length; i++)
         volumen.semanas[i].unidades[1] == 0
             ? null
             : sobrantesSemana[i] * 100 / volumen.semanas[i].unidades[1],
     ],
     diasSemanales: [
-      for (var i = 0; i < semanas; i++)
+      for (var i = 0; i < inicios.length; i++)
         resueltosSemana[i] == 0 ? null : diasSemana[i] / resueltosSemana[i],
     ],
     semanas: inicios,

@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,7 +80,7 @@ class _EliminarLineaState extends ConsumerState<EliminarLineaDialog> {
       }
       ref.read(kardexPaginaProvider.notifier).ir(0);
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      mostrarAvisoSnack(context, const SnackBar(
           content: Text(
               'Fila ocultada en ambas vistas. Historial y existencias conservados.')));
     } catch (e) {
@@ -127,8 +128,7 @@ class _EliminarLineaState extends ConsumerState<EliminarLineaDialog> {
                   if (_error != null)
                     Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(_error!,
-                            style: const TextStyle(color: Colors.red))),
+                        child: AvisoFormulario(_error!)),
                   const SizedBox(height: 20),
                   Wrap(spacing: 12, children: [
                     TextButton(

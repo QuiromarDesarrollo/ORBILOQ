@@ -29,20 +29,26 @@ void main() {
     const Size(768, 1024),
     const Size(1024, 768),
     const Size(1440, 900),
-    const Size(844, 390)
+    const Size(844, 390),
   ]) {
-    testWidgets('Página en ${size.width}x${size.height}, ambas vistas',
-        (tester) async {
+    testWidgets('Página en ${size.width}x${size.height}, ambas vistas', (
+      tester,
+    ) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final repo = InMemoryWmsRepository.seeded();
       addTearDown(repo.dispose);
-      await tester.pumpWidget(ProviderScope(overrides: [
-        usarSupabaseProvider.overrideWithValue(false),
-        wmsRepositoryProvider.overrideWithValue(repo)
-      ], child: const MaterialApp(home: KardexPage())));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            usarSupabaseProvider.overrideWithValue(false),
+            wmsRepositoryProvider.overrideWithValue(repo),
+          ],
+          child: const MaterialApp(home: KardexPage()),
+        ),
+      );
       await tester.pumpAndSettle();
 
       final scaffold = tester.state<ScaffoldState>(find.byType(Scaffold).first);
@@ -55,23 +61,36 @@ void main() {
         'Dashboard ejecutivo',
         'Importar tabla',
         'Extraer tabla',
-        'Importar fechas'
+        'Importar fechas',
       ]) {
         await tester.ensureVisible(find.text(accion));
         await tester.pumpAndSettle();
         expect(find.text(accion).hitTestable(), findsOneWidget);
       }
-      await tester.scrollUntilVisible(find.byTooltip('Cerrar menú'), -100,
-          scrollable: find.descendant(of: find.byType(Drawer), matching: find.byType(Scrollable)).first);
+      await tester.scrollUntilVisible(
+        find.byTooltip('Cerrar menú'),
+        -100,
+        scrollable:
+            find
+                .descendant(
+                  of: find.byType(Drawer),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Cerrar menú'));
       await tester.pumpAndSettle();
       expect(scaffold.isDrawerOpen, isFalse);
 
-      final container =
-          ProviderScope.containerOf(tester.element(find.byType(KardexPage)));
-      container.read(rolProvider.notifier).cambiar(Rol.logistica);
-      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(KardexPage)),
+      );
+      for (final rol in [Rol.logistica, Rol.despacho]) {
+        container.read(rolProvider.notifier).cambiar(rol);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
     });
   }
   for (final size in [const Size(320, 640), const Size(1024, 600)]) {
@@ -81,7 +100,8 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(
-          const ProviderScope(child: MaterialApp(home: LoginPage())));
+        const ProviderScope(child: MaterialApp(home: LoginPage())),
+      );
       await tester.pumpAndSettle();
     });
   }
@@ -95,20 +115,26 @@ void main() {
     final item = (await repo.watch().first).kardex.first;
     for (final dialog in [
       EdicionAdminDialog(item: item, campo: CampoAdmin.cantidad),
-      EliminarLineaDialog(item: item)
+      EliminarLineaDialog(item: item),
     ]) {
-      await tester.pumpWidget(ProviderScope(
+      await tester.pumpWidget(
+        ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(false),
-            wmsRepositoryProvider.overrideWithValue(repo)
+            wmsRepositoryProvider.overrideWithValue(repo),
           ],
           child: MaterialApp(
-              home: MediaQuery(
-                  data: const MediaQueryData(
-                      size: Size(390, 844),
-                      viewInsets: EdgeInsets.only(bottom: 300),
-                      textScaler: TextScaler.linear(1.3)),
-                  child: Scaffold(body: dialog)))));
+            home: MediaQuery(
+              data: const MediaQueryData(
+                size: Size(390, 844),
+                viewInsets: EdgeInsets.only(bottom: 300),
+                textScaler: TextScaler.linear(1.3),
+              ),
+              child: Scaffold(body: dialog),
+            ),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
     }
   });
@@ -133,10 +159,15 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final repo = InMemoryWmsRepository.seeded();
       addTearDown(repo.dispose);
-      await tester.pumpWidget(ProviderScope(overrides: [
-        usarSupabaseProvider.overrideWithValue(false),
-        wmsRepositoryProvider.overrideWithValue(repo)
-      ], child: MaterialApp(home: Scaffold(body: dialog))));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            usarSupabaseProvider.overrideWithValue(false),
+            wmsRepositoryProvider.overrideWithValue(repo),
+          ],
+          child: MaterialApp(home: Scaffold(body: dialog)),
+        ),
+      );
       await tester.pumpAndSettle();
       final tabs = find.byType(Tab);
       for (var i = 0; i < tabs.evaluate().length; i++) {

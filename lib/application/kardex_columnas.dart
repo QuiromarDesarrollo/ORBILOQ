@@ -1,3 +1,4 @@
+import '../domain/cumplimiento.dart';
 import '../domain/models.dart';
 import 'kardex_filters.dart';
 
@@ -14,6 +15,7 @@ final Map<String, ExtractorColumna> columnasProduccion = {
   ColKardex.op: (i) => i.item.op,
   ColKardex.producto: (i) => i.item.descripcion,
   ColKardex.cliente: (i) => i.item.cliente,
+  ColKardex.oc: (i) => i.item.oc.trim().isEmpty ? 'Sin OC' : i.item.oc.trim(),
   ColKardex.cantidad: (i) => '${i.cantidadPedida}',
   ColKardex.entregado: (i) => '${i.producido}',
   ColKardex.pendiente: (i) => '${i.pendienteProduccion}',
@@ -21,33 +23,45 @@ final Map<String, ExtractorColumna> columnasProduccion = {
   ColKardex.estadoProduccion: (i) => i.estadoProduccion.etiqueta,
   ColKardex.fechaEntrega: (i) => _fechaOTexto(i.fechaEntrega),
   ColKardex.fechaEsperada: (i) => _fechaOTexto(i.fechaEsperadaProduccion),
-  ColKardex.diasFaltantes: (i) => _diasFaltantesTexto(i.fechaEsperadaProduccion),
+  ColKardex.diasFaltantes: (i) => i.cumplimientoProduccion().detalle,
 };
 
 /// Igual, pero para la vista Bodega.
-final Map<String, ExtractorColumna> columnasBodega = {
+final Map<String, ExtractorColumna> columnasLogistica = {
   ColKardex.op: (i) => i.item.op,
   ColKardex.producto: (i) => i.item.descripcion,
   ColKardex.cliente: (i) => i.item.cliente,
+  ColKardex.oc: (i) => i.item.oc.trim().isEmpty ? 'Sin OC' : i.item.oc.trim(),
   ColKardex.pedidas: (i) => '${i.cantidadPedida}',
   ColKardex.produccion: (i) => '${i.producido}',
   ColKardex.pendienteProduccionBodega: (i) => '${i.pendienteProduccion}',
-  ColKardex.bodega: (i) => '${i.recibido}',
+  ColKardex.bodega: (i) => '${i.stockDisponible}',
   ColKardex.despachadas: (i) => '${i.despachado}',
   ColKardex.noConformeBodega: (i) => '${i.pendienteReproceso}',
   ColKardex.estadoBodega: (i) => i.estadoLogistica.etiqueta,
   ColKardex.fechaEntregaBodega: (i) => _fechaOTexto(i.fechaDespacho),
   ColKardex.fechaEsperadaBodega: (i) => _fechaOTexto(i.fechaEsperadaLogistica),
-  ColKardex.diasFaltantesBodega: (i) => _diasFaltantesTexto(i.fechaEsperadaLogistica),
+  ColKardex.diasFaltantesBodega: (i) => i.cumplimientoLogistica().detalle,
 };
 
-String _diasFaltantesTexto(DateTime? esperada) {
-  if (esperada == null) return 'Sin fecha';
-  final hoy = DateTime.now();
-  final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
-  final soloEsperada = DateTime(esperada.year, esperada.month, esperada.day);
-  final dias = soloEsperada.difference(soloHoy).inDays;
-  if (dias < 0) return 'Vencido ${-dias}d';
-  if (dias == 0) return 'HOY';
-  return 'Faltan ${dias}d';
-}
+final Map<String, ExtractorColumna> columnasBodega = {
+  for (final e in columnasLogistica.entries)
+    if (![
+      ColKardex.despachadas,
+      ColKardex.fechaEntregaBodega,
+      ColKardex.fechaEsperadaBodega,
+      ColKardex.diasFaltantesBodega,
+    ].contains(e.key))
+      e.key: e.value,
+  ColKardex.fechaRecibido: (i) => _fechaOTexto(i.fechaRecepcion),
+};
+
+final Map<String, ExtractorColumna> columnasDespacho = {
+  for (final e in columnasLogistica.entries)
+    if (![
+      ColKardex.produccion,
+      ColKardex.pendienteProduccionBodega,
+      ColKardex.noConformeBodega,
+    ].contains(e.key))
+      e.key: e.value,
+};

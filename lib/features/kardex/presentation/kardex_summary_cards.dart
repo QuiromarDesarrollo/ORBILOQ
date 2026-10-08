@@ -11,7 +11,8 @@ class KardexSummaryCards extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final r = ref.watch(kardexResumenProvider);
-    final esProduccion = ref.watch(rolProvider) == Rol.produccion;
+    final rol = ref.watch(rolProvider);
+    final esProduccion = rol == Rol.produccion;
     final pal = palOf(context);
 
     final tarjetas = <_SummaryCard>[
@@ -23,30 +24,42 @@ class KardexSummaryCards extends ConsumerWidget {
         icono: Icons.bar_chart_rounded,
         acento: AppColors.tealPrimary,
       ),
-      _SummaryCard(
-        titulo: esProduccion ? 'ENTREGADO A LOGÍSTICA' : 'ENTREGADO POR PRODUCCIÓN',
-        valor: '${r.enProduccion}',
-        subtitulo: '${r.porcentajeProduccion.toStringAsFixed(1)}% del total',
-        subtituloColor: pal.textSecondary,
-        icono: Icons.autorenew_rounded,
-        acento: AppColors.blueChip,
-      ),
-      _SummaryCard(
-        titulo: esProduccion ? 'PENDIENTE POR ENTREGAR' : 'PENDIENTE POR PRODUCCIÓN',
-        valor: '${r.pendientePorEntregar}',
-        subtitulo: r.pendientePorEntregar > 0 ? 'Requiere seguimiento' : 'Al día',
-        subtituloColor: r.pendientePorEntregar > 0 ? pal.chipRed : pal.chipGreen,
-        icono: Icons.local_shipping_rounded,
-        acento: AppColors.actionOrange,
-      ),
-      _SummaryCard(
-        titulo: 'PRODUCTO NO CONFORME',
-        valor: '${r.totalNoConforme}',
-        subtitulo: r.totalNoConforme > 0 ? 'Pendiente por reprocesar' : 'Al día',
-        subtituloColor: r.totalNoConforme > 0 ? pal.chipRed : pal.chipGreen,
-        icono: Icons.report_problem_rounded,
-        acento: AppColors.alertRed,
-      ),
+      if (rol != Rol.despacho)
+        _SummaryCard(
+          titulo:
+              esProduccion
+                  ? 'ENTREGADO A LOGÍSTICA'
+                  : 'ENTREGADO POR PRODUCCIÓN',
+          valor: '${r.enProduccion}',
+          subtitulo: '${r.porcentajeProduccion.toStringAsFixed(1)}% del total',
+          subtituloColor: pal.textSecondary,
+          icono: Icons.autorenew_rounded,
+          acento: AppColors.blueChip,
+        ),
+      if (rol != Rol.despacho)
+        _SummaryCard(
+          titulo:
+              esProduccion
+                  ? 'PENDIENTE POR ENTREGAR'
+                  : 'PENDIENTE POR PRODUCCIÓN',
+          valor: '${r.pendientePorEntregar}',
+          subtitulo:
+              r.pendientePorEntregar > 0 ? 'Requiere seguimiento' : 'Al día',
+          subtituloColor:
+              r.pendientePorEntregar > 0 ? pal.chipRed : pal.chipGreen,
+          icono: Icons.local_shipping_rounded,
+          acento: AppColors.actionOrange,
+        ),
+      if (rol != Rol.despacho)
+        _SummaryCard(
+          titulo: 'PRODUCTO NO CONFORME',
+          valor: '${r.totalNoConforme}',
+          subtitulo:
+              r.totalNoConforme > 0 ? 'Pendiente por reprocesar' : 'Al día',
+          subtituloColor: r.totalNoConforme > 0 ? pal.chipRed : pal.chipGreen,
+          icono: Icons.report_problem_rounded,
+          acento: AppColors.alertRed,
+        ),
       if (!esProduccion) ...[
         _SummaryCard(
           titulo: 'RECIBIDO EN BODEGA',
@@ -56,30 +69,38 @@ class KardexSummaryCards extends ConsumerWidget {
           icono: Icons.warehouse_rounded,
           acento: AppColors.actionGreen,
         ),
-        _SummaryCard(
-          titulo: 'PENDIENTE POR DESPACHAR',
-          valor: '${r.pendientePorDespachar}',
-          subtitulo: r.pendientePorDespachar > 0 ? 'Requiere seguimiento' : 'Al día',
-          subtituloColor: r.pendientePorDespachar > 0 ? pal.chipRed : pal.chipGreen,
-          icono: Icons.inventory_2_rounded,
-          acento: AppColors.accentCyan,
-        ),
+        if (rol == Rol.despacho)
+          _SummaryCard(
+            titulo: 'PENDIENTE POR DESPACHAR',
+            valor: '${r.pendientePorDespachar}',
+            subtitulo:
+                r.pendientePorDespachar > 0
+                    ? 'Disponibles en bodega'
+                    : 'Sin unidades en bodega',
+            subtituloColor:
+                r.pendientePorDespachar > 0 ? pal.chipRed : pal.chipGreen,
+            icono: Icons.inventory_2_rounded,
+            acento: AppColors.accentCyan,
+          ),
       ],
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final n = tarjetas.length;
-        final anchoTarjeta = constraints.maxWidth >= n * 220
-            ? (constraints.maxWidth - (n - 1) * 16) / n
-            : constraints.maxWidth >= 500
+        final anchoTarjeta =
+            constraints.maxWidth >= n * 220
+                ? (constraints.maxWidth - (n - 1) * 16) / n
+                : constraints.maxWidth >= 500
                 ? (constraints.maxWidth - 16) / 2
                 : constraints.maxWidth;
 
         return Wrap(
           spacing: 16,
           runSpacing: 16,
-          children: [for (final t in tarjetas) SizedBox(width: anchoTarjeta, child: t)],
+          children: [
+            for (final t in tarjetas) SizedBox(width: anchoTarjeta, child: t),
+          ],
         );
       },
     );
@@ -133,7 +154,10 @@ class _SummaryCard extends StatelessWidget {
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(color: acento.withValues(alpha: 0.15), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: acento.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(icono, size: 16, color: acento),
               ),
             ],
@@ -141,10 +165,21 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             valor,
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: pal.textPrimary),
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: pal.textPrimary,
+            ),
           ),
           const SizedBox(height: 4),
-          Text(subtitulo, style: TextStyle(fontSize: 12, color: subtituloColor, fontWeight: FontWeight.w500)),
+          Text(
+            subtitulo,
+            style: TextStyle(
+              fontSize: 12,
+              color: subtituloColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

@@ -1,4 +1,4 @@
-import '../../../application/kardex_columnas.dart';
+import '../../../domain/cumplimiento.dart';
 import 'eliminar_linea_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,7 +26,7 @@ const List<double> _kAnchosProduccion = [
   170,
   110,
   110,
-  115
+  220,
 ];
 const List<String> kEtiquetasProduccion = [
   'OP / OBS.',
@@ -39,7 +39,7 @@ const List<String> kEtiquetasProduccion = [
   'ESTADOS',
   'FECHA DE ENTREGA',
   'FECHA ESPERADA',
-  'DÍAS FALTANTES',
+  'CUMPLIMIENTO',
 ];
 // A qué columna de filtro corresponde cada encabezado de Producción (por
 // índice). `null` = sin filtro en esa columna.
@@ -71,7 +71,7 @@ const List<double> _kAnchosBodega = [
   95,
   100,
   100,
-  105
+  220,
 ];
 const List<String> kEtiquetasBodega = [
   'OP / OBS.',
@@ -86,7 +86,7 @@ const List<String> kEtiquetasBodega = [
   'ESTADOS',
   'FECHA DE DESPACHO',
   'FECHA ESPERADA',
-  'DÍAS FALTANTES',
+  'CUMPLIMIENTO',
 ];
 const List<String?> kColumnasBodega = [
   ColKardex.op,
@@ -136,124 +136,242 @@ const _mesesEs = [
 String _fechaCorta(DateTime d) => '${d.day} ${_mesesEs[d.month]}';
 
 /// Tabla del kardex, paginada, con columnas distintas según el rol.
-class KardexTable extends ConsumerWidget {
+class KardexTable extends ConsumerStatefulWidget {
   const KardexTable({super.key, this.integrada = false});
   final bool integrada;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<KardexTable> createState() => _KardexTableState();
+}
+
+class _KardexTableState extends ConsumerState<KardexTable> {
+  final _scrollHorizontal = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollHorizontal.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: _buildTable);
+
+  Widget _buildTable(BuildContext context, BoxConstraints constraints) {
     final filas = ref.watch(kardexPaginaActualProvider);
     final total = ref.watch(kardexFiltradoProvider).length;
     final pagina = ref.watch(kardexPaginaProvider);
     final rol = ref.watch(rolProvider);
     final esProduccion = rol == Rol.produccion;
-    final esAdmin = !ref.watch(usarSupabaseProvider) ||
+    final esAdmin =
+        !ref.watch(usarSupabaseProvider) ||
         ref.watch(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
-    final anchos = [
+    final anchosCompletos = [
       ...(esProduccion ? _kAnchosProduccion : _kAnchosBodega),
-      if (esAdmin) 112.0
+      if (esAdmin) 112.0,
     ];
-    final etiquetas = [
+    final etiquetasCompletas = [
       ...(esProduccion ? kEtiquetasProduccion : kEtiquetasBodega),
-      if (esAdmin) 'ACCIONES'
+      if (esAdmin) 'ACCIONES',
     ];
-    final columnas = [
+    final columnasCompletas = [
       ...(esProduccion ? kColumnasProduccion : kColumnasBodega),
-      if (esAdmin) null
+      if (esAdmin) null,
     ];
+    final indices = [
+      for (var i = 0; i < columnasCompletas.length; i++)
+        if (esProduccion ||
+            (rol == Rol.logistica
+                ? ![7, 11, 12].contains(i)
+                : ![4, 5, 8].contains(i)))
+          i,
+    ];
+    if (rol == Rol.logistica) {
+      etiquetasCompletas[10] = 'FECHA DE RECIBIDO';
+      columnasCompletas[10] = ColKardex.fechaRecibido;
+    }
+    final anchoDisponible = constraints.maxWidth - (widget.integrada ? 0 : 2);
+    final escalaTexto = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final minimos = <int, double>{};
+    for (final i in indices) {
+      var palabraMasAncha = 0.0;
+      for (final palabra in etiquetasCompletas[i].split(RegExp(r'\s+'))) {
+        final medida = TextPainter(
+          text: TextSpan(text: palabra, style: DefaultTextStyle.of(context).style.merge(const TextStyle(
+            fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .1,
+          ))),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+        if (medida.width > palabraMasAncha) palabraMasAncha = medida.width;
+        medida.dispose();
+      }
+      // Padding, filtro y margen de redondeo: ninguna palabra se divide.
+      minimos[i] = (palabraMasAncha.ceilToDouble() + 36).clamp(
+        i == 1 ? 220.0 : i == 2 ? 160.0 :
+        columnasCompletas[i] == null ? 112.0 : 70.0,
+        double.infinity,
+      );
+    }
+    // El encabezado OP es corto, pero la celda también contiene el icono
+    // de observaciones y el número completo. Reservar ambos antes de repartir.
+    for (final fila in filas) {
+      final medidaOp = TextPainter(
+        text: TextSpan(
+          text: '#${fila.item.op}',
+          style: DefaultTextStyle.of(context).style.merge(const TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w700,
+          )),
+        ),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout();
+      final anchoOp = medidaOp.width.ceilToDouble() + 16 + 16 + 6 + 4;
+      if (anchoOp > minimos[0]!) minimos[0] = anchoOp;
+      medidaOp.dispose();
+    }
+    final minimoTabla = minimos.values.fold<double>(0, (s, v) => s + v);
+    final vistaCompacta = anchoDisponible < minimoTabla ||
+        anchoDisponible < 1100 * escalaTexto.clamp(1.0, 1.5);
+    if (!vistaCompacta) {
+      final pesos = {for (final i in indices)
+        i: i == 1 ? 3.0 : i == 2 ? 2.0 :
+        columnasCompletas[i] == null ? 0.0 : anchosCompletos[i] / 120};
+      final pesoTotal = pesos.values.fold<double>(0, (s, v) => s + v);
+      for (final i in indices) {
+        anchosCompletos[i] = minimos[i]! +
+            (anchoDisponible - minimoTabla) * pesos[i]! / pesoTotal;
+      }
+    }
+    final anchos = [for (final i in indices) anchosCompletos[i]];
+    final etiquetas = [for (final i in indices) etiquetasCompletas[i]];
+    final columnas = [for (final i in indices) columnasCompletas[i]];
     final totalPaginas =
         total == 0 ? 1 : ((total - 1) ~/ kardexFilasPorPagina) + 1;
     final anchoTabla = anchos.fold<double>(0, (a, b) => a + b);
     final pal = palOf(context);
 
-    if (MediaQuery.sizeOf(context).width < 600) {
-      final campos = esProduccion ? kColumnasProduccion : kColumnasBodega;
-      final labels = esProduccion ? kEtiquetasProduccion : kEtiquetasBodega;
-      final extraer = esProduccion ? columnasProduccion : columnasBodega;
-      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (filas.isEmpty)
-          const Padding(
+    if (vistaCompacta) {
+      final campos = columnas.whereType<String>().toList();
+      final labels = etiquetas.take(campos.length).toList();
+      final extraer = ref.watch(extractoresColumnaProvider);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (filas.isEmpty)
+            const Padding(
               padding: EdgeInsets.all(24),
-              child: Text('Sin resultados para los filtros aplicados.')),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (var n = 0; n < labels.length; n++)
-            if (campos[n] != null)
-              _EncabezadoConFiltro(
-                  columna: campos[n]!, etiqueta: labels[n], esOp: n == 0),
-        ]),
-        for (final item in filas)
-          Card(
+              child: Text('Sin resultados para los filtros aplicados.'),
+            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var n = 0; n < labels.length; n++)
+                _EncabezadoConFiltro(
+                  columna: campos[n],
+                  etiqueta: labels[n],
+                  esOp: n == 0,
+                ),
+            ],
+          ),
+          for (final item in filas)
+            Card(
               child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('OP ${item.item.op} · ${item.item.descripcion}',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text(
-                          '${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}'),
-                      TextButton.icon(
-                          onPressed: () => showObservacionDialog(context, item),
-                          icon: const Icon(Icons.comment_outlined),
-                          label: const Text('Observaciones')),
-                      for (var n = 2; n < labels.length; n++)
-                        Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(
-                                '${labels[n]}: ${extraer[campos[n]]?.call(item) ?? ""}')),
-                      if (esAdmin)
-                        Wrap(alignment: WrapAlignment.end, children: [
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'OP ${item.item.op} · ${item.item.descripcion}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}',
+                    ),
+                    TextButton.icon(
+                      onPressed: () => showObservacionDialog(context, item),
+                      icon: const Icon(Icons.comment_outlined),
+                      label: const Text('Observaciones'),
+                    ),
+                    for (var n = 2; n < labels.length; n++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          '${labels[n]}: ${extraer[campos[n]]?.call(item) ?? ""}',
+                        ),
+                      ),
+                    if (esAdmin)
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        children: [
                           IconButton(
-                              tooltip: 'Editar fila',
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () => showEdicionAdminDialog(
-                                  context, item, CampoAdmin.cantidad)),
+                            tooltip: 'Editar fila',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed:
+                                () => showEdicionAdminDialog(
+                                  context,
+                                  item,
+                                  CampoAdmin.cantidad,
+                                ),
+                          ),
                           IconButton(
-                              tooltip: 'Borrar fila',
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () =>
-                                  showWmsEliminarLinea(context, item)),
-                        ]),
-                    ],
-                  ))),
-        _BarraPaginacion(
+                            tooltip: 'Borrar fila',
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed:
+                                () => showWmsEliminarLinea(context, item),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          _BarraPaginacion(
             pagina: pagina,
             totalPaginas: totalPaginas,
             total: total,
-            filas: filas.length),
-      ]);
+            filas: filas.length,
+          ),
+        ],
+      );
     }
 
     return Container(
       decoration: BoxDecoration(
         color: pal.card,
-        borderRadius: BorderRadius.circular(integrada ? 0 : 12),
-        border: integrada ? null : Border.all(color: pal.cardBorder),
+        borderRadius: BorderRadius.circular(widget.integrada ? 0 : 12),
+        border: widget.integrada ? null : Border.all(color: pal.cardBorder),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: anchoTabla,
-              child: Column(
-                children: [
-                  Container(
-                    color: pal.header,
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < etiquetas.length; i++)
-                          _Celda(
-                            i,
-                            anchos,
-                            columnas[i] == null
-                                ? Text(
+          Scrollbar(
+            controller: _scrollHorizontal,
+            thumbVisibility: true,
+            trackVisibility: true,
+            scrollbarOrientation: ScrollbarOrientation.bottom,
+            child: SingleChildScrollView(
+              controller: _scrollHorizontal,
+              padding: const EdgeInsets.only(bottom: 12),
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: anchoTabla,
+                child: Column(
+                  children: [
+                    Container(
+                      color: pal.header,
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < etiquetas.length; i++)
+                            _Celda(
+                              i,
+                              anchos,
+                              columnas[i] == null
+                                  ? Text(
                                     etiquetas[i],
-                                    maxLines: 2,
                                     softWrap: true,
-                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       color: pal.textSecondary,
                                       fontWeight: FontWeight.w700,
@@ -262,41 +380,50 @@ class KardexTable extends ConsumerWidget {
                                       height: 1.2,
                                     ),
                                   )
-                                : _EncabezadoConFiltro(
-                                    columna: columnas[i]!,
+                                  : _EncabezadoConFiltro(
+                                    columna:
+                                        columnas[i] == ColKardex.cliente
+                                            ? ColKardex.oc
+                                            : columnas[i]!,
                                     etiqueta: etiquetas[i],
                                     esOp: columnas[i] == ColKardex.op,
                                   ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Divider(height: 1, color: pal.cardBorder),
-                  if (filas.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 48),
-                      child: Center(
-                        child: Text(
-                            'Sin resultados para los filtros aplicados.',
-                            style: TextStyle(color: pal.textMuted)),
+                            ),
+                        ],
                       ),
-                    )
-                  else
-                    for (final item in filas)
-                      _KardexRow(
+                    ),
+                    Divider(height: 1, color: pal.cardBorder),
+                    if (filas.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
+                        child: Center(
+                          child: Text(
+                            'Sin resultados para los filtros aplicados.',
+                            style: TextStyle(color: pal.textMuted),
+                          ),
+                        ),
+                      )
+                    else
+                      for (final item in filas)
+                        _KardexRow(
                           item: item,
-                          anchos: anchos,
-                          esProduccion: esProduccion),
-                ],
+                          anchos: anchosCompletos,
+                          indices: indices,
+                          rol: rol,
+                          esProduccion: esProduccion,
+                        ),
+                  ],
+                ),
               ),
             ),
           ),
           Divider(height: 1, color: pal.cardBorder),
           _BarraPaginacion(
-              pagina: pagina,
-              totalPaginas: totalPaginas,
-              total: total,
-              filas: filas.length),
+            pagina: pagina,
+            totalPaginas: totalPaginas,
+            total: total,
+            filas: filas.length,
+          ),
         ],
       ),
     );
@@ -306,8 +433,11 @@ class KardexTable extends ConsumerWidget {
 /// Encabezado de columna con el ícono de embudo que abre el filtro de
 /// selección múltiple (búsqueda + casillas), para cualquier columna.
 class _EncabezadoConFiltro extends ConsumerWidget {
-  const _EncabezadoConFiltro(
-      {required this.columna, required this.etiqueta, this.esOp = false});
+  const _EncabezadoConFiltro({
+    required this.columna,
+    required this.etiqueta,
+    this.esOp = false,
+  });
 
   final String columna;
   final String etiqueta;
@@ -326,9 +456,7 @@ class _EncabezadoConFiltro extends ConsumerWidget {
         Flexible(
           child: Text(
             etiqueta,
-            maxLines: 2,
             softWrap: true,
-            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: pal.textSecondary,
               fontWeight: FontWeight.w700,
@@ -344,7 +472,10 @@ class _EncabezadoConFiltro extends ConsumerWidget {
           onTap: () async {
             final r = await showMultiSelectFilter<String>(
               context,
-              title: 'Filtrar por $etiqueta',
+              title:
+                  columna == ColKardex.oc
+                      ? 'Filtrar por OC'
+                      : 'Filtrar por $etiqueta',
               options: opciones.de(columna),
               selected: filtros.valoresDe(columna),
               labelOf: esOp ? (v) => '#$v' : (v) => v,
@@ -409,9 +540,10 @@ class _BarraPaginacion extends ConsumerWidget {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: pagina + 1 < totalPaginas
-                    ? () => notifier.ir(pagina + 1)
-                    : null,
+                onPressed:
+                    pagina + 1 < totalPaginas
+                        ? () => notifier.ir(pagina + 1)
+                        : null,
                 icon: const Icon(Icons.chevron_right, size: 18),
                 label: const Text('Siguiente'),
                 style: ElevatedButton.styleFrom(
@@ -430,8 +562,12 @@ class _BarraPaginacion extends ConsumerWidget {
 }
 
 class _Celda extends StatelessWidget {
-  const _Celda(this.col, this.anchos, this.child,
-      {this.alignment = Alignment.centerLeft});
+  const _Celda(
+    this.col,
+    this.anchos,
+    this.child, {
+    this.alignment = Alignment.centerLeft,
+  });
 
   final int col;
   final List<double> anchos;
@@ -451,8 +587,15 @@ class _Celda extends StatelessWidget {
 }
 
 class _KardexRow extends ConsumerWidget {
-  const _KardexRow(
-      {required this.item, required this.anchos, required this.esProduccion});
+  const _KardexRow({
+    required this.item,
+    required this.anchos,
+    required this.esProduccion,
+    required this.indices,
+    required this.rol,
+  });
+  final List<int> indices;
+  final Rol rol;
 
   final ItemKardex item;
   final List<double> anchos;
@@ -461,43 +604,55 @@ class _KardexRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = palOf(context);
-    final esAdmin = !ref.watch(usarSupabaseProvider) ||
+    final esAdmin =
+        !ref.watch(usarSupabaseProvider) ||
         ref.watch(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
     final celdas = [
       _celdaOp(pal),
       _celdaProducto(pal),
       _celdaClienteOc(pal),
-      if (esProduccion) ..._celdasProduccion(pal) else ..._celdasBodega(pal)
+      if (esProduccion) ..._celdasProduccion(pal) else ..._celdasBodega(pal),
     ];
     return _FilaConHover(
-        child: Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: pal.cardBorder)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          ...celdas,
-          if (esAdmin)
-            _Celda(
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: pal.cardBorder)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            for (var i = 0; i < celdas.length; i++)
+              if (indices.contains(i)) celdas[i],
+            if (esAdmin)
+              _Celda(
                 celdas.length,
                 anchos,
-                Row(children: [
-                  IconButton(
+                Row(
+                  children: [
+                    IconButton(
                       tooltip: 'Editar fila',
                       color: pal.accent,
                       icon: const Icon(Icons.edit_outlined, size: 20),
-                      onPressed: () => showEdicionAdminDialog(
-                          context, item, CampoAdmin.cantidad)),
-                  IconButton(
+                      onPressed:
+                          () => showEdicionAdminDialog(
+                            context,
+                            item,
+                            CampoAdmin.cantidad,
+                          ),
+                    ),
+                    IconButton(
                       tooltip: 'Borrar fila',
                       color: Colors.redAccent,
                       icon: const Icon(Icons.delete_outline, size: 20),
-                      onPressed: () => showWmsEliminarLinea(context, item)),
-                ])),
-        ],
+                      onPressed: () => showWmsEliminarLinea(context, item),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   Widget _celdaOp(AppPalette pal) {
@@ -509,24 +664,32 @@ class _KardexRow extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Builder(
-            builder: (context) => InkWell(
-              onTap: () => showObservacionDialog(context, item),
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Icon(Icons.chat_bubble_outline,
-                    size: 16, color: pal.textMuted),
+            builder:
+                (context) => InkWell(
+                  onTap: () => showObservacionDialog(context, item),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Icon(
+                      Icons.chat_bubble_outline,
+                      size: 16,
+                      color: pal.textMuted,
+                    ),
+                  ),
+                ),
+          ),
+          Flexible(
+            child: Text(
+              '#${o.op}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: pal.accent,
               ),
             ),
           ),
-          Flexible(
-              child: Text('#${o.op}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: pal.accent))),
         ],
       ),
     );
@@ -545,30 +708,37 @@ class _KardexRow extends ConsumerWidget {
             height: 10,
             margin: const EdgeInsets.only(right: 8, top: 2),
             decoration: BoxDecoration(
-                color: _colorProducto(o.codigo),
-                borderRadius: BorderRadius.circular(3)),
+              color: _colorProducto(o.codigo),
+              borderRadius: BorderRadius.circular(3),
+            ),
           ),
           Flexible(
             child: Builder(
-              builder: (context) => InkWell(
-                borderRadius: BorderRadius.circular(4),
-                onTap: () => _mostrarProductoCompleto(context, o),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(o.descripcion,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: pal.textPrimary)),
-                    Text('Talla ${o.talla}',
-                        style: TextStyle(fontSize: 11, color: pal.textMuted)),
-                  ],
-                ),
-              ),
+              builder:
+                  (context) => InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () => _mostrarProductoCompleto(context, o),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          o.descripcion,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: pal.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Talla ${o.talla}',
+                          style: TextStyle(fontSize: 11, color: pal.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
             ),
           ),
         ],
@@ -580,48 +750,55 @@ class _KardexRow extends ConsumerWidget {
     final pal = palOf(context);
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: pal.card,
-        title: Row(
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                  color: _colorProducto(o.codigo),
-                  borderRadius: BorderRadius.circular(3)),
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: pal.card,
+            title: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: _colorProducto(o.codigo),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    'Producto',
+                    style: TextStyle(color: pal.textPrimary),
+                  ),
+                ),
+              ],
             ),
-            Expanded(
-              child: Text('Producto', style: TextStyle(color: pal.textPrimary)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  o.descripcion,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: pal.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _filaDato('Código', o.codigo, pal),
+                _filaDato('Talla', o.talla, pal),
+                _filaDato('OP', o.op, pal),
+                if (o.oc.isNotEmpty) _filaDato('OC', o.oc, pal),
+                _filaDato('Cliente', o.cliente, pal),
+              ],
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              o.descripcion,
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: pal.textPrimary),
-            ),
-            const SizedBox(height: 12),
-            _filaDato('Código', o.codigo, pal),
-            _filaDato('Talla', o.talla, pal),
-            _filaDato('OP', o.op, pal),
-            if (o.oc.isNotEmpty) _filaDato('OC', o.oc, pal),
-            _filaDato('Cliente', o.cliente, pal),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('CERRAR')),
-        ],
-      ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('CERRAR'),
+              ),
+            ],
+          ),
     );
   }
 
@@ -633,8 +810,9 @@ class _KardexRow extends ConsumerWidget {
           style: TextStyle(fontSize: 13, color: pal.textSecondary),
           children: [
             TextSpan(
-                text: '$etiqueta: ',
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+              text: '$etiqueta: ',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
             TextSpan(text: valor, style: TextStyle(color: pal.textPrimary)),
           ],
         ),
@@ -651,18 +829,23 @@ class _KardexRow extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(o.cliente,
+          Text(
+            o.cliente,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: pal.textPrimary,
+            ),
+          ),
+          if (o.oc.isNotEmpty)
+            Text(
+              'OC ${o.oc}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: pal.textPrimary)),
-          if (o.oc.isNotEmpty)
-            Text('OC ${o.oc}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: pal.textMuted)),
+              style: TextStyle(fontSize: 11, color: pal.textMuted),
+            ),
         ],
       ),
     );
@@ -674,26 +857,34 @@ class _KardexRow extends ConsumerWidget {
     final noConforme = item.pendienteReproceso;
     return [
       _Celda(
-          3,
-          anchos,
-          Text('${item.cantidadPedida}',
-              style: TextStyle(fontSize: 13, color: pal.textPrimary)),
-          alignment: Alignment.center),
+        3,
+        anchos,
+        Text(
+          '${item.cantidadPedida}',
+          style: TextStyle(fontSize: 13, color: pal.textPrimary),
+        ),
+        alignment: Alignment.center,
+      ),
       _Celda(
-          4,
-          anchos,
-          Text('${item.producido}',
-              style: TextStyle(fontSize: 13, color: pal.accent)),
-          alignment: Alignment.center),
+        4,
+        anchos,
+        Text(
+          '${item.producido}',
+          style: TextStyle(fontSize: 13, color: pal.accent),
+        ),
+        alignment: Alignment.center,
+      ),
       _Celda(
         5,
         anchos,
-        Text('${item.pendienteProduccion}',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: item.pendienteProduccion > 0 ? pal.chipRed : pal.textMuted,
-            )),
+        Text(
+          '${item.pendienteProduccion}',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: item.pendienteProduccion > 0 ? pal.chipRed : pal.textMuted,
+          ),
+        ),
         alignment: Alignment.center,
       ),
       _Celda(
@@ -712,7 +903,7 @@ class _KardexRow extends ConsumerWidget {
       _Celda(7, anchos, _celdaEstado(pal)),
       _Celda(8, anchos, _chipFecha(item.fechaEntrega, pal)),
       _Celda(9, anchos, _chipFecha(item.fechaEsperadaProduccion, pal)),
-      _Celda(10, anchos, _chipDiasFaltantes(item.fechaEsperadaProduccion, pal)),
+      _Celda(10, anchos, _chipCumplimiento(item.cumplimientoProduccion(), pal)),
     ];
   }
 
@@ -741,10 +932,18 @@ class _KardexRow extends ConsumerWidget {
   Widget _chipFecha(DateTime? fecha, AppPalette pal) {
     if (fecha == null) {
       return _chip(
-          'Sin fecha', pal.textMuted, pal.chipNeutralBg, Icons.event_outlined);
+        'Sin fecha',
+        pal.textMuted,
+        pal.chipNeutralBg,
+        Icons.event_outlined,
+      );
     }
-    return _chip(_fechaCorta(fecha), pal.textSecondary, pal.chipNeutralBg,
-        Icons.event_outlined);
+    return _chip(
+      _fechaCorta(fecha),
+      pal.textSecondary,
+      pal.chipNeutralBg,
+      Icons.event_outlined,
+    );
   }
 
   // ------------------------------------------------------- vista Bodega
@@ -753,40 +952,54 @@ class _KardexRow extends ConsumerWidget {
     final noConforme = item.pendienteReproceso;
     return [
       _Celda(
-          3,
-          anchos,
-          Text('${item.cantidadPedida}',
-              style: TextStyle(fontSize: 13, color: pal.textPrimary)),
-          alignment: Alignment.center),
-      _Celda(
-          4,
-          anchos,
-          Text('${item.producido}',
-              style: TextStyle(fontSize: 13, color: pal.accent)),
-          alignment: Alignment.center),
-      _Celda(
-        5,
+        3,
         anchos,
-        Text('${item.pendienteProduccion}',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: item.pendienteProduccion > 0 ? pal.chipRed : pal.textMuted,
-            )),
+        Text(
+          '${item.cantidadPedida}',
+          style: TextStyle(fontSize: 13, color: pal.textPrimary),
+        ),
         alignment: Alignment.center,
       ),
       _Celda(
-          6,
-          anchos,
-          Text('${item.recibido}',
-              style: TextStyle(fontSize: 13, color: pal.info)),
-          alignment: Alignment.center),
+        4,
+        anchos,
+        Text(
+          '${item.producido}',
+          style: TextStyle(fontSize: 13, color: pal.accent),
+        ),
+        alignment: Alignment.center,
+      ),
       _Celda(
-          7,
-          anchos,
-          Text('${item.despachado}',
-              style: TextStyle(fontSize: 13, color: pal.warning)),
-          alignment: Alignment.center),
+        5,
+        anchos,
+        Text(
+          '${item.pendienteProduccion}',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: item.pendienteProduccion > 0 ? pal.chipRed : pal.textMuted,
+          ),
+        ),
+        alignment: Alignment.center,
+      ),
+      _Celda(
+        6,
+        anchos,
+        Text(
+          '${item.stockDisponible}',
+          style: TextStyle(fontSize: 13, color: pal.info),
+        ),
+        alignment: Alignment.center,
+      ),
+      _Celda(
+        7,
+        anchos,
+        Text(
+          '${item.despachado}',
+          style: TextStyle(fontSize: 13, color: pal.warning),
+        ),
+        alignment: Alignment.center,
+      ),
       _Celda(
         8,
         anchos,
@@ -801,30 +1014,48 @@ class _KardexRow extends ConsumerWidget {
         alignment: Alignment.center,
       ),
       _Celda(9, anchos, _celdaEstadoLogistica(pal)),
-      _Celda(10, anchos, _chipFecha(item.fechaDespacho, pal)),
+      _Celda(
+        10,
+        anchos,
+        _chipFecha(
+          rol == Rol.logistica ? item.fechaRecepcion : item.fechaDespacho,
+          pal,
+        ),
+      ),
       _Celda(11, anchos, _chipFecha(item.fechaEsperadaLogistica, pal)),
-      _Celda(12, anchos, _chipDiasFaltantes(item.fechaEsperadaLogistica, pal)),
+      _Celda(12, anchos, _chipCumplimiento(item.cumplimientoLogistica(), pal)),
     ];
   }
 
-  Widget _chipDiasFaltantes(DateTime? esperada, AppPalette pal) {
-    if (esperada == null) {
-      return _chip(
-          'Sin fecha', pal.textMuted, pal.chipNeutralBg, Icons.hourglass_empty);
-    }
-    final hoy = DateTime.now();
-    final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
-    final soloEsperada = DateTime(esperada.year, esperada.month, esperada.day);
-    final dias = soloEsperada.difference(soloHoy).inDays;
-    if (dias < 0) {
-      return _chip('Vencido ${-dias}d', pal.chipRed, pal.chipRedBg,
-          Icons.warning_amber_outlined);
-    }
-    if (dias == 0) {
-      return _chip('HOY', pal.warning, pal.chipNeutralBg, Icons.today_outlined);
-    }
-    return _chip('Faltan ${dias}d', pal.textSecondary, pal.chipNeutralBg,
-        Icons.hourglass_bottom);
+  Widget _chipCumplimiento(Cumplimiento valor, AppPalette pal) {
+    final (color, fondo, icono) = switch (valor.resultado) {
+      ResultadoCumplimiento.aTiempo => (
+        pal.chipGreen,
+        pal.chipGreenBg,
+        Icons.check_circle_outline,
+      ),
+      ResultadoCumplimiento.conRetraso => (
+        pal.warning,
+        pal.chipNeutralBg,
+        Icons.schedule,
+      ),
+      ResultadoCumplimiento.vencido => (
+        pal.chipRed,
+        pal.chipRedBg,
+        Icons.warning_amber_outlined,
+      ),
+      ResultadoCumplimiento.pendiente => (
+        pal.warning,
+        pal.chipNeutralBg,
+        Icons.hourglass_bottom,
+      ),
+      ResultadoCumplimiento.sinDatos => (
+        pal.textMuted,
+        pal.chipNeutralBg,
+        Icons.event_outlined,
+      ),
+    };
+    return _chip(valor.detalle, color, fondo, icono);
   }
 
   Widget _celdaEstadoLogistica(AppPalette pal) {
@@ -852,19 +1083,26 @@ class _KardexRow extends ConsumerWidget {
   Widget _chip(String texto, Color color, Color fondo, IconData icono) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration:
-          BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(
+        color: fondo,
+        borderRadius: BorderRadius.circular(6),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icono, size: 11, color: color),
           const SizedBox(width: 3),
           Flexible(
-            child: Text(texto,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+            child: Text(
+              texto,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -884,15 +1122,19 @@ class _FilaConHoverState extends State<_FilaConHover> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) => MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-          duration: MediaQuery.disableAnimationsOf(context)
+    onEnter: (_) => setState(() => _hover = true),
+    onExit: (_) => setState(() => _hover = false),
+    child: AnimatedContainer(
+      duration:
+          MediaQuery.disableAnimationsOf(context)
               ? Duration.zero
               : const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
-          color: _hover
+      curve: Curves.easeOut,
+      color:
+          _hover
               ? palOf(context).accent.withValues(alpha: 0.065)
               : Colors.transparent,
-          child: widget.child));
+      child: widget.child,
+    ),
+  );
 }

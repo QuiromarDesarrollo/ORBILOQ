@@ -1,3 +1,5 @@
+import 'package:orbiloq_wms/application/dashboard_periodo.dart';
+import 'package:orbiloq_wms/features/admin/presentation/dashboard_calendario.dart';
 import 'package:orbiloq_wms/application/dashboard_snapshot.dart';
 import 'package:orbiloq_wms/domain/models.dart';
 import 'package:flutter/material.dart';
@@ -174,9 +176,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.byType(GraficaVolumenSemanal), findsOneWidget);
           expect(tester.takeException(), isNull);
-          await tester.tap(find.text('Últimas 12 semanas'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Últimas 4 semanas').last);
+          tester.widget<DashboardCalendario>(find.byType(DashboardCalendario)).onChanged(PeriodoDashboard(DateTime(2026, 9, 28), DateTime(2026, 10, 2)));
           await tester.pumpAndSettle();
           expect(
             tester
@@ -184,7 +184,7 @@ void main() {
                   find.byType(GraficaVolumenSemanal),
                 )
                 .semanas,
-            hasLength(4),
+            hasLength(5),
           );
           expect(repo.llamadas, 4);
           expect(tester.takeException(), isNull);
@@ -218,6 +218,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(repo.llamadas, 0);
-    expect(find.text('Acceso exclusivo del administrador.'), findsOneWidget);
+    expect(find.text('Acceso exclusivo de Administración y Gerencia.'), findsOneWidget);
   });
 }

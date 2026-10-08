@@ -1,3 +1,5 @@
+import '../../../application/dashboard_periodo.dart';
+import 'dashboard_calendario.dart';
 import 'dart:async';
 import '../../../application/dashboard_snapshot.dart';
 import 'dashboard_resumen.dart';
@@ -13,7 +15,6 @@ import '../../../application/providers.dart';
 import '../../../application/dashboard_tendencias.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/reportes_admin_repository.dart';
-import '../../../domain/sesion.dart';
 import '../../../shared/widgets/metric_card.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_loader.dart';
@@ -28,8 +29,8 @@ class DatosDashboard {
 final dashboardEjecutivoProvider = FutureProvider.autoDispose<DatosDashboard>((
   ref,
 ) async {
-  if (ref.watch(dashboardAccesoProvider).$2 != RolCuenta.admin) {
-    throw StateError('Acceso exclusivo del administrador.');
+  if (!(ref.watch(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false)) {
+    throw StateError('Acceso exclusivo de Administración y Gerencia.');
   }
   final repo = ref.watch(reportesAdminProvider);
   if (repo == null) {
@@ -54,12 +55,13 @@ class DashboardEjecutivoPage extends ConsumerStatefulWidget {
 
 class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
   int _semanas = 12;
+  PeriodoDashboard? _periodo;
   bool _detalle = false;
   bool _tiempoReal = false;
   Timer? _temporizador;
 
   void _actualizar() {
-    if (!mounted || ref.read(dashboardAccesoProvider).$2 != RolCuenta.admin) {
+    if (!mounted || !(ref.read(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false)) {
       return;
     }
     if (ref.read(dashboardEjecutivoProvider).isLoading ||
@@ -95,11 +97,11 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
   @override
   Widget build(BuildContext context) {
     final pal = palOf(context);
-    final esAdmin = ref.watch(dashboardAccesoProvider).$2 == RolCuenta.admin;
+    final esAdmin = (ref.watch(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false);
     if (!esAdmin) {
       return const Scaffold(
         body: SafeArea(
-          child: Center(child: Text('Acceso exclusivo del administrador.')),
+          child: Center(child: Text('Acceso exclusivo de Administración y Gerencia.')),
         ),
       );
     }
@@ -214,21 +216,28 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
               ),
             ),
         data: (datos) {
+          final fecha = fechaReporte(datos.corte.toUtc().toIso8601String())!;
+          final periodo =
+              _periodo ??
+              PeriodoDashboard(fecha.subtract(const Duration(days: 29)), fecha);
           if (!_detalle) {
             return DashboardResumen(
               datos: datos,
               semanas: _semanas,
+              periodo: periodo,
               cambiarSemanas: (v) => setState(() => _semanas = v),
+              cambiarPeriodo: (v) => setState(() => _periodo = v),
             );
           }
           final tendencia = calcularTendencias(
             datos.movimientos,
             corte: datos.corte,
             semanas: _semanas,
+            periodo: periodo,
           );
           final colores = coloresSeries(context);
           final totales = tendencia.totales;
-          final corteLocal = fechaReporte(datos.corte.toIso8601String())!;
+
           return SingleChildScrollView(
             child: Center(
               child: ConstrainedBox(
@@ -271,7 +280,7 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'El ritmo semanal de Producción y Logística, en una sola vista.',
+                        'El ritmo diario de Producción y Logística, en una sola vista.',
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                       const SizedBox(height: 24),
@@ -282,28 +291,12 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
                         runSpacing: 10,
                         children: [
                           Text(
-                            '${fechaCorta(tendencia.semanas.first.inicio)} ${tendencia.semanas.first.inicio.year} – ${fechaCorta(corteLocal)} ${corteLocal.year}',
+                            '${fechaCorta(periodo.inicio)} ${periodo.inicio.year} – ${fechaCorta(periodo.fin)} ${periodo.fin.year}',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          SizedBox(
-                            width: 215,
-                            child: DropdownButtonFormField<int>(
-                              isExpanded: true,
-                              initialValue: _semanas,
-                              decoration: const InputDecoration(
-                                labelText: 'Período',
-                              ),
-                              items: [
-                                for (final n in [4, 8, 12, 26])
-                                  DropdownMenuItem(
-                                    value: n,
-                                    child: Text('Últimas $n semanas'),
-                                  ),
-                              ],
-                              onChanged: (v) {
-                                if (v != null) setState(() => _semanas = v);
-                              },
-                            ),
+                          DashboardCalendario(
+                            periodo: periodo,
+                            onChanged: (v) => setState(() => _periodo = v),
                           ),
                         ],
                       ),
@@ -358,12 +351,12 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              'Volumen semanal',
+                              'Volumen diario',
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Unidades por semana · lunes a domingo · Bogotá (UTC−5)',
+                              'Unidades por día · lunes a viernes · Bogotá (UTC−5)',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             const SizedBox(height: 18),
@@ -395,7 +388,7 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
                               const WmsEmptyState(
                                 title: 'Sin movimientos en este período',
                                 message:
-                                    'Prueba un período más amplio. No se registran entregas, recepciones ni despachos operativos en estas semanas.',
+                                    'Prueba un período más amplio. No se registran entregas, recepciones ni despachos operativos en estas fechas.',
                               )
                             else
                               GraficaVolumenSemanal(
@@ -404,7 +397,7 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
                               ),
                             const SizedBox(height: 16),
                             Text(
-                              'Semana actual en curso: los valores aún pueden aumentar.',
+                              'Solo lunes a viernes. El día actual puede estar incompleto.',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
@@ -412,14 +405,14 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
                       ),
                       const SizedBox(height: 16),
                       ExpansionTile(
-                        title: const Text('Ver datos por semana'),
+                        title: const Text('Ver datos por día'),
                         subtitle: const Text('Detalle de las tres series'),
                         children: [
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: DataTable(
                               columns: [
-                                const DataColumn(label: Text('Semana del')),
+                                const DataColumn(label: Text('Día')),
                                 for (final n in nombresSeries)
                                   DataColumn(label: Text(n), numeric: true),
                               ],
@@ -443,18 +436,20 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Corte: ${DateFormat('dd/MM/yyyy HH:mm').format(corteLocal)} · Fuente: movimientos registrados.\nVolumen operativo bruto; excluye ajustes administrativos, importaciones de saldos y movimientos inversos. No representa inventario disponible.',
+                        'Corte: ${DateFormat('dd/MM/yyyy HH:mm').format(fecha)} · Fuente: movimientos registrados.\nVolumen operativo bruto; excluye ajustes administrativos, importaciones de saldos y movimientos inversos. No representa inventario disponible.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       DashboardRecepcionSection(
                         movimientos: datos.movimientos,
                         corte: datos.corte,
                         semanas: _semanas,
+                        periodo: periodo,
                       ),
                       DashboardEnfoqueSection(
                         movimientos: datos.movimientos,
                         corte: datos.corte,
                         semanas: _semanas,
+                        periodo: periodo,
                       ),
                       DashboardAtencionSection(corte: datos.corte),
                       if (tendencia.registrosInvalidos > 0)
@@ -530,6 +525,11 @@ class _GraficaState extends State<GraficaVolumenSemanal> {
   Widget build(BuildContext context) {
     final colores = coloresSeries(context);
     final pal = palOf(context);
+    if (widget.semanas.isEmpty) {
+      return const Center(
+        child: Text('El rango no contiene días de lunes a viernes.'),
+      );
+    }
     final seleccion = (_seleccion ?? widget.semanas.length - 1).clamp(
       0,
       widget.semanas.length - 1,
@@ -552,7 +552,7 @@ class _GraficaState extends State<GraficaVolumenSemanal> {
 
               return Semantics(
                 label:
-                    'Gráfica de líneas de entregado, recibido y despachado. El detalle está disponible en Ver datos por semana.',
+                    'Gráfica de líneas de entregado, recibido y despachado. El detalle está disponible en Ver datos por día.',
                 child: MouseRegion(
                   onHover: (e) => seleccionar(e.localPosition.dx),
                   child: GestureDetector(
@@ -588,7 +588,7 @@ class _GraficaState extends State<GraficaVolumenSemanal> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                'Semana del ${fechaCorta(semana.inicio)}',
+                diaDashboard(semana.inicio),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               for (var i = 0; i < 3; i++)
@@ -606,7 +606,7 @@ class _GraficaState extends State<GraficaVolumenSemanal> {
         Text(
           widget.compacta
               ? ''
-              : 'Toca o pasa el cursor sobre la gráfica para consultar una semana.',
+              : 'Toca o pasa el cursor sobre la gráfica para consultar un día.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -663,14 +663,17 @@ class _LineasPainter extends CustomPainter {
         derecha: true,
       );
     }
-    double x(int i) => rect.left + rect.width * i / (semanas.length - 1);
+    double x(int i) =>
+        semanas.length == 1
+            ? rect.center.dx
+            : rect.left + rect.width * i / (semanas.length - 1);
     final salto = math.max(
       1,
       (semanas.length / (size.width < 500 ? 3 : 6)).ceil(),
     );
     for (var i = 0; i < semanas.length; i += salto) {
       etiqueta(
-        DateFormat('dd/MM').format(semanas[i].inicio),
+        diaDashboard(semanas[i].inicio),
         Offset(x(i) - 15, rect.bottom + 12),
       );
     }

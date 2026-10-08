@@ -4,7 +4,8 @@ import 'dart:math' as math;
 /// usuario autenticado y reforzarse con RLS en la base de datos.
 enum Rol {
   produccion('PRODUCCIÓN (TALLER)'),
-  logistica('LOGÍSTICA (BODEGA)');
+  logistica('LOGÍSTICA (BODEGA)'),
+  despacho('LOGÍSTICA (DESPACHO)');
 
   const Rol(this.etiqueta);
   final String etiqueta;
@@ -32,8 +33,14 @@ enum EstadoLineaLote {
 }
 
 enum TipoMovimiento {
-  entregaProduccion, recepcion, despacho, devolucionProduccion, liberacionNoConforme,
-  envioAliado, liberacionAliado, ajusteFaltanteEntrega,
+  entregaProduccion,
+  recepcion,
+  despacho,
+  devolucionProduccion,
+  liberacionNoConforme,
+  envioAliado,
+  liberacionAliado,
+  ajusteFaltanteEntrega,
 }
 
 enum EstadoItem {
@@ -96,6 +103,7 @@ class Liberacion {
   final String operario;
   final DateTime fecha;
   final String nota;
+
   /// Quién de Logística recibió de vuelta la prenda liberada.
   final String recibidoPorLogistica;
 }
@@ -120,6 +128,7 @@ class Devolucion {
   final String operario;
   final DateTime fecha;
   final String nota;
+
   /// Quién de Producción entregó la prenda reportada como no conforme.
   final String recibidoDeProduccion;
 }
@@ -276,6 +285,7 @@ class Lote {
 /// Fila del kardex: línea de orden + saldos derivados de los movimientos.
 class ItemKardex {
   const ItemKardex({
+    this.reservas = const {},
     this.eliminada = false,
     required this.item,
     required this.producido,
@@ -300,6 +310,13 @@ class ItemKardex {
 
   /// Stock por ubicación (solo cantidades > 0).
   final Map<String, int> ubicaciones;
+  final Map<String, int> reservas;
+  int get reservado => reservas.values.fold(0, (a, b) => a + b);
+  int get disponibleParaDespacho => stockDisponible - reservado;
+  int get pendienteDisponibleDespacho =>
+      math.max(0, pendienteDespacho - reservado);
+  int disponibleEn(String ubicacion) =>
+      stockEn(ubicacion) - (reservas[ubicacion] ?? 0);
   final DateTime? fechaEntrega;
   final DateTime? fechaRecepcion;
   final DateTime? fechaDespacho;
@@ -337,25 +354,37 @@ class ItemKardex {
     }
     if (despachado > 0) return EstadoItem.despachoParcial;
     if (recibido > cantidadPedida) return EstadoItem.excedente;
-    if (recibido > 0 && recibido == cantidadPedida) return EstadoItem.recibidoTotal;
+    if (recibido > 0 && recibido == cantidadPedida) {
+      return EstadoItem.recibidoTotal;
+    }
     if (recibido > 0) return EstadoItem.recepcionParcial;
     return EstadoItem.enProduccion;
   }
 
   String get estadoEtiqueta =>
-      estado == EstadoItem.excedente ? 'EXCEDENTE (+$excedente)' : estado.etiqueta;
+      estado == EstadoItem.excedente
+          ? 'EXCEDENTE (+$excedente)'
+          : estado.etiqueta;
 
   /// Estado para la vista de Producción. "Retardo" queda reservado para
   /// cuando exista una fecha esperada real de entrega (aún no conectada);
   /// mientras tanto, nunca se activa.
   EstadoProduccion get estadoProduccion {
-    if (pendienteProduccion <= 0 && cantidadPedida > 0) return EstadoProduccion.completado;
+    if (pendienteProduccion <= 0 && cantidadPedida > 0) {
+      return EstadoProduccion.completado;
+    }
     final esperada = fechaEsperadaProduccion;
     if (esperada != null) {
       final hoy = DateTime.now();
       final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
-      final soloEsperada = DateTime(esperada.year, esperada.month, esperada.day);
-      if (soloEsperada.isBefore(soloHoy)) return EstadoProduccion.parcialPorRetardo;
+      final soloEsperada = DateTime(
+        esperada.year,
+        esperada.month,
+        esperada.day,
+      );
+      if (soloEsperada.isBefore(soloHoy)) {
+        return EstadoProduccion.parcialPorRetardo;
+      }
     }
     return EstadoProduccion.parcialPorEntregar;
   }
@@ -365,7 +394,9 @@ class ItemKardex {
   /// tránsito), pendiente por recibir; si ya está todo recibido pero falta
   /// despachar, pendiente por despachar.
   EstadoLogistica get estadoLogistica {
-    if (cantidadPedida > 0 && despachado >= cantidadPedida) return EstadoLogistica.completado;
+    if (cantidadPedida > 0 && despachado >= cantidadPedida) {
+      return EstadoLogistica.completado;
+    }
     if (recibido < cantidadPedida) return EstadoLogistica.pendienteRecibir;
     return EstadoLogistica.pendientePorDespachar;
   }
@@ -378,10 +409,7 @@ class ItemKardex {
 
 /// Foto inmutable del estado completo que consume la UI.
 class WmsSnapshot {
-  WmsSnapshot({
-    required this.kardex,
-    required this.lotes,
-  });
+  WmsSnapshot({required this.kardex, required this.lotes});
 
   final List<ItemKardex> kardex;
 
@@ -392,13 +420,15 @@ class WmsSnapshot {
   late final Map<String, ItemKardex> _porOpCodigo = {
     for (final k in kardex) '${k.item.op}|${k.item.codigo}': k,
   };
-  late final int lotesConPendientes = lotes.where((l) => l.tienePendientes).length;
+  late final int lotesConPendientes =
+      lotes.where((l) => l.tienePendientes).length;
 
   ItemKardex? kardexPorId(String id) => _porId[id];
 
   /// El QR real de la marquilla trae OP + Código, sin talla (el código ya es
   /// único por talla dentro de cada OP). Esta es la búsqueda que usa el escaneo.
-  ItemKardex? kardexPorOpCodigo(String op, String codigo) => _porOpCodigo['$op|$codigo'];
+  ItemKardex? kardexPorOpCodigo(String op, String codigo) =>
+      _porOpCodigo['$op|$codigo'];
 }
 
 /// Solicitud de Producto No Conforme enviado a un Aliado externo. El total

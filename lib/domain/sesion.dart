@@ -3,12 +3,16 @@
 /// tanto la pantalla de Producción como la de Logística.
 enum RolCuenta {
   produccion('produccion', 'Producción'),
-  logistica('logistica', 'Logística'),
+  logistica('logistica', 'Bodega'),
+  despacho('despacho', 'Despacho'),
+  seguimiento('seguimiento', 'Seguimiento'),
+  gerencia('gerencia', 'Gerencia'),
   admin('admin', 'Administrador');
 
   const RolCuenta(this.valorBd, this.etiqueta);
   final String valorBd;
   final String etiqueta;
+  bool get puedeVerDashboards => this == admin || this == gerencia;
 
   static RolCuenta? desde(String valor) {
     for (final r in RolCuenta.values) {

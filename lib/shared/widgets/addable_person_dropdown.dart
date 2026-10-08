@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,7 +69,7 @@ class AddablePersonDropdown extends ConsumerWidget {
         onChanged(value);
       case Err(:final message):
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+          mostrarAvisoSnack(context, SnackBar(content: Text(message)));
         }
     }
   }

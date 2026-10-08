@@ -54,7 +54,7 @@ void main() {
           }
         }
         for (final titulo in [
-          'Volumen semanal',
+          'Volumen diario',
           'Conformidad de recepción',
           'Tasa de sobrantes',
           'Resolución promedio',

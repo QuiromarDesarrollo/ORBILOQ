@@ -264,3 +264,89 @@ Aplicar `064_fecha_despacho.sql` completo después de 063 en PRUEBAS. Agrega a `
 El historial de despachos permite buscar OC y combinar con OP/fecha. Muestra las OP con movimientos coincidentes. Al buscar OC, su estado actual considera todas sus líneas del kardex (incluidas OP sin despachos y líneas ocultas): Completo si ninguna tiene cantidad pendiente por despachar; Parcial en caso contrario. Se separan clientes aunque usen el mismo número OC. El estado no se recalcula sobre los movimientos filtrados. OC históricas que ya no tienen líneas asociadas muestran «Sin datos actuales».
 
 No ejecutar en PRODUCCIÓN: incluir este cambio aditivo en la migración específica del despliegue, preservando todos los datos existentes.
+## 071: tiempos de ciclo y Gerencia (solo DEV)
+
+Si 071 ya está instalada y aparece **UPDATE requires a WHERE clause**, ejecutar
+completo `072_corregir_updates_ciclos.sql` en DEV. No repetir 071: 072 corrige las
+funciones instaladas sin borrar registros ni desactivar protecciones. Actualizar
+el dashboard y repetir la importación o el guardado de parámetros que falló.
+La versión actual de 071 ya incluye esta corrección para instalaciones nuevas.
+
+Requiere la separación de roles de `070_separar_bodega_despacho.sql`. Ejecutar
+`071_ciclos_gerencia.sql` completo una sola vez en ORBILOQ-DEV. Ensayo local:
+`powershell -File tools/ensayar_ciclos.ps1`. No aplicar este archivo a producción.
+
+Actualizar también `supabase/functions/admin-crear-usuario/handler.mjs` en la
+Edge Function de DEV para permitir crear cuentas Gerencia. Conservar `index.ts`.
+Reiniciar Flutter con la configuración de DEV. Administración entra por
+**Dashboards → Tiempos de ciclo por proceso**; Gerencia entra directamente al
+catálogo de dashboards, sin importación, parámetros ni acciones operativas.
+
+En **Parámetros**, elegir proceso y fecha de vigencia antes de guardar. Los valores
+iniciales propuestos son 6/3/3/4/11/2/3 días hábiles más 3 días de reserva total.
+Corte y Separado proponen 7.000 unidades/semana; Aliados, 17.000. Son límites
+semanales independientes y editables. Las capacidades diarias empiezan vacías.
+Trazo propone un umbral de cola de 45 OP, distinto de su capacidad diaria.
+No se inserta una vigencia arbitraria: cada valor se guarda cuando el administrador
+elige desde cuándo aplica. Una nueva versión no reemplaza las ya asociadas a OP.
+La corrección del inicio de un proceso vuelve a elegir la versión para ese inicio.
+
+Excel `.xlsx`, una fila por OP, encabezados en la primera fila:
+`N° DE ORDEN | CLIENTE | CANTIDAD | FECHA DE INICIO | COMPRAS | TRAZO | CORTE | SEPARADO | ALIADOS | TERMINADO | LOGISTICA`.
+Las fechas pueden ser fechas de Excel, `DD/MM/AAAA` o `AAAA-MM-DD`.
+Vacío o `-` borra la fecha anterior de las OP incluidas; la vista previa cuenta esos
+borrados. Las OP no incluidas permanecen. Solo se rellena una cantidad vacía si
+pertenece a una celda realmente combinada. Máximo 10.000 OP y 20 MB por archivo.
+El servidor valida las filas y la revisión; la escritura es atómica y auditada en
+`ciclos_importaciones`, legible solo por Administración. Las OP de ciclos no se
+vinculan ni modifican automáticamente el kardex operativo.
+
+Los percentiles usan interpolación lineal e incluyen solo duraciones con inicio y
+fin conocidos. El total requiere la trazabilidad completa. El filtro histórico se
+aplica a la finalización del proceso; el total, a la finalización de Logística.
+Capacidad tiene su propio día/semana y aplica el filtro de cliente. Cola inicial +
+entradas − finalizaciones = cola final; nunca se suman colas diarias para la semana.
+La semana en curso usa carga registrada hasta hoy contra el límite semanal completo.
+Un cambio de versión dentro de la semana deja sin comparación semanal (consultar
+por día). Las fechas vacías no se proyectan en cascada. Calendario nacional de
+Colombia, lunes a viernes sin festivos, excluyendo el día inicial y sin corte horario.
+
+
+### 073 — Lista de empaque nacional
+
+Aplicar `073_lista_empaque.sql` completo únicamente en ORBILOQ-DEV, después de 070 y antes de usar esta versión de Despacho. No reinicia datos ni modifica los despachos anteriores. Crea catálogo de destinatarios, configuración del consecutivo y documentos emitidos con acceso exclusivo de Admin/Despacho.
+
+1. Reiniciar Flutter tras `flutter pub get` (nuevas dependencias PDF/impresión y logo).
+2. En Despacho → Catálogo de destinatarios / consecutivo LE, el administrador importa la hoja **Clientes** del `.xlsm`/`.xlsx`. Columnas B:H: nombre, NIT, quien recibe, ciudad, dirección, teléfono, celular. No se ejecutan macros. Se conservan sedes/contactos diferentes, y reimportar coincidencias exactas no las duplica.
+3. Configurar el próximo LE cuando la empresa confirme el consecutivo; no se presupone 1 ni el número del ejemplo. No se puede reutilizar un número emitido.
+4. Seleccionar OP de la misma OC/cliente. «Nuevo» crea otra caja/bolsa; «Usar empaque N» agrega una talla a la misma caja. La numeración empieza en 1 para cada despacho. Las cantidades se verifican contra stock y pendiente de cada referencia/talla en cliente y servidor.
+5. Tras confirmar el despacho, elegir destinatario/sede. Remisión, ID OC y factura son opcionales y quedan en blanco si no se ingresan. El PDF conserva los datos de catálogo del momento de emisión. Las medidas se convierten de cm a m; el volumen es m³, sin fórmula de peso de transportadora. Peso y volumen se suman una vez por empaque físico.
+6. En Historial → movimiento → Lista de empaque PDF se puede emitir lo pendiente o volver a descargar sin descontar inventario. Despachos antiguos sin numeración no generan una distribución inventada.
+
+Ensayo local (sin Supabase): `tools/ensayar_lista_empaque.ps1`. Incluye migración repetible, varias tallas por caja, empaques repetidos, límite de stock, reintentos, consecutivo sin configurar, campos opcionales y documento inmutable. `tools/verificar_lista_empaque.dart` genera un PDF sintético multipágina para verificar formato; admite como argumento la ruta del Excel para comprobar Clientes en lectura sola.
+
+### 078 — Corrección de envíos pendientes de recepción
+
+Solo ORBILOQ-DEV, después de 068. Aplicar `078_corregir_pendiente_recepcion.sql` completo. Las reducciones administrativas de «Entregado por Producción» reducen también los lotes de entrega pendientes, del más reciente al más antiguo, sin reducir recepciones, despachos ni reprocesos. Una línea anulada queda en cero y cerrada con novedad; no se elimina la trazabilidad. La auditoría guarda los lotes antes y después. La corrección y sus lotes se guardan en una misma transacción; la vista previa no escribe.
+
+No cambia registros existentes ni concilia errores anteriores. Los totales históricos sin lote conservan la corrección de saldo original. El despliegue a producción queda pendiente para una entrega posterior: no ejecutar este SQL en producción. Ensayo local: `tools/ensayar_lista_empaque.ps1`; caso 37 → 12 → 0 y comprobación de auditoría en `tools/test_corregir_envios.sql`.
+
+### 079/080 — Historial por LE y corrección de despacho
+
+Solo ORBILOQ-DEV. Aplicar `079_historial_despachos_le.sql` y después `080_corregir_despacho_le.sql`, tras 073. No ejecutar en producción todavía.
+
+El historial agrupa por despacho/LE y permite buscar LE, OC, OP y fechas. Muestra el número de correcciones confirmadas. «Corregir despacho» precarga las prendas y los empaques numerados; exige motivo. Abrir o cerrar el formulario no modifica existencias. Al confirmar, revierte las cantidades anteriores en sus ubicaciones originales, valida y registra las nuevas en una única transacción. Se conservan el ID del despacho y la LE, se archivan el despacho y documento anteriores, y se requiere seleccionar el destinatario para emitir la nueva versión del PDF. Reintentar la misma solicitud no vuelve a descontar ni aumenta el contador. Los ajustes administrativos externos bloquean la corrección hasta conciliarse. Los despachos antiguos sin empaques numerados no admiten reconstrucción automática.
+
+`tools/test_corregir_despacho_le.sql`, ejecutado por `tools/ensayar_lista_empaque.ps1`, comprueba reversión por error, cambio de cantidades, dos correcciones, reintento idempotente, versión obsoleta, conservación del consecutivo, auditoría, historial y control de acceso. Esta migración amplía los movimientos negativos solo para reversiones vinculadas a una revisión de despacho; una política restrictiva impide insertar esa referencia directamente como usuario autenticado.
+
+### 081 — Despacho, Seguimiento e Historial
+
+Aplicar `081_empaque_seguimiento.sql` completo exclusivamente en ORBILOQ-DEV, después de 080. Desplegar también la Edge Function `admin-crear-usuario` actualizada en DEV para crear cuentas con el nuevo rol `seguimiento`, y reiniciar la aplicación de pruebas. No aplicar migraciones anteriores después de 081. Esta versión de la aplicación requiere la nueva tabla de reservas. Los despachos previos permanecen finalizados.
+
+- **Despacho:** confirmar los empaques asigna la LE y reserva prendas por referencia y ubicación. Se mantienen en el stock físico de Bodega, pero se excluyen de la disponibilidad para otros empaques. El consecutivo LE debe estar configurado antes de empacar.
+- **Seguimiento:** muestra las LE empacadas. Elegir destinatario/sede y confirmar salida descuenta el stock y emite el PDF en una sola transacción. Remisión, ID OC y factura siguen siendo opcionales. Reintentar o descargar nuevamente no duplica movimientos.
+- **Historial:** muestra las salidas confirmadas, búsqueda por LE y contador de correcciones. Corregir precarga el empaque; al confirmarlo conserva LE, incrementa el contador, reserva la nueva distribución y vuelve a Seguimiento para seleccionar destinatario y generar el PDF actualizado. Abrir/cerrar sin guardar no cambia inventario.
+
+El rol **Seguimiento** comparte las funciones de Despacho y abre inicialmente la pestaña Seguimiento. Las reservas también impiden ajustes o retiros que consuman stock comprometido. Las tarjetas se actualizan con el snapshot del inventario y los eventos de reservas.
+
+Validación local: `tools/ensayar_lista_empaque.ps1` instala 081 dos veces y ejecuta `tools/test_seguimiento.sql`: reserva sin salida, doble reserva rechazada, corrección antes/después de la salida, rollback de errores, mismo consecutivo, revisión obsoleta, reintentos, protección del stock y permisos. No conecta con Supabase ni modifica producción.

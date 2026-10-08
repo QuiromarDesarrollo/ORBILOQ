@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -253,7 +254,7 @@ class _PanelFormulario extends StatelessWidget {
                     const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 18),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(error!, style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 13)),
+                      child: AvisoFormulario(error!),
                     ),
                   ],
                 ),
