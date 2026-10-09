@@ -1,6 +1,6 @@
 # Preparación incremental de octubre de 2026
 
-Estado: **migración aplicada y verificada; nueva versión publicada correctamente en GitHub Pages**.
+Estado: **despliegue completado; migración y vistas verificadas, Excel descargado y abierto correctamente según confirmación del usuario**.
 
 ## Ejecución autorizada
 
@@ -130,8 +130,10 @@ el análisis estático no encontró problemas. Se añadió una regresión web qu
 valida una sola descarga, nombre, MIME y contenido XLSX. El runner Chrome se
 detuvo al iniciar la suite y se canceló; no se contabiliza como prueba aprobada.
 La interfaz publicada completó la exportación sin el error original, pero la
-herramienta del navegador no recuperó el archivo. Se solicitó confirmar al
-usuario la descarga y apertura del XLSX antes de cerrar esa validación.
+herramienta del navegador no recuperó el archivo. El usuario recargó la versión
+publicada y confirmó expresamente que `orbiloq_trazabilidad_op.xlsx` se descarga
+y abre correctamente. GitHub Pages terminó con éxito (ejecución `37999220802`)
+y el JavaScript servido coincide con el hash del artefacto final.
 
 ## Cierre del despliegue
 
@@ -151,8 +153,8 @@ Conservar ese ajuste: la función valida la identidad con `auth.getUser` y exige
 administrador activo. Esta evidencia acredita la configuración visible, no una
 prueba autenticada de alta real de usuarios.
 
-1. Comprobación autenticada de las vistas completada; pendiente confirmación de
-   descarga y apertura del Excel. Flujo SQL, pruebas y compilación completados.
+1. Comprobación autenticada de las vistas completada; descarga y apertura del
+   Excel confirmadas por el usuario. Flujo SQL, pruebas y compilación completados.
 2. Edge Function actualizada por el usuario, configuración verificada por captura
    y rechazo HTTP de llamadas sin sesión comprobado. Tablas de Realtime verificadas
    en producción; no se generaron movimientos para probar entrega de eventos.
@@ -162,7 +164,8 @@ prueba autenticada de alta real de usuarios.
 6. Autorización recibida; SQL aplicado y Pages publicado.
 7. Todas las columnas y filas originales comparadas sin diferencias contra el
    preflight inmediatamente anterior a la migración.
-8. Habilitar operación solo tras comprobar la versión publicada y sus permisos.
+8. Validación final cerrada. Antes de reanudar, cada equipo debe recargar la página
+   con Ctrl+F5. No se crearon movimientos ni cuentas de prueba en producción.
 
 Si falla SQL antes del COMMIT, la transacción debe revertirse. Si falla la app
 después de aplicar SQL, mantener la pausa y diagnosticar compatibilidad: **volver
