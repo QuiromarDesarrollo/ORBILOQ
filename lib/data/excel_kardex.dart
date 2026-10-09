@@ -86,7 +86,7 @@ class ExcelKardex {
       formato.appendRow([TextCellValue(texto)]);
     }
     formato.setColumnWidth(0, 110);
-    return Uint8List.fromList(libro.save()!);
+    return Uint8List.fromList(libro.encode()!);
   }
 
   static ArchivoKardex leer(Uint8List bytes, Rol vista) {

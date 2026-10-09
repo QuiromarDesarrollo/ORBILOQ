@@ -11,10 +11,12 @@ void main() {
   test('El reporte descarga un XLSX legible con nombre, hojas y cantidades', () async {
     String? url;
     String? nombre;
+    var descargas = 0;
     final listener = ((web.Event event) {
       final target = event.target;
       if (target != null && target.isA<web.HTMLAnchorElement>()) {
         final enlace = target as web.HTMLAnchorElement;
+        descargas++;
         nombre = enlace.download;
         url = enlace.href;
         event.preventDefault();
@@ -27,6 +29,7 @@ void main() {
       'Resumen': [['Total'], [15]],
     });
     expect(nombre, 'trazabilidad.xlsx');
+    expect(descargas, 1);
     expect(url, startsWith('blob:'));
     final response = await web.window.fetch(url!.toJS).toDart;
     expect(response.headers.get('Content-Type'),

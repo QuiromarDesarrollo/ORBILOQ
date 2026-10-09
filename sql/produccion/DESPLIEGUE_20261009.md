@@ -107,9 +107,31 @@ El hash del JavaScript servido por Pages coincide con el build:
 El compilador advierte de incompatibilidad WebAssembly en la dependencia image y
 de una fuente Cupertino no incluida. El build JavaScript termina correctamente;
 el código de la aplicación no referencia CupertinoIcons. Arranque del artefacto
-servido localmente y del sitio publicado comprobado hasta el login. Queda pendiente
-la comprobación visual autenticada con el Administrador; ya pasaron las consultas
-de base de datos bajo rol authenticated y su identidad, sin registrar movimientos.
+servido localmente y del sitio publicado comprobado. La validación autenticada con
+Administrador comprobó carga de producción, métricas, movimientos, no conformes,
+destino de despacho e historial, sin registrar movimientos. Despacho también se
+revisó a 390 px de ancho. Las consultas de base de datos bajo rol authenticated
+y su identidad ya habían pasado.
+
+### Corrección de Excel durante la validación autenticada
+
+La prueba de Trazabilidad OP detectó `saveFile() has not been implemented`:
+FilePicker no implementa ese guardado en web. Se centralizó la descarga XLSX
+con Blob y enlace temporal; la implementación nativa conserva FilePicker.
+Reportes, kardex, exportación de tabla y plantillas usan el mismo descargador.
+Además, los generadores usan `encode()` en vez de `save()`, para evitar la
+descarga adicional `FlutterExcel.xlsx` que produce la librería en navegador.
+
+Artefacto final: `D:\ORBILOQ-preparacion-20261009-155918\web-produccion-excel-final`.
+Commit de Pages: `4ef3fae3572f26dd7097a6fb36453dfa2da0b4fd`.
+SHA256 JavaScript: `1C0534136B3D558B6FB40B51C73C0BFE62F32224AC412736E3C2291944AEAC78`.
+Pasaron nuevamente 23 pruebas de reportes, trazabilidad, plantillas y kardex;
+el análisis estático no encontró problemas. Se añadió una regresión web que
+valida una sola descarga, nombre, MIME y contenido XLSX. El runner Chrome se
+detuvo al iniciar la suite y se canceló; no se contabiliza como prueba aprobada.
+La interfaz publicada completó la exportación sin el error original, pero la
+herramienta del navegador no recuperó el archivo. Se solicitó confirmar al
+usuario la descarga y apertura del XLSX antes de cerrar esa validación.
 
 ## Cierre del despliegue
 
@@ -129,8 +151,8 @@ Conservar ese ajuste: la función valida la identidad con `auth.getUser` y exige
 administrador activo. Esta evidencia acredita la configuración visible, no una
 prueba autenticada de alta real de usuarios.
 
-1. Completar la comprobación autenticada durante la ventana de despliegue;
-   arranque local, flujo SQL, pruebas de la app y compilación ya completados.
+1. Comprobación autenticada de las vistas completada; pendiente confirmación de
+   descarga y apertura del Excel. Flujo SQL, pruebas y compilación completados.
 2. Edge Function actualizada por el usuario, configuración verificada por captura
    y rechazo HTTP de llamadas sin sesión comprobado. Tablas de Realtime verificadas
    en producción; no se generaron movimientos para probar entrega de eventos.

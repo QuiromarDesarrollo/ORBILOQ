@@ -37,7 +37,7 @@ class KardexExcelExportador {
     }
     if (!hojas.containsKey(defecto)) libro.delete(defecto);
     libro.setDefaultSheet(hojas.keys.first);
-    return Uint8List.fromList(libro.save()!);
+    return Uint8List.fromList(libro.encode()!);
   }
 
   static Future<void> exportarReporte(String nombre, Map<String,List<List<Object?>>> hojas) async {
@@ -85,7 +85,7 @@ class KardexExcelExportador {
       }
     }
 
-    final bytes = libro.save();
+    final bytes = libro.encode();
     if (bytes == null) {
       throw Exception('No se pudo generar el archivo de Excel.');
     }

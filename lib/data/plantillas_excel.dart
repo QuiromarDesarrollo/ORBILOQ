@@ -53,6 +53,6 @@ class PlantillasExcel {
       guia.appendRow([TextCellValue(nota)]);
     }
     guia.setColumnWidth(0, 110);
-    return Uint8List.fromList(libro.save()!);
+    return Uint8List.fromList(libro.encode()!);
   }
 }
