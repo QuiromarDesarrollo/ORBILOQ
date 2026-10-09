@@ -1,9 +1,14 @@
 # Solo exporta. No ejecuta SQL de escritura ni restaura sobre ninguna base.
 # Ejecutar interactivamente: PostgreSQL pide la contraseña sin mostrarla.
 [CmdletBinding()]
-param([string]$BackupRoot = 'D:\ORBILOQ-respaldos')
+param(
+    [string]$BackupRoot = 'D:\ORBILOQ-respaldos',
+    [switch]$UsarCredencialEntorno
+)
 
 $ErrorActionPreference = 'Stop'
+if ($UsarCredencialEntorno -and !$env:PGPASSWORD) { throw 'Falta la credencial temporal de PostgreSQL.' }
+$passwordOption = if ($UsarCredencialEntorno) { '--no-password' } else { '--password' }
 $pgBin = 'C:\Users\analistadatos\Downloads\postgresql-17.11-5-windows-x64-binaries\pgsql\bin'
 $connection = 'host=aws-0-us-west-2.pooler.supabase.com port=5432 dbname=postgres user=postgres.cxrflhgnxvomcvxzugda sslmode=require connect_timeout=20 application_name=orbiloq_respaldo'
 $backupDir = Join-Path $backupRoot ('produccion-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
@@ -25,13 +30,13 @@ $started = [DateTime]::UtcNow.ToString('o')
 try {
     Write-Host 'PRODUCCION: cxrflhgnxvomcvxzugda. Solo lectura.'
     Write-Host "Destino privado (no subir a GitHub): $backupDir"
-    Write-Host '1/3 Exportando estructura y datos. Introduce la contraseña de la BASE DE DATOS.'
-    & (Join-Path $pgBin 'pg_dump.exe') --dbname=$connection --password --format=custom --lock-wait-timeout=30s --file=$dumpPartial
+    Write-Host '1/3 Exportando estructura y datos.'
+    & (Join-Path $pgBin 'pg_dump.exe') --dbname=$connection $passwordOption --format=custom --lock-wait-timeout=30s --file=$dumpPartial
     if ($LASTEXITCODE -ne 0) { throw 'pg_dump falló. El archivo parcial NO es un respaldo utilizable.' }
     if ((Get-Item -LiteralPath $dumpPartial).Length -eq 0) { throw 'El archivo exportado está vacío.' }
 
-    Write-Host '2/3 Exportando roles sin sus contraseñas. Introduce de nuevo la contraseña de la base.'
-    & (Join-Path $pgBin 'pg_dumpall.exe') --dbname=$connection --password --roles-only --no-role-passwords --file=$rolesPartial
+    Write-Host '2/3 Exportando roles sin sus contraseñas.'
+    & (Join-Path $pgBin 'pg_dumpall.exe') --dbname=$connection $passwordOption --roles-only --no-role-passwords --file=$rolesPartial
     if ($LASTEXITCODE -ne 0) { throw 'Falló la exportación de roles. Conservar los archivos y revisar antes de continuar.' }
 
     Write-Host '3/3 Leyendo el índice local del archivo. No se conecta para restaurar.'

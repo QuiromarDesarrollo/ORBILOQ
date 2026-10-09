@@ -1,0 +1,90 @@
+[
+  {
+    "fuente": "sql/pruebas/065_empaques_despacho.sql",
+    "sha256": "0a51eac5221fe012f4f32f4787df4dc89e2de604a9cca3a59891000535840c66"
+  },
+  {
+    "fuente": "sql/pruebas/066_prendas_por_empaque.sql",
+    "sha256": "a49b06e110cb30023be5220c91991446a82bc473b5300cbe49d5854176f9ee32"
+  },
+  {
+    "fuente": "sql/pruebas/067_empaques_repetidos.sql",
+    "sha256": "a16b98533309e61d3fa3ed702aec1b3f9c7a26c301b0571cf07013477894fa2d"
+  },
+  {
+    "fuente": "sql/pruebas/068_validar_entregado_recibido.sql",
+    "sha256": "9fa6d2ca319510125e3270518153dd5f28294a92d891af937285b780e110c139"
+  },
+  {
+    "fuente": "sql/pruebas/070_separar_bodega_despacho.sql",
+    "sha256": "c3b280e5265bdf797ad09082f746ba7a2f3a4c4cb42f7dc428accc82856b10e3"
+  },
+  {
+    "fuente": "sql/pruebas/071_ciclos_gerencia.sql",
+    "sha256": "430869bb39b687677c8133b8119eb5725d92cf3702d0fdad7ba5ce82accdea13"
+  },
+  {
+    "fuente": "sql/pruebas/072_corregir_updates_ciclos.sql",
+    "sha256": "87287837314f041fba4caded6f57983e00f7f5e9a99654d9b7cc1e4722b86754"
+  },
+  {
+    "fuente": "sql/pruebas/073_lista_empaque.sql",
+    "sha256": "7affcdb20d69b57dd654e6d9d1d89e0fa71b7f8ecd4a59b5d148a7291cf2c443"
+  },
+  {
+    "fuente": "sql/pruebas/074_correccion_multilote.sql",
+    "sha256": "9285dc73b2d089d5799fd771aee928ca73205ae02f7fdaa056cec094f899a4a2"
+  },
+  {
+    "fuente": "sql/pruebas/075_proteger_despachadas_correccion.sql",
+    "sha256": "dfb495395aeb5d48ef45c49956b8ce066eb7c037df0643ac488e4ef73c724b3e"
+  },
+  {
+    "fuente": "sql/pruebas/077_destinatarios_sede.sql",
+    "sha256": "8e423495f9da120b23204b3aa1e73d96f2997907af440dda0d47881e1d968c81"
+  },
+  {
+    "fuente": "sql/pruebas/078_corregir_pendiente_recepcion.sql",
+    "sha256": "23b120134fb2b8cb471f295d3eac432c539d2dc3a66b2b6f1a4876903f045aeb"
+  },
+  {
+    "fuente": "sql/pruebas/079_historial_despachos_le.sql",
+    "sha256": "499477b2b06dd18e05e004f4ae486f371b8ddec40b65da746f428cb134d46928"
+  },
+  {
+    "fuente": "sql/pruebas/080_corregir_despacho_le.sql",
+    "sha256": "2fd9cc6ad5cb81162e2f6b2e0d4ad46babc5fc3afe469b799073b890ff030a02"
+  },
+  {
+    "fuente": "sql/pruebas/081_empaque_seguimiento.sql",
+    "sha256": "67d14267b47f28bc7316a14c2f9f1cf78ce539816caf221f68a7ac9f6e5bd51e"
+  },
+  {
+    "fuente": "sql/pruebas/082_destinatario_antes_empaque.sql",
+    "sha256": "46db8f60ceeaf6cff2768a562d1d9d48377c19fd3c8a59fd5195395c2e9ff24d"
+  },
+  {
+    "fuente": "sql/pruebas/084_seguimiento_entregas.sql",
+    "sha256": "e2d4e0e27bf918bce42740ac46ffd26fb6aebc9c74e29d6a2546beed0bc384bf"
+  },
+  {
+    "fuente": "sql/pruebas/085_estados_seguimiento.sql",
+    "sha256": "c43e2ff0324830dee88ae56166512575caf501847cc73f64a63436c6adefcae7"
+  },
+  {
+    "fuente": "sql/pruebas/086_devolucion_parcial_seguimiento.sql",
+    "sha256": "857fd24af7005b365001d046b8ad6a7937965bdf252b42d59fdb5d7674da482e"
+  },
+  {
+    "fuente": "sql/pruebas/087_trazabilidad_op.sql",
+    "sha256": "c9bd36af0aaa139c47814e183909ce0a4c0c95f8eaede6259d01f42e358ee02e"
+  },
+  {
+    "fuente": "sql/pruebas/088_no_conforme_stock_disponible.sql",
+    "sha256": "ff4c32f787f47c79b9be91b6a0450815eecf1f3f8f1bbed2d3b9f92309d6f861"
+  },
+  {
+    "fuente": "sql/pruebas/089_permisos_seguimiento.sql",
+    "sha256": "d6ebad121d5c18c4ad9b0489bac8c3ea254c0aebc71ec419ada9a3cf5f25f894"
+  }
+]

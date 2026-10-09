@@ -31,18 +31,29 @@ foreach ($line in [IO.File]::ReadLines($snapshot)) {
 }
 if ($expected.Count -eq 0) { throw 'El inventario seleccionado no contiene archivos. Revisar su alcance.' }
 $zip = [IO.Compression.ZipFile]::OpenRead($source)
+function Get-ImportName([string]$path) {
+    if ($path.StartsWith('importaciones/', [StringComparison]::Ordinal)) {
+        $path = $path.Substring('importaciones/'.Length)
+    }
+    if ($path -notmatch '^[^/\\:]+\.xlsx$') { throw 'Ruta del ZIP no permitida.' }
+    return $path
+}
 try {
     $seen = @{}
     foreach ($entry in $zip.Entries) {
-        if (-not $expected.ContainsKey($entry.FullName) -or $seen.ContainsKey($entry.FullName)) {
+        $name = Get-ImportName $entry.FullName
+        if (-not $expected.ContainsKey($name) -or $seen.ContainsKey($name)) {
             throw 'El ZIP contiene una ruta inesperada o duplicada.'
         }
-        if ($entry.Length -ne $expected[$entry.FullName]) { throw 'El tamaño del ZIP no coincide con Storage.' }
-        $seen[$entry.FullName] = $true
+        if ($entry.Length -ne $expected[$name]) { throw 'El tamaño del ZIP no coincide con Storage.' }
+        $seen[$name] = $true
+    }
+    foreach ($name in $expected.Keys) {
+        if (-not $seen.ContainsKey($name)) { throw "El ZIP esta incompleto: falta $name. No se extraeran archivos." }
     }
     $null = New-Item -ItemType Directory -Force -Path $dest
     foreach ($entry in $zip.Entries) {
-        $target = Join-Path $dest $entry.FullName
+        $target = Join-Path $dest (Get-ImportName $entry.FullName)
         if (Test-Path -LiteralPath $target) { throw "El archivo ya existe; no se sobrescribe: $($entry.FullName)" }
         [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $false)
     }

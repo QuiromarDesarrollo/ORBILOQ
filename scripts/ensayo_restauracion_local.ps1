@@ -1,6 +1,8 @@
 param(
  [Parameter(Mandatory=$true)][string]$Backup,
- [string]$DiagnosticoSql = ''
+ [string]$DiagnosticoSql = '',
+ [string]$MigracionSql = '',
+ [string]$PruebaSql = ''
 )
 $ErrorActionPreference = 'Stop'
 $bin = 'C:\Users\analistadatos\Downloads\postgresql-17.11-5-windows-x64-binaries\pgsql\bin'
@@ -111,6 +113,27 @@ try {
     $report | ConvertTo-Json -Compress
     if ($restoreExit -ne 0 -or @($checks | Where-Object { -not $_.coincide }).Count -gt 0 -or @($hashChecks | Where-Object { -not $_.coincide }).Count -gt 0) {
         throw 'El ensayo tiene diferencias o errores. Revisar resultado.json; no considerar validada la restauración.'
+    }
+    if ($MigracionSql -ne '') {
+        $aclList = Join-Path $dest 'permisos.list'
+        [IO.File]::WriteAllLines($aclList, [string[]]@($filtered | Where-Object { $_ -match '\s(?:DEFAULT )?ACL\s' }), [Text.UTF8Encoding]::new($false))
+        & "$bin\pg_restore.exe" --dbname=$conn --no-password --no-owner --use-list=$aclList (Join-Path $backup 'produccion.dump') *> (Join-Path $dest 'permisos.log')
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudieron restaurar los permisos para las pruebas locales.' }
+        & "$bin\psql.exe" -X -w --dbname=$conn -v ON_ERROR_STOP=1 -c 'CREATE PUBLICATION supabase_realtime FOR TABLE public.usuarios,public.ubicaciones,public.causales_devolucion,public.personal_logistica,public.personal_produccion,public.personal_aliados,public.items_orden,public.ordenes_produccion;' *> (Join-Path $dest 'publicacion-local.log')
+        if ($LASTEXITCODE -ne 0) { throw 'Falló la preparación de la publicación local.' }
+        # Only the disposable localhost database above can receive this migration.
+        $migrationPath = (Resolve-Path -LiteralPath $MigracionSql).Path
+        & "$bin\psql.exe" -X -w --dbname=$conn -v ON_ERROR_STOP=1 -f $migrationPath *> (Join-Path $dest 'migracion.log')
+        if ($LASTEXITCODE -ne 0) { throw 'La migración falló en la copia local. Revisar migracion.log; producción no fue modificada.' }
+        $after = Join-Path $dest 'datos-despues.sql'
+        & "$bin\pg_dump.exe" --dbname=$conn --no-password --data-only --no-owner --no-privileges --file=$after 2> (Join-Path $dest 'exportacion-despues.log')
+        if ($LASTEXITCODE -ne 0) { throw 'Falló la exportación posterior.' }
+        & (Join-Path $PSScriptRoot 'comparar_datos_migracion.ps1') -Antes $localData -Despues $after -Informe (Join-Path $dest 'comparacion-migracion.csv') -PermitirBucketSeguimiento
+        if ($PruebaSql -ne '') {
+            & "$bin\psql.exe" -X -w --dbname=$conn -v ON_ERROR_STOP=1 -f (Resolve-Path -LiteralPath $PruebaSql).Path *> (Join-Path $dest 'pruebas.log')
+            if ($LASTEXITCODE -ne 0) { throw 'Fallaron las pruebas funcionales locales; revisar pruebas.log.' }
+            Write-Output 'Pruebas funcionales locales: correctas.'
+        }
     }
 } finally {
     if (Test-Path -LiteralPath $pw) { Remove-Item -LiteralPath $pw }
