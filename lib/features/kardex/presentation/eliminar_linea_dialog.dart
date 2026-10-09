@@ -82,7 +82,7 @@ class _EliminarLineaState extends ConsumerState<EliminarLineaDialog> {
       Navigator.pop(context);
       mostrarAvisoSnack(context, const SnackBar(
           content: Text(
-              'Fila ocultada en ambas vistas. Historial y existencias conservados.')));
+              'Fila ocultada en ambas vistas. Historial y existencias conservados.')), tipo: TipoAviso.exito);
     } catch (e) {
       if (mounted) {
         setState(() {

@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/features/admin/presentation/dashboard_volumen_barras.dart';
 import 'package:orbiloq_wms/application/dashboard_snapshot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,26 +43,14 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.byType(PanelResumen), findsNWidgets(8));
+        expect(find.byType(PanelResumen), findsNWidgets(6));
         expect(tester.takeException(), isNull);
-        if (size.width > 1100) {
-          for (final e in find.byType(PanelResumen).evaluate()) {
-            final box = e.renderObject! as RenderBox;
-            expect(
-              box.localToGlobal(Offset(0, box.size.height)).dy,
-              lessThanOrEqualTo(size.height),
-            );
-          }
-        }
         for (final titulo in [
-          'Volumen diario',
-          'Conformidad de recepción',
-          'Tasa de sobrantes',
-          'Resolución promedio',
-          'Top 10 · despachos',
-          'Causales de no conformidad',
+          'Volumen por semana',
+          'Despachos por cliente',
           'Salud de clientes',
-          'Mapa de OP · estado actual',
+          'Órdenes de producción hoy',
+          'Calidad en recepción',
           'Atención requerida',
         ]) {
           final boton = find.byTooltip('Cómo se calcula: $titulo');
@@ -80,10 +69,19 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Cliente 12').last);
         await tester.pumpAndSettle();
-        final grafica = tester.widget<GraficaVolumenSemanal>(
-          find.byType(GraficaVolumenSemanal),
+        final grafica = tester.widget<DashboardVolumenBarras>(
+          find.byType(DashboardVolumenBarras),
         );
-        expect(grafica.semanas.fold(0, (n, s) => n + s.unidades[2]), 1690);
+        expect(grafica.datos.fold(0, (n, s) => n + s.unidades[2]), 1690);
+        await tester.ensureVisible(find.text('Día'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Día'));
+        await tester.pumpAndSettle();
+        final diaria = tester.widget<DashboardVolumenBarras>(
+          find.byType(DashboardVolumenBarras),
+        );
+        expect(diaria.porSemana, isFalse);
+        expect(diaria.datos.fold(0, (n, s) => n + s.unidades[2]), 1690);
         expect(tester.takeException(), isNull);
         await tester.ensureVisible(find.byTooltip('Ampliar Salud de clientes'));
         await tester.pumpAndSettle();

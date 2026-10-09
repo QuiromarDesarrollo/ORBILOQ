@@ -35,14 +35,18 @@ Future<void> main() async {
 
   if (usarSupabase) {
     await Supabase.initialize(
-        url: _supabaseUrl, publishableKey: _supabaseAnonKey);
+      url: _supabaseUrl,
+      publishableKey: _supabaseAnonKey,
+    );
   }
 
   runApp(
     ProviderScope(
       overrides: [
-        ciclosRepositoryProvider.overrideWith((ref) => usarSupabase
-            ? CiclosRepository(Supabase.instance.client) : null),
+        ciclosRepositoryProvider.overrideWith(
+          (ref) =>
+              usarSupabase ? CiclosRepository(Supabase.instance.client) : null,
+        ),
         wmsRepositoryProvider.overrideWith((ref) {
           if (usarSupabase) {
             final repo = SupabaseWmsRepository(Supabase.instance.client);
@@ -53,15 +57,24 @@ Future<void> main() async {
           ref.onDispose(repo.dispose);
           return repo;
         }),
-        despachosOcProvider.overrideWith((ref) => usarSupabase
-            ? SupabaseDespachosOcRepository(Supabase.instance.client)
-            : null),
-        reportesAdminProvider.overrideWith((ref) => usarSupabase
-            ? SupabaseReportesAdminRepository(Supabase.instance.client)
-            : null),
-        catalogosAdminProvider.overrideWith((ref) => usarSupabase
-            ? SupabaseCatalogosRepository(Supabase.instance.client)
-            : null),
+        despachosOcProvider.overrideWith(
+          (ref) =>
+              usarSupabase
+                  ? SupabaseDespachosOcRepository(Supabase.instance.client)
+                  : null,
+        ),
+        reportesAdminProvider.overrideWith(
+          (ref) =>
+              usarSupabase
+                  ? SupabaseReportesAdminRepository(Supabase.instance.client)
+                  : null,
+        ),
+        catalogosAdminProvider.overrideWith(
+          (ref) =>
+              usarSupabase
+                  ? SupabaseCatalogosRepository(Supabase.instance.client)
+                  : null,
+        ),
         catalogosRevisionProvider.overrideWith((ref) {
           if (!usarSupabase) return const Stream<int>.empty();
           final controller = StreamController<int>();
@@ -69,13 +82,18 @@ Future<void> main() async {
           var channel = Supabase.instance.client.channel('catalogos_cambios');
           for (final tabla in catalogosAdministrables.keys) {
             channel = channel.onPostgresChanges(
-                event: PostgresChangeEvent.all,
-                schema: 'public',
-                table: tabla,
-                callback: (_) {
-                  if (!controller.isClosed) controller.add(++version);
-                  ref.read(wmsRepositoryProvider).refrescar();
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: tabla,
+              callback: (_) {
+                if (!controller.isClosed) controller.add(++version);
+                ref.read(wmsRepositoryProvider).refrescar().catchError((
+                  Object _,
+                ) {
+                  /* El stream informa el fallo de recarga; no repetir lo ya guardado. */
                 });
+              },
+            );
           }
           channel.subscribe();
           final timer = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -88,9 +106,12 @@ Future<void> main() async {
           });
           return controller.stream;
         }),
-        importadorKardexProvider.overrideWith((ref) => usarSupabase
-            ? SupabaseImportadorKardex(Supabase.instance.client)
-            : null),
+        importadorKardexProvider.overrideWith(
+          (ref) =>
+              usarSupabase
+                  ? SupabaseImportadorKardex(Supabase.instance.client)
+                  : null,
+        ),
         importadorOrdenesProvider.overrideWith((ref) {
           if (!usarSupabase) return null;
           return SupabaseImportadorOrdenes(Supabase.instance.client);

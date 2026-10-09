@@ -33,6 +33,27 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <div id="orbiloq-overlay" role="status" aria-label="Cargando ORBILOQ" style="position:fixed;inset:0;z-index:9999;display:grid;place-content:center;justify-items:center;background:#fff;transition:opacity .3s ease">
+    <div id="orbiloq-loader" style="width:min(260px,60vw)"></div>
+    <p id="orbiloq-start-status" style="font:14px Arial,sans-serif;color:#1F5C8B">Iniciando ORBILOQ…</p>
+  </div>
+  <script src="orbiloq_loader.js"></script>
+  <script>
+    (function () {
+      var loader = OrbiloqLoader.mount(document.getElementById('orbiloq-loader'), { mode: 'orbit' });
+      var slow = setTimeout(function () {
+        document.getElementById('orbiloq-start-status').textContent = 'La carga está tardando. Revisa tu conexión o recarga la página.';
+      }, 45000);
+      window.addEventListener('flutter-first-frame', function () {
+        clearTimeout(slow);
+        loader.destroy();
+        var overlay = document.getElementById('orbiloq-overlay');
+        overlay.style.opacity = '0';
+        overlay.style.pointerEvents = 'none';
+        setTimeout(function () { overlay.remove(); }, 300);
+      }, { once: true });
+    })();
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

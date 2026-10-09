@@ -131,8 +131,18 @@ class _SummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: pal.card,
+        gradient:
+            esCorporativo(context)
+                ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.petroleo, Color(0xFF176887)],
+                )
+                : null,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: pal.cardBorder),
+        border: Border.all(
+          color: esCorporativo(context) ? AppColors.celeste : pal.cardBorder,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,7 +156,10 @@ class _SummaryCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: pal.textSecondary,
+                    color:
+                        esCorporativo(context)
+                            ? const Color(0xFFD7ECF5)
+                            : pal.textSecondary,
                     letterSpacing: 0.4,
                   ),
                 ),
@@ -155,10 +168,17 @@ class _SummaryCard extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: acento.withValues(alpha: 0.15),
+                  color:
+                      esCorporativo(context)
+                          ? AppColors.lima
+                          : acento.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icono, size: 16, color: acento),
+                child: Icon(
+                  icono,
+                  size: 16,
+                  color: esCorporativo(context) ? AppColors.petroleo : acento,
+                ),
               ),
             ],
           ),
@@ -168,7 +188,7 @@ class _SummaryCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: pal.textPrimary,
+              color: esCorporativo(context) ? Colors.white : pal.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
@@ -176,7 +196,14 @@ class _SummaryCard extends StatelessWidget {
             subtitulo,
             style: TextStyle(
               fontSize: 12,
-              color: subtituloColor,
+              color:
+                  esCorporativo(context)
+                      ? (subtituloColor == pal.chipRed
+                          ? const Color(0xFFFFD1D1)
+                          : subtituloColor == pal.chipGreen
+                          ? const Color(0xFFB8F5D1)
+                          : const Color(0xFFD7ECF5))
+                      : subtituloColor,
               fontWeight: FontWeight.w500,
             ),
           ),

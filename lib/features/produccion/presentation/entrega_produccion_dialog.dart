@@ -1,9 +1,10 @@
+import '../../../shared/widgets/wms_camera_scanner.dart';
 import '../../../shared/widgets/wms_empty_state.dart';
 import '../../../shared/widgets/wms_scan_field.dart';
 import '../../../application/auth_providers.dart';
-import '../../../shared/widgets/operario_actual.dart';
-import '../../../shared/widgets/historial_agrupado.dart';
-import '../../../shared/widgets/responsive_row.dart';
+
+import 'historial_produccion.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,20 +16,27 @@ import '../../../domain/models.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
 import '../../../shared/widgets/feedback_banner.dart';
-import '../../../shared/widgets/metric_card.dart';
+
 import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
 Future<void> showEntregaProduccionDialog(BuildContext context) =>
     showWmsDialog<void>(context, (_) => const EntregaProduccionDialog());
 
-class EntregaProduccionDialog extends StatelessWidget {
+class EntregaProduccionDialog extends ConsumerWidget {
   const EntregaProduccionDialog({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mobile = MediaQuery.sizeOf(context).width < 600;
     return WmsDialogShell(
       title: 'Entregas de Producción',
+      subtitle:
+          mobile
+              ? 'Operario: ${ref.watch(nombreOperarioProvider)}'
+              : 'Arma el lote de lo que producción entrega a logística.',
+      showHeaderIcon: !mobile,
+      mobileCatalog: true,
       icon: Icons.precision_manufacturing,
       iconColor: AppColors.actionGreen,
       expand: true,
@@ -37,24 +45,86 @@ class EntregaProduccionDialog extends StatelessWidget {
         length: 3,
         child: Column(
           children: [
-            const TabBar(
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              labelColor: AppColors.primaryNavy,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: AppColors.primaryNavy,
-              labelPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-              labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-              unselectedLabelStyle: TextStyle(fontSize: 11),
-              tabs: [
-                Tab(height: 48, icon: Icon(Icons.qr_code_scanner, size: 16), text: 'ESCANEAR QR'),
-                Tab(height: 48, icon: Icon(Icons.edit_note, size: 16), text: 'ENTREGA MANUAL'),
-                Tab(height: 48, icon: Icon(Icons.history, size: 16), text: 'HISTORIAL'),
-              ],
+            LayoutBuilder(
+              builder: (context, c) {
+                final tabs = TabBar(
+                  isScrollable: !mobile,
+                  tabAlignment: mobile ? TabAlignment.fill : TabAlignment.start,
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+                  labelStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  tabs: [
+                    for (final tab in [
+                      (
+                        Icons.qr_code_scanner,
+                        mobile ? 'Escanear' : 'Escanear QR',
+                      ),
+                      (
+                        Icons.edit_outlined,
+                        mobile ? 'Manual' : 'Entrega manual',
+                      ),
+                      (Icons.history, 'Historial'),
+                    ])
+                      Tab(
+                        height: 38,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(tab.$1, size: 15),
+                              const SizedBox(width: 6),
+                              Text(
+                                tab.$2,
+                                style: TextStyle(fontSize: mobile ? 10 : 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+                final actor = Consumer(
+                  builder:
+                      (context, ref, _) => Chip(
+                        avatar: const Icon(Icons.person_outline, size: 14),
+                        label: Text(
+                          'Operario: ${ref.watch(nombreOperarioProvider)}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        side: BorderSide.none,
+                      ),
+                );
+                if (mobile) return tabs;
+                return c.maxWidth < 650
+                    ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        tabs,
+                        Align(alignment: Alignment.centerRight, child: actor),
+                      ],
+                    )
+                    : Row(
+                      children: [
+                        Expanded(child: tabs),
+                        const SizedBox(width: 10),
+                        actor,
+                      ],
+                    );
+              },
             ),
             const SizedBox(height: 8),
             const Expanded(
-              child: TabBarView(children: [_NuevaEntregaTab(), _EntregaManualTab(), _HistorialTab()]),
+              child: TabBarView(
+                children: [
+                  _NuevaEntregaTab(),
+                  _EntregaManualTab(),
+                  HistorialProduccion(),
+                ],
+              ),
             ),
           ],
         ),
@@ -67,7 +137,8 @@ class EntregaProduccionDialog extends StatelessWidget {
 /// (por escaneo o manual). Varias pueden coexistir, cada una con su propio
 /// conteo — pero se despachan TODAS JUNTAS bajo un mismo lote.
 class _TarjetaEntrega {
-  _TarjetaEntrega({required this.itemId}) : cantidadCtrl = TextEditingController(text: '1');
+  _TarjetaEntrega({required this.itemId})
+    : cantidadCtrl = TextEditingController(text: '1');
 
   final String itemId;
   final TextEditingController cantidadCtrl;
@@ -105,9 +176,14 @@ Future<Result<Lote>> _validarYCrearLote({
 
   final items = [
     for (final t in pendientes)
-      ItemCantidad(itemId: t.itemId, cantidad: int.tryParse(t.cantidadCtrl.text.trim()) ?? 0),
+      ItemCantidad(
+        itemId: t.itemId,
+        cantidad: int.tryParse(t.cantidadCtrl.text.trim()) ?? 0,
+      ),
   ];
-  return ref.read(wmsRepositoryProvider).crearLote(items: items, operario: operario);
+  return ref
+      .read(wmsRepositoryProvider)
+      .crearLote(items: items, operario: operario);
 }
 
 // ============================================================ pestaña 1: QR
@@ -119,8 +195,11 @@ class _NuevaEntregaTab extends ConsumerStatefulWidget {
   ConsumerState<_NuevaEntregaTab> createState() => _NuevaEntregaTabState();
 }
 
-class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with AutomaticKeepAliveClientMixin {
+class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
+    with AutomaticKeepAliveClientMixin {
   final _qrCtrl = TextEditingController();
+  final _codigoManual = TextEditingController();
+  final _manualFocus = FocusNode();
   final _qrFocus = FocusNode();
 
   String get _operario => ref.read(nombreOperarioProvider);
@@ -134,6 +213,8 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
   @override
   void dispose() {
     _qrCtrl.dispose();
+    _codigoManual.dispose();
+    _manualFocus.dispose();
     _qrFocus.dispose();
     for (final t in _tarjetas) {
       t.dispose();
@@ -162,9 +243,14 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
       _errorGeneral('QR inválido. Formato esperado: ${QrPrenda.formato}');
       return;
     }
-    final kardex = ref.read(wmsSnapshotProvider).value?.kardexPorOpCodigo(qr.op, qr.codigo);
+    final kardex = ref
+        .read(wmsSnapshotProvider)
+        .value
+        ?.kardexPorOpCodigo(qr.op, qr.codigo);
     if (kardex == null) {
-      _errorGeneral('La prenda no existe en el kardex (OP ${qr.op} · Código ${qr.codigo}).');
+      _errorGeneral(
+        'La prenda no existe en el kardex (OP ${qr.op} · Código ${qr.codigo}).',
+      );
       return;
     }
 
@@ -198,9 +284,15 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
     _procesarQR(raw);
     if (_msgGeneral != null) return _msgGeneral!;
     final qr = QrPrenda.tryParse(raw)!;
-    final k = ref.read(wmsSnapshotProvider).value!.kardexPorOpCodigo(qr.op, qr.codigo)!;
+    final k =
+        ref
+            .read(wmsSnapshotProvider)
+            .value!
+            .kardexPorOpCodigo(qr.op, qr.codigo)!;
     final tarjeta = _tarjetaActivaPara(k.id)!;
-    return FeedbackMessage.ok('OP ${qr.op} · ${k.item.descripcion} (${k.item.talla}) · ${tarjeta.conteo} Uds en la tarjeta.');
+    return FeedbackMessage.ok(
+      'OP ${qr.op} · ${k.item.descripcion} (${k.item.talla}) · ${tarjeta.conteo} Uds en la tarjeta.',
+    );
   }
 
   void _reiniciarConteo(_TarjetaEntrega t) {
@@ -229,7 +321,11 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
         t.enviando = true;
       }
     });
-    final res = await _validarYCrearLote(ref: ref, pendientes: pendientes, operario: _operario);
+    final res = await _validarYCrearLote(
+      ref: ref,
+      pendientes: pendientes,
+      operario: _operario,
+    );
     if (!mounted) return;
     setState(() {
       _despachandoTodo = false;
@@ -257,7 +353,11 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
     final snapshot = ref.watch(wmsSnapshotProvider).value;
     final pendientes = _tarjetas.where((t) => !t.enviada).length;
 
-    return SingleChildScrollView(
+    return _EntregaLayout(
+      tarjetas: _tarjetas,
+      ocupado: _despachandoTodo,
+      operario: _operario,
+      onDespachar: pendientes == 0 ? null : _despacharTodo,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -265,52 +365,155 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab> with Automat
             FeedbackBanner(message: _msgGeneral!),
             const SizedBox(height: 12),
           ],
-          OperarioActual(label: 'Operario de Producción'),
-          const SizedBox(height: 12),
-          WmsScanField(
-              permiteManual: false,
-              controller: _qrCtrl,
-            focusNode: _qrFocus,
-            autofocus: true,
-            decoration: wmsInput('PISTOLEE O ESCANEE QR DE PRENDA A ENTREGAR', icon: Icons.qr_code_scanner),
-            onSubmitted: _procesarQR,
-            onCameraSubmitted: _leerCamara,
-            enabled: !_despachandoTodo,
+
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F8F9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2EBEF)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Agregar prendas al lote',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                LayoutBuilder(
+                  builder: (context, c) {
+                    final camara = FilledButton.icon(
+                      onPressed:
+                          _despachandoTodo
+                              ? null
+                              : () => showDialog<void>(
+                                context: context,
+                                builder:
+                                    (_) => WmsCameraScanner(
+                                      onRead: _leerCamara,
+                                      produccion: true,
+                                      onManual:
+                                          () => _manualFocus.requestFocus(),
+                                    ),
+                              ),
+                      icon: const Icon(Icons.photo_camera_outlined),
+                      label: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Escanear con cámara'),
+                            Text(
+                              'Apunta al QR de la etiqueta',
+                              style: TextStyle(fontSize: 10),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                    final lector = WmsScanField(
+                      mostrarIngresoManual: false,
+                      controller: _qrCtrl,
+                      focusNode: _qrFocus,
+                      autofocus: true,
+                      enabled: !_despachandoTodo,
+                      onSubmitted: _procesarQR,
+                    );
+                    if (c.maxWidth < 600) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [camara, const SizedBox(height: 8), lector],
+                      );
+                    }
+                    return IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: camara),
+                          const SizedBox(width: 12),
+                          Expanded(child: lector),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'O escribe el código manualmente',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF57707C)),
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _codigoManual,
+                        focusNode: _manualFocus,
+                        enabled: !_despachandoTodo,
+                        decoration: const InputDecoration(
+                          hintText: 'Código de la etiqueta',
+                          isDense: true,
+                        ),
+                        onSubmitted: (v) {
+                          _procesarQR(v);
+                          _codigoManual.clear();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed:
+                          _despachandoTodo
+                              ? null
+                              : () {
+                                _procesarQR(_codigoManual.text);
+                                _codigoManual.clear();
+                              },
+                      child: const Text('Agregar'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           if (_tarjetas.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text(
-                  'Escanea una prenda para empezar. Puedes tener varias tallas u OP\n'
-                  'abiertas a la vez — todas se despachan juntas, en un mismo lote.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
-                ),
+            Container(
+              constraints: const BoxConstraints(minHeight: 210),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFDCE6EC)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Color(0xFFE3EDF1),
+                    child: Icon(
+                      Icons.qr_code_scanner,
+                      color: Color(0xFF093E52),
+                    ),
+                  ),
+                  SizedBox(height: 14),
+                  Text(
+                    'Escanea una prenda para empezar',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Puedes tener varias tallas u OP abiertas a la vez. Todas se despachan juntas en un mismo lote.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Color(0xFF57707C)),
+                  ),
+                ],
               ),
             )
           else ...[
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                Text(
-                  pendientes > 0
-                      ? '$pendientes producto(s) listo(s) para el lote'
-                      : 'Todas las tarjetas ya se enviaron',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                ActionButton(
-                  icon: Icons.local_shipping,
-                  label: 'DESPACHAR LOTE A LOGÍSTICA',
-                  color: AppColors.actionGreen,
-                  busy: _despachandoTodo,
-                  onPressed: pendientes == 0 ? null : _despacharTodo,
-                ),
-              ],
+            Text(
+              'Lote para logística · $pendientes productos',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             for (final t in _tarjetas) ...[
@@ -338,7 +541,8 @@ class _EntregaManualTab extends ConsumerStatefulWidget {
   ConsumerState<_EntregaManualTab> createState() => _EntregaManualTabState();
 }
 
-class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with AutomaticKeepAliveClientMixin {
+class _EntregaManualTabState extends ConsumerState<_EntregaManualTab>
+    with AutomaticKeepAliveClientMixin {
   final _opCtrl = TextEditingController();
   String get _operario => ref.read(nombreOperarioProvider);
   List<ItemKardex> _resultados = [];
@@ -369,7 +573,8 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
 
   void _buscar() {
     final op = _opCtrl.text.trim();
-    final kardex = ref.read(wmsSnapshotProvider).value?.kardex ?? const <ItemKardex>[];
+    final kardex =
+        ref.read(wmsSnapshotProvider).value?.kardex ?? const <ItemKardex>[];
     setState(() {
       _seleccionados.clear();
       if (op.isEmpty) {
@@ -377,10 +582,14 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
         _errorBusqueda = 'Escribe un número de OP.';
         return;
       }
-      _resultados = kardex.where((k) => k.item.op == op && k.pendienteProduccion > 0).toList();
-      _errorBusqueda = _resultados.isEmpty
-          ? 'No se encontraron tallas con producción pendiente para la OP $op.'
-          : null;
+      _resultados =
+          kardex
+              .where((k) => k.item.op == op && k.pendienteProduccion > 0)
+              .toList();
+      _errorBusqueda =
+          _resultados.isEmpty
+              ? 'No se encontraron tallas con producción pendiente para la OP $op.'
+              : null;
     });
   }
 
@@ -420,7 +629,11 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
         t.enviando = true;
       }
     });
-    final res = await _validarYCrearLote(ref: ref, pendientes: pendientes, operario: _operario);
+    final res = await _validarYCrearLote(
+      ref: ref,
+      pendientes: pendientes,
+      operario: _operario,
+    );
     if (!mounted) return;
     setState(() {
       _despachandoTodo = false;
@@ -448,7 +661,11 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
     final snapshot = ref.watch(wmsSnapshotProvider).value;
     final pendientes = _tarjetas.where((t) => !t.enviada).length;
 
-    return SingleChildScrollView(
+    return _EntregaLayout(
+      tarjetas: _tarjetas,
+      ocupado: _despachandoTodo,
+      operario: _operario,
+      onDespachar: pendientes == 0 ? null : _despacharTodo,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -456,20 +673,37 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
             FeedbackBanner(message: _msgGeneral!),
             const SizedBox(height: 12),
           ],
-          OperarioActual(label: 'Operario de Producción'),
-          const SizedBox(height: 12),
-          ResponsiveRow(
+
+          Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _opCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: wmsInput('Número de OP', icon: Icons.tag),
+                  decoration: wmsInput(
+                    MediaQuery.sizeOf(context).width < 600
+                        ? 'Número de OP'
+                        : 'Agregar al lote por número de OP',
+                    icon: Icons.tag,
+                  ),
+                  enabled: !_despachandoTodo,
                   onSubmitted: (_) => _buscar(),
                 ),
               ),
               const SizedBox(width: 10),
-              ActionButton(icon: Icons.search, label: 'BUSCAR', color: AppColors.primaryNavy, onPressed: _buscar),
+              if (MediaQuery.sizeOf(context).width < 600)
+                IconButton.filled(
+                  tooltip: 'Buscar OP',
+                  onPressed: _despachandoTodo ? null : _buscar,
+                  icon: const Icon(Icons.search),
+                )
+              else
+                ActionButton(
+                  icon: Icons.search,
+                  label: 'BUSCAR',
+                  color: AppColors.primaryNavy,
+                  onPressed: _despachandoTodo ? null : _buscar,
+                ),
             ],
           ),
           if (_errorBusqueda != null) ...[
@@ -490,18 +724,24 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
                       dense: true,
                       value: _seleccionados.contains(r.id),
                       activeColor: AppColors.actionGreen,
-                      onChanged: (v) => setState(() {
-                        if (v == true) {
-                          _seleccionados.add(r.id);
-                        } else {
-                          _seleccionados.remove(r.id);
-                        }
-                      }),
+                      onChanged:
+                          (v) => setState(() {
+                            if (v == true) {
+                              _seleccionados.add(r.id);
+                            } else {
+                              _seleccionados.remove(r.id);
+                            }
+                          }),
                       title: Text(
                         '${r.item.codigo} — ${r.item.descripcion} (Talla ${r.item.talla})',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      subtitle: Text('Pendiente por producir: ${r.pendienteProduccion} Uds'),
+                      subtitle: Text(
+                        'Pendiente por producir: ${r.pendienteProduccion} Uds',
+                      ),
                     ),
                 ],
               ),
@@ -513,7 +753,8 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
                 icon: Icons.playlist_add,
                 label: 'AGREGAR SELECCIONADAS (${_seleccionados.length})',
                 color: AppColors.actionGreen,
-                onPressed: _seleccionados.isEmpty ? null : _agregarSeleccionadas,
+                onPressed:
+                    _seleccionados.isEmpty ? null : _agregarSeleccionadas,
               ),
             ),
           ],
@@ -522,30 +763,17 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab> with Autom
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: WmsEmptyState(title: 'Busca una orden de producción', message: 'Escribe una OP y busca para ver sus tallas pendientes.'),
+                child: WmsEmptyState(
+                  title: 'Busca una orden de producción',
+                  message:
+                      'Escribe una OP y busca para ver sus tallas pendientes.',
+                ),
               ),
             )
           else if (_tarjetas.isNotEmpty) ...[
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                Text(
-                  pendientes > 0
-                      ? '$pendientes producto(s) listo(s) para el lote'
-                      : 'Todas las tarjetas ya se enviaron',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                ActionButton(
-                  icon: Icons.local_shipping,
-                  label: 'DESPACHAR LOTE A LOGÍSTICA',
-                  color: AppColors.actionGreen,
-                  busy: _despachandoTodo,
-                  onPressed: pendientes == 0 ? null : _despacharTodo,
-                ),
-              ],
+            Text(
+              'Lote para logística · $pendientes productos',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             for (final t in _tarjetas) ...[
@@ -585,109 +813,510 @@ class _TarjetaWidget extends StatelessWidget {
     if (k == null) return const SizedBox.shrink();
     final enviada = tarjeta.enviada;
 
-    return Card(
-      color: enviada ? Colors.grey.shade100 : Colors.green.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+    return AnimatedBuilder(
+      animation: tarjeta.cantidadCtrl,
+      builder: (context, _) {
+        final cantidad = int.tryParse(tarjeta.cantidadCtrl.text) ?? 0;
+        final maximo = k.pendienteProduccion;
+        final bloqueado = enviada || tarjeta.enviando;
+        void cambiar(int valor) {
+          tarjeta.cantidadCtrl.text =
+              '${valor.clamp(1, maximo > 0 ? maximo : 1)}';
+        }
+
+        final progreso =
+            k.cantidadPedida > 0
+                ? (k.producido / k.cantidadPedida).clamp(0.0, 1.0)
+                : 0.0;
+        final previsto =
+            k.cantidadPedida > 0
+                ? ((k.producido + cantidad) / k.cantidadPedida).clamp(0.0, 1.0)
+                : 0.0;
+        final metricas = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: 14,
+              runSpacing: 4,
+              children: [
+                for (final texto in [
+                  'Meta OP ${k.cantidadPedida}',
+                  'Entregadas ${k.producido}',
+                  'Límite máximo $maximo',
+                  'Avance ${(progreso * 100).toStringAsFixed(0)} %',
+                ])
+                  Text(
+                    texto,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF425F6D),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Stack(
+                children: [
+                  LinearProgressIndicator(
+                    value: enviada ? progreso : previsto,
+                    minHeight: 7,
+                    color: const Color(0xFFCBE7D7),
+                    backgroundColor: const Color(0xFFE3EDF1),
+                  ),
+                  LinearProgressIndicator(
+                    value: progreso,
+                    minHeight: 7,
+                    color: const Color(0xFF62AF86),
+                    backgroundColor: Colors.transparent,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              'La franja clara muestra lo que sumarás con este envío.',
+              style: TextStyle(fontSize: 10, color: Color(0xFF57707C)),
+            ),
+          ],
+        );
+        final cantidadWidget = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ResponsiveRow(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Text(
+              'Cantidad a enviar · máx. $maximo',
+              style: const TextStyle(fontSize: 11),
+            ),
+            const SizedBox(height: 5),
+            Row(
               children: [
+                IconButton.outlined(
+                  tooltip: 'Disminuir cantidad',
+                  onPressed:
+                      bloqueado || cantidad <= 1
+                          ? null
+                          : () => cambiar(cantidad - 1),
+                  icon: const Icon(Icons.remove, size: 16),
+                ),
+                const SizedBox(width: 4),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
+                  child: TextField(
+                    controller: tarjeta.cantidadCtrl,
+                    enabled: !bloqueado,
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 5,
+                      ),
+                      errorText: cantidad > maximo ? 'Máx. $maximo' : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton.outlined(
+                  tooltip: 'Aumentar cantidad',
+                  onPressed:
+                      bloqueado || cantidad >= maximo
+                          ? null
+                          : () => cambiar(cantidad + 1),
+                  icon: const Icon(Icons.add, size: 16),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed:
+                      bloqueado || maximo <= 0 ? null : () => cambiar(maximo),
+                  child: Text(
+                    'Todo ($maximo)',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+        if (MediaQuery.sizeOf(context).width < 600) {
+          final botonStyle = IconButton.styleFrom(
+            minimumSize: const Size(32, 36),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          );
+          return Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFDCE6EC)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 3,
+                            children: [
+                              Text(
+                                'OP ${k.item.op}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                'Talla ${k.item.talla}',
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                            ],
+                          ),
                           Text(
-                            'OP: ${k.item.op} - ${k.item.descripcion} (${k.item.talla})',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: enviada ? Colors.grey.shade600 : AppColors.primaryNavy,
+                            k.item.descripcion,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          Text(
+                            'OC ${k.item.oc} · ${k.item.cliente}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF57707C),
                             ),
                           ),
-                          if (enviada)
-                            StatusChip(label: 'ENVIADA · ${tarjeta.loteId}', color: AppColors.actionGreen)
-                          else if (tarjeta.enviando)
-                            const StatusChip(label: 'ENVIANDO…', color: AppColors.accentCyan),
                         ],
                       ),
-                      Text(
-                        'No. OC: ${k.item.oc} | Cliente: ${k.item.cliente}',
-                        style: TextStyle(color: enviada ? Colors.grey.shade600 : null),
+                    ),
+                    if (!enviada) ...[
+                      IconButton.outlined(
+                        tooltip: 'Recontar',
+                        style: botonStyle,
+                        onPressed: bloqueado ? null : onRecontear,
+                        icon: const Icon(Icons.refresh, size: 15),
+                      ),
+                      IconButton(
+                        tooltip: 'Quitar esta tarjeta',
+                        style: botonStyle,
+                        onPressed: bloqueado ? null : onQuitar,
+                        icon: const Icon(
+                          Icons.close,
+                          size: 15,
+                          color: AppColors.alertRed,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 8,
+                  children: [
+                    Text(
+                      'Entregadas ${k.producido} de ${k.cantidadPedida}',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    Text(
+                      'Límite $maximo · ${(progreso * 100).toStringAsFixed(0)} %',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF57707C),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Stack(
+                  children: [
+                    LinearProgressIndicator(
+                      value: enviada ? progreso : previsto,
+                      minHeight: 5,
+                      color: const Color(0xFFCBE7D7),
+                      backgroundColor: const Color(0xFFE3EDF1),
+                    ),
+                    LinearProgressIndicator(
+                      value: progreso,
+                      minHeight: 5,
+                      color: const Color(0xFF62AF86),
+                      backgroundColor: Colors.transparent,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (enviada)
+                  Text(
+                    'Enviada · ${tarjeta.loteId}',
+                    style: const TextStyle(fontSize: 11),
+                  )
+                else
+                  Row(
+                    children: [
+                      const Text('Enviar', style: TextStyle(fontSize: 11)),
+                      const Spacer(),
+                      IconButton.outlined(
+                        tooltip: 'Disminuir cantidad',
+                        style: botonStyle,
+                        onPressed:
+                            bloqueado || cantidad <= 1
+                                ? null
+                                : () => cambiar(cantidad - 1),
+                        icon: const Icon(Icons.remove, size: 14),
+                      ),
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        width: 45,
+                        child: TextField(
+                          controller: tarjeta.cantidadCtrl,
+                          enabled: !bloqueado,
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: 9,
+                              horizontal: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton.outlined(
+                        tooltip: 'Aumentar cantidad',
+                        style: botonStyle,
+                        onPressed:
+                            bloqueado || cantidad >= maximo
+                                ? null
+                                : () => cambiar(cantidad + 1),
+                        icon: const Icon(Icons.add, size: 14),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(36, 36),
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                        ),
+                        onPressed:
+                            bloqueado || maximo <= 0
+                                ? null
+                                : () => cambiar(maximo),
+                        child: const Text(
+                          'Todo',
+                          style: TextStyle(fontSize: 10),
+                        ),
                       ),
                     ],
                   ),
-                ),
-                if (!enviada) ...[
-                  ActionButton(
-                    icon: Icons.refresh,
-                    label: 'RECONTEAR',
-                    color: Colors.amber.shade900,
-                    onPressed: tarjeta.enviando ? null : onRecontear,
+                if (!enviada && cantidad > maximo)
+                  Text(
+                    'La cantidad supera el máximo de $maximo.',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.alertRed,
+                    ),
                   ),
-                  IconButton(
-                    tooltip: 'Quitar esta tarjeta',
-                    icon: const Icon(Icons.close, color: AppColors.alertRed),
-                    onPressed: tarjeta.enviando ? null : onQuitar,
-                  ),
-                ],
               ],
             ),
-            const Divider(),
-            MetricWrap(children: [
-              MetricCard(title: 'META OP', value: '${k.cantidadPedida} Uds', color: Colors.blueGrey, icon: Icons.flag),
-              MetricCard(title: 'ENTREGADAS', value: '${k.producido} Uds', color: AppColors.actionGreen, icon: Icons.check_circle),
-              MetricCard(
-                title: 'LÍMITE MÁXIMO',
-                value: '${k.pendienteProduccion} Uds',
-                color: k.pendienteProduccion > 0 ? AppColors.alertRed : Colors.grey,
-                icon: Icons.lock_clock,
+          );
+        }
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: enviada ? const Color(0xFFF5F8F9) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFDCE6EC)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LayoutBuilder(
+                builder: (context, c) {
+                  final titulo = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'OP ${k.item.op} · ${k.item.descripcion}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          StatusChip(
+                            label: 'Talla ${k.item.talla}',
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          if (enviada)
+                            StatusChip(
+                              label: 'Enviada · ${tarjeta.loteId}',
+                              color: AppColors.actionGreen,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'OC ${k.item.oc} · ${k.item.cliente}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF57707C),
+                        ),
+                      ),
+                    ],
+                  );
+                  final acciones = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: bloqueado ? null : onRecontear,
+                        icon: const Icon(Icons.refresh, size: 15),
+                        label: const Text('Recontar'),
+                      ),
+                      IconButton(
+                        tooltip: 'Quitar esta tarjeta',
+                        onPressed: bloqueado ? null : onQuitar,
+                        icon: const Icon(
+                          Icons.close,
+                          size: 17,
+                          color: AppColors.alertRed,
+                        ),
+                      ),
+                    ],
+                  );
+                  if (c.maxWidth < 550) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        titulo,
+                        if (!enviada)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: acciones,
+                          ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [Expanded(child: titulo), if (!enviada) acciones],
+                  );
+                },
               ),
-              MetricCard(
-                title: 'AVANCE',
-                value: '${((k.producido / k.cantidadPedida).clamp(0.0, 1.0) * 100).toStringAsFixed(1)}%',
-                color: AppColors.accentCyan,
-                icon: Icons.donut_large,
-              ),
-            ]),
-            if (!enviada) ...[
               const SizedBox(height: 12),
-              TextField(
-                controller: tarjeta.cantidadCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: wmsInput('Cantidad a enviar (máx ${k.pendienteProduccion} Uds)'),
+              LayoutBuilder(
+                builder: (context, c) {
+                  if (enviada) return metricas;
+                  if (c.maxWidth < 600) {
+                    return Column(
+                      children: [
+                        metricas,
+                        const SizedBox(height: 12),
+                        cantidadWidget,
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(child: metricas),
+                      const SizedBox(width: 20),
+                      SizedBox(width: 255, child: cantidadWidget),
+                    ],
+                  );
+                },
               ),
             ],
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
-// ==================================================== pestaña 3: historial
-
-class _HistorialTab extends ConsumerWidget {
-  const _HistorialTab();
+class _EntregaLayout extends StatelessWidget {
+  const _EntregaLayout({
+    required this.tarjetas,
+    required this.ocupado,
+    required this.operario,
+    required this.onDespachar,
+    required this.child,
+  });
+  final List<_TarjetaEntrega> tarjetas;
+  final bool ocupado;
+  final String operario;
+  final VoidCallback? onDespachar;
+  final Widget child;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const <Lote>[];
-    final registros = [for (final lote in lotes) for (final linea in lote.lineas)  (lote: lote, linea: linea)];
-    return HistorialAgrupado(etiquetaTotal: 'Prendas entregadas', grupos: agruparHistorial(registros, (e) => e.linea.item,
-      (e) => EventoHistorial(id: e.linea.id, fecha: e.lote.fechaEnvio, cantidad: e.linea.cantidadEnviada,
-        cantidadRecibida: e.linea.cantidadRecibida ?? 0,
-        titulo: 'Entrega · ${e.linea.cantidadEnviada} Uds · ${e.linea.estado.etiqueta}',
-        detalle: 'Lote: ${e.lote.id} | Operario: ${e.lote.operario}\n'
-          'Enviadas: ${e.linea.cantidadEnviada} Uds | Recibidas: ${e.linea.cantidadRecibida ?? 0} Uds | Estante: ${e.linea.ubicacionDestino ?? '—'}\n'
-          'Recibido por: ${e.linea.recibidoPor.isEmpty ? 'Sin registrar' : e.linea.recibidoPor}'
-          '${e.linea.novedad.isEmpty ? '' : '\nNovedad: ${e.linea.novedad}'}',
-        color: colorDeEstadoLinea(e.linea.estado))));
-  }
+  Widget build(BuildContext context) => Column(
+    children: [
+      Expanded(child: SingleChildScrollView(child: child)),
+      const Divider(height: 20),
+      AnimatedBuilder(
+        animation: Listenable.merge(tarjetas.map((t) => t.cantidadCtrl)),
+        builder: (context, _) {
+          final pendientes = tarjetas.where((t) => !t.enviada).toList();
+          final unidades = pendientes.fold<int>(
+            0,
+            (total, t) => total + (int.tryParse(t.cantidadCtrl.text) ?? 0),
+          );
+          final mobile = MediaQuery.sizeOf(context).width < 600;
+          final resumen = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${pendientes.length} productos · $unidades unidades',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (!mobile)
+                Text(
+                  pendientes.isEmpty
+                      ? 'Agrega al menos una prenda para despachar.'
+                      : 'Se registrarán a nombre de $operario.',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF57707C),
+                  ),
+                ),
+            ],
+          );
+          final boton = ActionButton(
+            icon: Icons.local_shipping_outlined,
+            label: 'Despachar lote a logística',
+            color: Theme.of(context).colorScheme.primary,
+            busy: ocupado,
+            onPressed: ocupado ? null : onDespachar,
+          );
+          return LayoutBuilder(
+            builder:
+                (context, c) =>
+                    c.maxWidth < 600
+                        ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [resumen, const SizedBox(height: 8), boton],
+                        )
+                        : Row(
+                          children: [
+                            Expanded(child: resumen),
+                            const SizedBox(width: 12),
+                            boton,
+                          ],
+                        ),
+          );
+        },
+      ),
+    ],
+  );
 }

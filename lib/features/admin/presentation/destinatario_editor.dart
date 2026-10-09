@@ -1,3 +1,5 @@
+import 'catalogo_form_widgets.dart';
+import '../../../shared/widgets/wms_loader.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -59,11 +61,34 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
     }
   }
 
+  Widget _campo(String k) => TextFormField(
+    key: ValueKey(k),
+    controller: controles[k],
+    enabled: !ocupado,
+    maxLength: 500,
+    decoration: InputDecoration(
+      labelText: '${campos[k]}${k == 'nombre' ? ' *' : ''}',
+      counterText: '',
+    ),
+    validator:
+        (v) =>
+            k == 'nombre' && (v?.trim().isEmpty ?? true)
+                ? 'Ingresa el nombre del destinatario.'
+                : null,
+  );
+
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !ocupado,
     child: WmsDialogShell(
+      mobileCatalog: true,
       title: 'Nuevo destinatario',
+      subtitle: 'Datos del cliente y sede para la lista de empaque.',
+      footer: CatalogoActions(
+        onSave: ocupado ? null : guardar,
+        onCancel: ocupado ? null : () => Navigator.pop(context),
+        label: 'Guardar destinatario',
+      ),
       iconColor: Colors.teal,
       icon: Icons.person_add_alt_1,
       canClose: !ocupado,
@@ -76,36 +101,23 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
             const Text(
               'Datos para la lista de empaque. Puedes registrar varias sedes o contactos del mismo cliente. Solo el nombre es obligatorio.',
             ),
-            for (final e in campos.entries)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: TextFormField(
-                  key: ValueKey(e.key),
-                  controller: controles[e.key],
-                  enabled: !ocupado,
-                  maxLength: 500,
-                  decoration: InputDecoration(
-                    labelText: e.value,
-                    counterText: '',
-                  ),
-                  validator:
-                      (v) =>
-                          e.key == 'nombre' && (v?.trim().isEmpty ?? true)
-                              ? 'Ingresa el nombre del destinatario.'
-                              : null,
-                ),
-              ),
+            const SizedBox(height: 20),
+            _campo('nombre'),
+            const SizedBox(height: 16),
+            CatalogoCampos(children: [_campo('nit'), _campo('contacto')]),
+            const SizedBox(height: 16),
+            CatalogoCampos(children: [_campo('ciudad'), _campo('sede')]),
+            const SizedBox(height: 16),
+            _campo('direccion'),
+            const SizedBox(height: 16),
+            CatalogoCampos(children: [_campo('telefono'), _campo('celular')]),
+            if (ocupado) const WmsLoadingStrip(),
             if (error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: AvisoFormulario(error!),
               ),
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: ocupado ? null : guardar,
-              icon: const Icon(Icons.save_outlined),
-              label: Text(ocupado ? 'Guardando…' : 'Guardar destinatario'),
-            ),
           ],
         ),
       ),

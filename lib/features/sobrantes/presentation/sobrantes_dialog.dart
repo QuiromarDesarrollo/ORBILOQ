@@ -108,7 +108,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   Widget build(BuildContext context) {
     final todos = ref.watch(sobrantesProvider);
     return todos.when(
-      loading: () => const Center(child: WmsLoader()),
+      loading: () => const WmsLoadingPanel(),
       error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppColors.alertRed))),
       data: (lista) {
         final pendientes = lista.where((s) => s.pendiente).toList();
@@ -176,7 +176,7 @@ class _HistorialTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ref.watch(sobrantesProvider).when(
-      loading: () => const Center(child: WmsLoader()),
+      loading: () => const WmsLoadingPanel(),
       error: (e, _) => Center(child: Text('Error: $e')),
       data: (lista) => HistorialAgrupado(etiquetaTotal: 'Prendas sobrantes registradas', grupos: [for (final s in lista) GrupoHistorial(
         id: s.id, op: s.item.op, titulo: 'OP: ${s.item.op} - ${s.item.descripcion} (${s.item.talla})',

@@ -19,7 +19,7 @@ class _Reportes extends ReportesAdminRepository {
       'op_atrasadas': 1,
       'op_no_conforme': 2,
       'sobrantes_pendientes': 4,
-      'unidades_sobrantes': 8
+      'unidades_sobrantes': 8,
     };
   }
 
@@ -43,7 +43,7 @@ class _Reportes extends ReportesAdminRepository {
           'causal': 'Tela',
           'contraparte': 'Luis',
           'detalle': 'Nota',
-          'datos_crudos': {'id': 'id$i', 'cantidad': 2}
+          'datos_crudos': {'id': 'id$i', 'cantidad': 2},
         },
     ];
   }
@@ -51,66 +51,74 @@ class _Reportes extends ReportesAdminRepository {
 
 void main() {
   test(
-      'Filtros combinados en Bogotá y tendencias no confunden reportes con unidades',
-      () {
-    final filas = <FilaReporte>[
-      {
-        'fecha': '2026-10-01T02:00:00Z',
-        'op': '90001',
-        'persona': 'Ana',
-        'cliente': 'A',
-        'causal': 'Tela',
-        'cantidad': 5
-      },
-      {
-        'fecha': '2026-10-01T06:00:00Z',
-        'op': '90001',
-        'persona': 'Ana',
-        'cliente': 'A',
-        'causal': 'Tela',
-        'cantidad': 7
-      },
-      {
-        'fecha': '2026-10-01T02:00:00Z',
-        'op': '90002',
-        'persona': 'Carlos',
-        'cliente': 'B',
-        'causal': 'Costura',
-        'cantidad': 1
-      },
-    ];
-    final f = filtrarReporte(filas,
+    'Filtros combinados en Bogotá y tendencias no confunden reportes con unidades',
+    () {
+      final filas = <FilaReporte>[
+        {
+          'fecha': '2026-10-01T02:00:00Z',
+          'op': '90001',
+          'persona': 'Ana',
+          'cliente': 'A',
+          'causal': 'Tela',
+          'cantidad': 5,
+        },
+        {
+          'fecha': '2026-10-01T06:00:00Z',
+          'op': '90001',
+          'persona': 'Ana',
+          'cliente': 'A',
+          'causal': 'Tela',
+          'cantidad': 7,
+        },
+        {
+          'fecha': '2026-10-01T02:00:00Z',
+          'op': '90002',
+          'persona': 'Carlos',
+          'cliente': 'B',
+          'causal': 'Costura',
+          'cantidad': 1,
+        },
+      ];
+      final f = filtrarReporte(
+        filas,
         op: '90001',
         persona: 'ANA',
         desde: DateTime(2026, 9, 30),
-        hasta: DateTime(2026, 9, 30));
-    expect(f.length, 1);
-    expect(f.first['cantidad'], 5);
-    expect(resumirNoConforme(filas, 'causal').first,
-        {'grupo': 'Tela', 'reportes': 2, 'unidades': 12});
-    expect(resumirNoConforme(filas, 'mes').length, 2);
-  });
-  test('Excel conserva números y texto literal en hojas de detalle y resumen',
-      () {
-    final bytes = KardexExcelExportador.generarReporte({
-      'Detalle': [
-        ['Cantidad', 'Nota'],
-        [-3, '=1+1']
-      ],
-      'Resumen': [
-        ['Total'],
-        [55]
-      ]
-    });
-    final libro = Excel.decodeBytes(bytes);
-    expect(libro.tables.keys, containsAll(['Detalle', 'Resumen']));
-    expect(libro['Detalle'].rows[1][0]!.value, IntCellValue(-3));
-    expect(libro['Detalle'].rows[1][1]!.value, TextCellValue('=1+1'));
-  });
+        hasta: DateTime(2026, 9, 30),
+      );
+      expect(f.length, 1);
+      expect(f.first['cantidad'], 5);
+      expect(resumirNoConforme(filas, 'causal').first, {
+        'grupo': 'Tela',
+        'reportes': 2,
+        'unidades': 12,
+      });
+      expect(resumirNoConforme(filas, 'mes').length, 2);
+    },
+  );
+  test(
+    'Excel conserva números y texto literal en hojas de detalle y resumen',
+    () {
+      final bytes = KardexExcelExportador.generarReporte({
+        'Detalle': [
+          ['Cantidad', 'Nota'],
+          [-3, '=1+1'],
+        ],
+        'Resumen': [
+          ['Total'],
+          [55],
+        ],
+      });
+      final libro = Excel.decodeBytes(bytes);
+      expect(libro.tables.keys, containsAll(['Detalle', 'Resumen']));
+      expect(libro['Detalle'].rows[1][0]!.value, IntCellValue(-3));
+      expect(libro['Detalle'].rows[1][1]!.value, TextCellValue('=1+1'));
+    },
+  );
   for (final size in [
     const Size(320, 640),
     const Size(844, 390),
-    const Size(1440, 900)
+    const Size(1440, 900),
   ]) {
     testWidgets('Cuatro reportes adaptables $size', (tester) async {
       tester.view.physicalSize = size;
@@ -118,42 +126,91 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final repo = _Reportes();
-      await tester.pumpWidget(ProviderScope(
+      await tester.pumpWidget(
+        ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(false),
-            reportesAdminProvider.overrideWithValue(repo)
+            reportesAdminProvider.overrideWithValue(repo),
           ],
-          child:
-              const MaterialApp(home: Scaffold(body: ReportesAdminDialog()))));
+          child: const MaterialApp(home: Scaffold(body: ReportesAdminDialog())),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('OP activas'), findsOneWidget);
-      for (final nombre in [
-        'Movimientos completos',
-        'No Conforme consolidado',
-        'Actividad por persona'
-      ]) {
-        final selector = find.byType(DropdownButtonFormField<String>);
-        await tester.ensureVisible(selector);
-        await tester.tap(selector);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text(nombre).last);
+      for (final vista in ['movimientos', 'nc', 'auditoria']) {
+        await tester.tap(find.byKey(ValueKey('reporte-$vista')));
         await tester.pumpAndSettle();
         expect(
-            find.textContaining('55 registros coincidentes'), findsOneWidget);
-        expect(find.text('Página 1 de 2'), findsOneWidget);
+          find.textContaining('55 registros coincidentes'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Página 1 de 2'), findsOneWidget);
         expect(tester.takeException(), isNull);
       }
     });
   }
-  testWidgets('Cuenta no administradora no consulta ni exporta reportes',
-      (tester) async {
+  testWidgets('Buscar código, paginar y consultar original en móvil', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          usarSupabaseProvider.overrideWithValue(false),
+          reportesAdminProvider.overrideWithValue(_Reportes()),
+        ],
+        child: const MaterialApp(home: Scaffold(body: ReportesAdminDialog())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('reporte-movimientos')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'C1');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('55 registros coincidentes'), findsOneWidget);
+    await tester.tap(find.byTooltip('Página siguiente'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Página 2 de 2'), findsOneWidget);
+    final original = find.byTooltip('Ver registro original').first;
+    await tester.ensureVisible(original);
+    await tester.tap(original);
+    await tester.pumpAndSettle();
+    expect(find.text('Registro original'), findsOneWidget);
+    expect(find.text('id50'), findsOneWidget);
+    expect(find.text('Copiar JSON'), findsOneWidget);
+    await tester.tap(find.text('Cerrar'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.textContaining('Filtros'));
+    await tester.tap(find.textContaining('Filtros'));
+    await tester.pumpAndSettle();
+    expect(find.text('Filtros del reporte'), findsOneWidget);
+    await tester.tap(find.text('Ver resultados'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('Cuenta no administradora no consulta ni exporta reportes', (
+    tester,
+  ) async {
     final repo = _Reportes();
-    await tester.pumpWidget(ProviderScope(overrides: [
-      usarSupabaseProvider.overrideWithValue(true),
-      reportesAdminProvider.overrideWithValue(repo),
-      usuarioSesionProvider.overrideWith((ref) async => const UsuarioSesion(
-          numeroUsuario: '1', nombre: 'Ana', rolCuenta: RolCuenta.logistica))
-    ], child: const MaterialApp(home: Scaffold(body: ReportesAdminDialog()))));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          usarSupabaseProvider.overrideWithValue(true),
+          reportesAdminProvider.overrideWithValue(repo),
+          usuarioSesionProvider.overrideWith(
+            (ref) async => const UsuarioSesion(
+              numeroUsuario: '1',
+              nombre: 'Ana',
+              rolCuenta: RolCuenta.logistica,
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: ReportesAdminDialog())),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(repo.llamadas, 0);
     expect(find.text('Acceso exclusivo del administrador.'), findsOneWidget);

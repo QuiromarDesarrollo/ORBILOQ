@@ -25,7 +25,7 @@ class _BotonPlantillaExcelState extends State<BotonPlantillaExcel> {
         fileName: 'plantilla_${widget.nombre ?? widget.tipo!.name}.xlsx', bytes: bytes,
         type: FileType.custom, allowedExtensions: ['xlsx']);
     } catch (e) {
-      if (mounted) mostrarAvisoSnack(context, SnackBar(content: Text('No se pudo descargar la plantilla: $e')));
+      if (mounted) mostrarAvisoSnack(context, SnackBar(content: Text('No se pudo descargar la plantilla: $e')), tipo: TipoAviso.error);
     } finally {
       if (mounted) setState(() => ocupado = false);
     }

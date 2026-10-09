@@ -87,14 +87,18 @@ abstract class DespachosOcRepository {
     String cliente,
     String oc,
     List<Map<String, dynamic>> lineas,
-    List<Map<String, dynamic>> empaques,
-  ) => throw UnsupportedError('Corrección no disponible');
+    List<Map<String, dynamic>> empaques, {
+    String? destinatarioId,
+    String? destinatarioVersion,
+  }) => throw UnsupportedError('Corrección no disponible');
   Future<void> confirmar(
     String solicitud,
     String cliente,
     String oc,
     List<Map<String, dynamic>> lineas, {
     List<Map<String, dynamic>> empaques = const [],
+    String? destinatarioId,
+    String? destinatarioVersion,
   });
   Future<List<Map<String, dynamic>>> historial();
 }
@@ -116,14 +120,18 @@ class SupabaseDespachosOcRepository extends DespachosOcRepository {
     String cliente,
     String oc,
     List<Map<String, dynamic>> lineas,
-    List<Map<String, dynamic>> empaques,
-  ) async {
+    List<Map<String, dynamic>> empaques, {
+    String? destinatarioId,
+    String? destinatarioVersion,
+  }) async {
     await client.rpc(
-      'corregir_despacho_le',
+      'guardar_empaque_destinatario',
       params: {
         'p_id': id,
         'p_version': version,
         'p_solicitud': solicitud,
+        'p_destinatario': destinatarioId,
+        'p_destinatario_version': destinatarioVersion,
         'p_motivo': motivo,
         'p_cliente': cliente,
         'p_oc': oc,
@@ -147,12 +155,16 @@ class SupabaseDespachosOcRepository extends DespachosOcRepository {
     String oc,
     List<Map<String, dynamic>> lineas, {
     List<Map<String, dynamic>> empaques = const [],
+    String? destinatarioId,
+    String? destinatarioVersion,
   }) async {
     await client.rpc(
-      'despachar_oc_bultos',
+      'guardar_empaque_destinatario',
       params: {
         'p_empaques': empaques,
         'p_solicitud': solicitud,
+        'p_destinatario': destinatarioId,
+        'p_destinatario_version': destinatarioVersion,
         'p_cliente': cliente,
         'p_oc': oc,
         'p_lineas': [

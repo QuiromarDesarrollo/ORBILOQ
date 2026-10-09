@@ -61,8 +61,9 @@ class ReceptorPrueba implements WmsRepository {
     String nota = '',
   }) async {
     llamadas.add((id: loteLineaId, cantidad: cantidad));
-    if (fallarSegunda && llamadas.length == 2)
+    if (fallarSegunda && llamadas.length == 2) {
       return const Err('Recepción no confirmada');
+    }
     return Ok(entrega(loteLineaId, recibida: cantidad).linea);
   }
 
@@ -102,9 +103,10 @@ void main() {
       6,
     );
   });
-  for (final falla in [false, true])
+  for (final falla in [false, true]) {
     testWidgets('Recepción agrupada con error parcial: $falla', (tester) async {
-      tester.view.physicalSize = const Size(1200, 1000);
+      tester.view.physicalSize =
+          falla ? const Size(1200, 1000) : const Size(320, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -128,18 +130,21 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('VALIDAR'), findsOneWidget);
-      expect(find.textContaining('10 Uds pendientes'), findsOneWidget);
-      await tester.tap(find.text('VALIDAR'));
+      expect(find.text('Validar'), findsOneWidget);
+      expect(find.text('10'), findsOneWidget);
+      await tester.tap(find.text('Validar'));
       await tester.pumpAndSettle();
-      expect(find.text('Cant. a recibir ahora (máx 10)'), findsOneWidget);
+      expect(find.text('Cantidad que llegó · máx. 10'), findsOneWidget);
       expect(find.text('Lote de origen a recibir'), findsNothing);
       expect(find.textContaining('L1'), findsNothing);
       await tester.enterText(
-        find.widgetWithText(TextField, 'Cant. a recibir ahora (máx 10)'),
+        find.byWidgetPredicate(
+          (w) => w is TextField && w.textAlign == TextAlign.center,
+        ),
         '7',
       );
-      final confirmar = find.text('INGRESAR A ESTANTE & CONFIRMAR');
+      await tester.pumpAndSettle();
+      final confirmar = find.text('Recibir 7 en A');
       await tester.ensureVisible(confirmar);
       await tester.pumpAndSettle();
       await tester.tap(confirmar);
@@ -153,4 +158,5 @@ void main() {
       );
       expect(tester.takeException(), isNull);
     });
+  }
 }

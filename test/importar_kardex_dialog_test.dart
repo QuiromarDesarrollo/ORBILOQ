@@ -93,18 +93,19 @@ void main() {
                         child: const Text('Abrir')))))));
     await tester.tap(find.text('Abrir'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Seleccionar Excel'));
+    await tester.tap(find.text('Seleccionar archivo .xlsx'));
     await tester.pumpAndSettle();
     expect(service.llamadas, isEmpty);
     await tester.enterText(find.byType(TextField), 'Corrección general');
-    await tester.tap(find.text('Revisar reemplazo'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Revisar cambios'));
     await tester.pumpAndSettle();
     expect(service.llamadas, [false]);
     await tester.ensureVisible(find.text('Confirmar reemplazo de la tabla'));
     await tester.tap(find.text('Confirmar reemplazo de la tabla'));
     await tester.pumpAndSettle();
     expect(service.llamadas, [false, true]);
-    expect(find.text('Importación completada. Ambas vistas actualizadas.'),
+    expect(find.text('Importación guardada correctamente.'),
         findsOneWidget);
   });
 }

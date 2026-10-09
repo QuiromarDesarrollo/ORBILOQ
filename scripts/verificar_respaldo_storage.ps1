@@ -1,8 +1,13 @@
+param(
+ [Parameter(Mandatory=$true)][string]$Source,
+ [Parameter(Mandatory=$true)][string]$Snapshot,
+ [Parameter(Mandatory=$true)][string]$BackupRoot
+)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$source = 'C:\Users\analistadatos\Downloads\supabase-files.zip'
-$snapshot = 'D:\ORBILOQ-restauracion-20261002-170805\datos-verificacion.sql'
-$root = 'D:\ORBILOQ-respaldos\storage'
+$source = (Resolve-Path -LiteralPath $Source).Path
+$snapshot = (Resolve-Path -LiteralPath $Snapshot).Path
+$root = $BackupRoot
 $dest = Join-Path $root 'documentos\importaciones'
 $expected = @{}
 $inObjects = $false
@@ -24,7 +29,7 @@ foreach ($line in [IO.File]::ReadLines($snapshot)) {
     $metadata = $values[[Array]::IndexOf($columns, 'metadata')].Replace('\\', '\') | ConvertFrom-Json
     $expected[$name.Substring('importaciones/'.Length)] = [long]$metadata.size
 }
-if ($expected.Count -ne 18) { throw 'El inventario no contiene los 18 archivos esperados.' }
+if ($expected.Count -eq 0) { throw 'El inventario seleccionado no contiene archivos. Revisar su alcance.' }
 $zip = [IO.Compression.ZipFile]::OpenRead($source)
 try {
     $seen = @{}
@@ -65,7 +70,8 @@ if ((Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $zip
 $manifest = Join-Path $root ('verificacion-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.json')
 [ordered]@{
  fecha_utc=[DateTime]::UtcNow.ToString('o'); archivos=$records; total=$records.Count;
- comparacion='Rutas y tamaños contra metadatos del respaldo 2026-10-02; SHA256 locales y lectura de contenido XLSX. No se compararon hashes con el servidor remoto.';
+ inventario=$snapshot;
+ comparacion='Rutas y tamaños contra metadatos del respaldo seleccionado; SHA256 locales y lectura de contenido XLSX. Solo admite documentos/importaciones XLSX; otras rutas requieren adaptar el verificador. No se compararon hashes con el servidor remoto.';
  zip_copia=$zipCopy; zip_sha256=(Get-FileHash -LiteralPath $zipCopy).Hash
 } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifest -Encoding UTF8
 [pscustomobject]@{archivos_verificados=$records.Count; carpeta=$dest; manifiesto=$manifest; zip=$zipCopy} | ConvertTo-Json -Compress

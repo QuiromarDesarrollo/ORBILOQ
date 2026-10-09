@@ -59,6 +59,9 @@ try {
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/081_empaque_seguimiento.sql') 'seguimiento081.log'
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/081_empaque_seguimiento.sql') 'seguimiento081_repetida.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_seguimiento.sql') 'seguimiento.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/082_destinatario_antes_empaque.sql') 'destino082.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/082_destinatario_antes_empaque.sql') 'destino082_repetida.log'
+ RunSql 'ensayo' (Join-Path $repo 'tools/test_destinatario_empaque.sql') 'destino_empaque.log'
  Write-Output "OK: listas de empaque, numeracion, tallas compartidas, stock, consecutivos, reimpresion, sedes y seguimiento. Logs: $dest"
 } finally {
  if($started){ & "$PgBin\pg_ctl.exe" -D (Join-Path $dest 'data') -m fast -w stop | Out-Null }

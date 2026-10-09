@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
+  static const lima = Color(0xFFC2D501);
+  static const petroleo = Color(0xFF093E52);
+  static const celesteSuave = Color(0xFF9DD8F2);
+  static const celeste = Color(0xFF268CC0);
+
   static const primaryNavy = Color(0xFF173559);
   static const secondaryNavy = Color(0xFF1F436E);
   static const actionGreen = Color(0xFF2E8B57);
@@ -49,120 +54,224 @@ abstract final class AppTheme {
 
   static ThemeData kardex(TemaModo modo) {
     final dark = modo == TemaModo.oscuro;
-    final pal = dark ? AppPalette.oscuro : AppPalette.claro;
+    final corporate = modo == TemaModo.corporativo;
+    final pal =
+        corporate
+            ? AppPalette.corporativo
+            : dark
+            ? AppPalette.oscuro
+            : AppPalette.claro;
     final scheme = ColorScheme.fromSeed(
       seedColor: AppColors.tealPrimary,
       brightness: dark ? Brightness.dark : Brightness.light,
     ).copyWith(
-        primary: pal.accent,
-        onPrimary: dark ? AppColors.slate900 : Colors.white,
-        surface: pal.card,
-        onSurface: pal.textPrimary,
-        onSurfaceVariant: pal.textSecondary,
-        outline: pal.textMuted,
-        outlineVariant: pal.cardBorder,
-        error: pal.chipRed);
-    final base = ThemeData(useMaterial3: true, colorScheme: scheme, fontFamily: 'Roboto');
-    final shape =
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(8));
+      primary: pal.accent,
+      onPrimary: dark ? AppColors.slate900 : Colors.white,
+      secondary: corporate ? AppColors.lima : null,
+      onSecondary: corporate ? AppColors.petroleo : null,
+      primaryContainer: corporate ? const Color(0xFFE4EFF3) : null,
+      onPrimaryContainer: corporate ? AppColors.petroleo : null,
+      secondaryContainer: corporate ? AppColors.lima : null,
+      onSecondaryContainer: corporate ? AppColors.petroleo : null,
+      tertiary: corporate ? const Color(0xFF176888) : null,
+      surfaceContainerLow: corporate ? const Color(0xFFF2F7F9) : null,
+      surface: pal.card,
+      onSurface: pal.textPrimary,
+      onSurfaceVariant: pal.textSecondary,
+      outline: pal.textMuted,
+      outlineVariant: pal.cardBorder,
+      error: pal.chipRed,
+    );
+    final base = ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      fontFamily: 'Roboto',
+    );
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(8),
+    );
     return base.copyWith(
       scaffoldBackgroundColor: pal.bg,
+      appBarTheme:
+          corporate
+              ? const AppBarTheme(
+                backgroundColor: AppColors.petroleo,
+                foregroundColor: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                iconTheme: IconThemeData(color: Colors.white),
+              )
+              : base.appBarTheme,
+      tabBarTheme:
+          corporate
+              ? TabBarThemeData(
+                labelColor: AppColors.petroleo,
+                unselectedLabelColor: pal.textSecondary,
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                indicator: BoxDecoration(
+                  color: AppColors.lima,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              )
+              : base.tabBarTheme,
+      segmentedButtonTheme:
+          corporate
+              ? SegmentedButtonThemeData(
+                style: ButtonStyle(
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) =>
+                        states.contains(WidgetState.selected)
+                            ? AppColors.lima
+                            : pal.card,
+                  ),
+                  foregroundColor: const WidgetStatePropertyAll(
+                    AppColors.petroleo,
+                  ),
+                ),
+              )
+              : base.segmentedButtonTheme,
+
       extensions: [pal],
-      textTheme: base.textTheme.copyWith(
-        headlineLarge: TextStyle(
-            fontSize: 32,
-            height: 1.2,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.8,
-            color: pal.textPrimary),
-        headlineSmall: TextStyle(
-            fontSize: 24,
-            height: 1.3,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-            color: pal.textPrimary),
-        titleLarge: TextStyle(
-            fontSize: 20,
-            height: 1.3,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.3,
-            color: pal.textPrimary),
-        titleMedium: TextStyle(
-            fontSize: 15,
-            height: 1.4,
-            fontWeight: FontWeight.w600,
-            color: pal.textPrimary),
-        bodyLarge: TextStyle(fontSize: 14, height: 1.5, color: pal.textPrimary),
-        bodyMedium:
-            TextStyle(fontSize: 13, height: 1.5, color: pal.textPrimary),
-        bodySmall:
-            TextStyle(fontSize: 12, height: 1.4, color: pal.textSecondary),
-        labelLarge: const TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.1),
-      ).apply(fontFamily: 'Roboto'),
-      dividerTheme:
-          DividerThemeData(color: pal.cardBorder, thickness: 1, space: 24),
+      textTheme: base.textTheme
+          .copyWith(
+            headlineLarge: TextStyle(
+              fontSize: 32,
+              height: 1.2,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.8,
+              color: pal.textPrimary,
+            ),
+            headlineSmall: TextStyle(
+              fontSize: 24,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.5,
+              color: pal.textPrimary,
+            ),
+            titleLarge: TextStyle(
+              fontSize: 20,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.3,
+              color: pal.textPrimary,
+            ),
+            titleMedium: TextStyle(
+              fontSize: 15,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+              color: pal.textPrimary,
+            ),
+            bodyLarge: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: pal.textPrimary,
+            ),
+            bodyMedium: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: pal.textPrimary,
+            ),
+            bodySmall: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: pal.textSecondary,
+            ),
+            labelLarge: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
+          )
+          .apply(fontFamily: 'Roboto'),
+      dividerTheme: DividerThemeData(
+        color: pal.cardBorder,
+        thickness: 1,
+        space: 24,
+      ),
       iconTheme: IconThemeData(size: 20, color: pal.textSecondary),
       cardTheme: CardThemeData(
-          color: pal.card,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: pal.cardBorder))),
+        color: pal.card,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: pal.cardBorder),
+        ),
+      ),
       filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-              shape: shape,
-              minimumSize: const Size(0, 42),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12))),
+        style: FilledButton.styleFrom(
+          backgroundColor: corporate ? AppColors.lima : null,
+          foregroundColor: corporate ? AppColors.petroleo : null,
+          shape: shape,
+          minimumSize: const Size(0, 42),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-              shape: shape,
-              elevation: 0,
-              backgroundColor: scheme.primary,
-              foregroundColor: scheme.onPrimary,
-              minimumSize: const Size(0, 42),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12))),
+        style: ElevatedButton.styleFrom(
+          shape: shape,
+          elevation: 0,
+          backgroundColor: corporate ? AppColors.lima : scheme.primary,
+          foregroundColor: corporate ? AppColors.petroleo : scheme.onPrimary,
+          minimumSize: const Size(0, 42),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        ),
+      ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-              shape: shape,
-              foregroundColor: pal.textPrimary,
-              side: BorderSide(color: pal.cardBorder),
-              minimumSize: const Size(0, 42),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12))),
-      textButtonTheme:
-          TextButtonThemeData(style: TextButton.styleFrom(shape: shape)),
+        style: OutlinedButton.styleFrom(
+          shape: shape,
+          foregroundColor: corporate ? AppColors.petroleo : pal.textPrimary,
+          backgroundColor: corporate ? AppColors.lima : null,
+          side: BorderSide(color: pal.cardBorder),
+          minimumSize: const Size(0, 42),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: shape,
+          foregroundColor: corporate ? AppColors.petroleo : null,
+          backgroundColor: corporate ? AppColors.lima : null,
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: pal.input,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          labelStyle: TextStyle(color: pal.textSecondary, fontSize: 13),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: pal.cardBorder)),
-          focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: pal.accent, width: 1.5))),
+        filled: true,
+        fillColor: pal.input,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        labelStyle: TextStyle(color: pal.textSecondary, fontSize: 13),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: pal.cardBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: pal.accent, width: 1.5),
+        ),
+      ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
-          color: pal.accent, linearTrackColor: pal.cardBorder),
+        color: pal.accent,
+        linearTrackColor: pal.cardBorder,
+      ),
       tooltipTheme: TooltipThemeData(
-          waitDuration: const Duration(milliseconds: 400),
-          decoration: BoxDecoration(
-              color: pal.textPrimary, borderRadius: BorderRadius.circular(6)),
-          textStyle: TextStyle(fontSize: 12, color: pal.card)),
+        waitDuration: const Duration(milliseconds: 400),
+        decoration: BoxDecoration(
+          color: pal.textPrimary,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        textStyle: TextStyle(fontSize: 12, color: pal.card),
+      ),
     );
   }
 }
 
 /// Modo de color de la pantalla del Kardex. No afecta el login ni ninguna
 /// funcionalidad: solo cambia qué [AppPalette] se usa.
-enum TemaModo { oscuro, claro }
+enum TemaModo { oscuro, claro, corporativo }
 
 /// Paleta de colores del Kardex, como [ThemeExtension]: cada widget la lee
 /// con `palOf(context)` en vez de usar directamente `AppColors.darkXxx`, así
@@ -247,6 +356,25 @@ class AppPalette extends ThemeExtension<AppPalette> {
     info: AppColors.blueChip,
   );
 
+  static const corporativo = AppPalette(
+    bg: Color(0xFFD8E8EF),
+    header: Color(0xFF093E52),
+    card: Color(0xFFF3F9FC),
+    cardBorder: Color(0xFF9CBECE),
+    input: Color(0xFFF6F9FA),
+    textPrimary: Color(0xFF163442),
+    textSecondary: Color(0xFF425F6D),
+    textMuted: Color(0xFF57707C),
+    accent: AppColors.petroleo,
+    info: Color(0xFF176888),
+    warning: AppColors.amberChip,
+    chipRedBg: AppColors.redChipBg,
+    chipRed: Color(0xFFB91C1C),
+    chipGreenBg: AppColors.greenChipBg,
+    chipGreen: Color(0xFF047857),
+    chipNeutralBg: Color(0xFFE8F1F5),
+  );
+
   @override
   AppPalette copyWith({
     Color? bg,
@@ -316,12 +444,19 @@ AppPalette palOf(BuildContext context) =>
 
 final ThemeData _temaDialogoClaro = AppTheme.light.copyWith(
   tabBarTheme: TabBarThemeData(
-    indicator: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(8)),
+    indicator: BoxDecoration(
+      color: AppColors.tealSoft,
+      borderRadius: BorderRadius.circular(8),
+    ),
     indicatorSize: TabBarIndicatorSize.tab,
     dividerColor: Colors.transparent,
     labelColor: AppColors.tealDark,
     unselectedLabelColor: AppColors.slate600,
-    labelStyle: const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w600),
+    labelStyle: const TextStyle(
+      fontFamily: 'Roboto',
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+    ),
     labelPadding: const EdgeInsets.symmetric(horizontal: 16),
   ),
 );
@@ -332,8 +467,29 @@ final ThemeData _temaDialogoClaro = AppTheme.light.copyWith(
 /// pensado para adaptarse, y en tema oscuro el título quedaba casi
 /// invisible. `showDialog` monta cada diálogo como una ruta aparte, así que
 /// esto se aplica en cada `builder`, no una sola vez arriba del árbol.
-Widget dialogoClaro(Widget child) =>
-    Theme(data: _temaDialogoClaro, child: child);
+Widget dialogoClaro(Widget child) => Builder(
+  builder:
+      (context) => Theme(
+        data:
+            esCorporativo(context)
+                ? AppTheme.kardex(TemaModo.corporativo)
+                : _temaDialogoClaro,
+        child: child,
+      ),
+);
+
+bool esCorporativo(BuildContext context) =>
+    palOf(context).header == AppColors.petroleo;
+AppPalette palNavegacion(BuildContext context) =>
+    esCorporativo(context)
+        ? AppPalette.oscuro.copyWith(
+          header: AppColors.petroleo,
+          accent: AppColors.lima,
+          textPrimary: Colors.white,
+          textSecondary: const Color(0xFFD6E8EE),
+          textMuted: const Color(0xFFC4DDE7),
+        )
+        : palOf(context);
 
 /// Decoración estándar de campos de texto.
 InputDecoration wmsInput(String label, {IconData? icon, String? hint}) {

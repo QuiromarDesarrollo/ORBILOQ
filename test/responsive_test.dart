@@ -56,11 +56,13 @@ void main() {
       await tester.tap(find.byType(DrawerButton));
       await tester.pumpAndSettle();
       expect(scaffold.isDrawerOpen, isTrue);
+      expect(find.text('Dashboard ejecutivo'), findsNothing);
+      expect(find.text('Dashboard'), findsOneWidget);
       for (final accion in [
         'Administración',
-        'Dashboard ejecutivo',
+        'Dashboard',
         'Importar tabla',
-        'Extraer tabla',
+        'Exportar tabla',
         'Importar fechas',
       ]) {
         await tester.ensureVisible(find.text(accion));
@@ -102,7 +104,10 @@ void main() {
       await tester.pumpWidget(
         const ProviderScope(child: MaterialApp(home: LoginPage())),
       );
-      await tester.pumpAndSettle();
+      // El logo del login se anima continuamente.
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
     });
   }
   testWidgets('Edición y borrado con teclado y texto ampliado', (tester) async {

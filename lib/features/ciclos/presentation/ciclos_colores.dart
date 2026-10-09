@@ -1,3 +1,4 @@
+import '../../../core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 abstract final class CiclosColores {
@@ -5,7 +6,15 @@ abstract final class CiclosColores {
   static const panel = Color(0xff101d30);
   static const borde = Color(0xff2a405a);
   static List<Color> superficie(BuildContext c, {Color? acento}) =>
-      oscuro(c)
+      esCorporativo(c)
+          ? [
+            Color.alphaBlend(
+              AppColors.celeste.withValues(alpha: .18),
+              Colors.white,
+            ),
+            const Color(0xFFF3F9FC),
+          ]
+          : oscuro(c)
           ? [
             Color.alphaBlend(
               (acento ?? const Color(0xff4ea3dc)).withValues(alpha: .10),
@@ -26,7 +35,17 @@ abstract final class CiclosColores {
   static Color neutro(BuildContext c) =>
       oscuro(c) ? const Color(0xff94a3b8) : const Color(0xff475569);
   static List<Color> paleta(BuildContext c) =>
-      oscuro(c)
+      esCorporativo(c)
+          ? const [
+            AppColors.celeste,
+            AppColors.petroleo,
+            Color(0xFF547CAD),
+            Color(0xFF456D83),
+            Color(0xFF198579),
+            Color(0xFF716A91),
+            Color(0xFFAD6227),
+          ]
+          : oscuro(c)
           ? const [
             Color(0xff7dd3fc),
             Color(0xffc4b5fd),

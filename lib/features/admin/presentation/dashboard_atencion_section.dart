@@ -45,7 +45,8 @@ class _DashboardAtencionSectionState
                   children: [
                     const Text('No se pudieron consultar las OP.'),
                     TextButton(
-                      onPressed: () => ref.invalidate(dashboardSnapshotProvider),
+                      onPressed:
+                          () => ref.invalidate(dashboardSnapshotProvider),
                       child: const Text('Reintentar OP'),
                     ),
                   ],
@@ -311,4 +312,3 @@ class TableroEtapas extends StatelessWidget {
     );
   }
 }
-

@@ -20,7 +20,8 @@ class ImportarOrdenesDialog extends ConsumerStatefulWidget {
   const ImportarOrdenesDialog({super.key});
 
   @override
-  ConsumerState<ImportarOrdenesDialog> createState() => _ImportarOrdenesDialogState();
+  ConsumerState<ImportarOrdenesDialog> createState() =>
+      _ImportarOrdenesDialogState();
 }
 
 class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
@@ -50,9 +51,12 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
 
     final importador = ref.read(importadorOrdenesProvider);
     if (importador == null) {
-      setState(() => _msg = const FeedbackMessage.error(
-            'Esta función necesita conexión a Supabase (la app está en modo de datos de prueba).',
-          ));
+      setState(
+        () =>
+            _msg = const FeedbackMessage.error(
+              'Esta función necesita conexión a Supabase (la app está en modo de datos de prueba).',
+            ),
+      );
       return;
     }
 
@@ -94,7 +98,9 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
 
     if (res is Ok<ResumenImportacion>) {
       // Refresca el kardex para que las OP recién creadas aparezcan de una vez.
-      await ref.read(wmsRepositoryProvider).refrescar();
+      await ref.read(wmsRepositoryProvider).refrescar().catchError((Object _) {
+        /* El stream informa el fallo de recarga; no repetir lo ya guardado. */
+      });
     }
   }
 
@@ -110,7 +116,10 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BotonPlantillaExcel(tipo: PlantillaExcel.ordenes, habilitado: !_cargando),
+          BotonPlantillaExcel(
+            tipo: PlantillaExcel.ordenes,
+            habilitado: !_cargando,
+          ),
           if (!disponible)
             const FeedbackBanner(
               message: FeedbackMessage.error(
@@ -171,10 +180,14 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
                   child: ListView.builder(
                     shrinkWrap: true,
                     itemCount: _resumen!.advertencias.length,
-                    itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Text('• ${_resumen!.advertencias[i]}', style: const TextStyle(fontSize: 12)),
-                    ),
+                    itemBuilder:
+                        (_, i) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            '• ${_resumen!.advertencias[i]}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
                   ),
                 ),
             ],

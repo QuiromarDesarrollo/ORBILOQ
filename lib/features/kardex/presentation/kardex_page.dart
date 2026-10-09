@@ -1,5 +1,5 @@
+import '../../../shared/widgets/selector_tema.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
-import '../../admin/presentation/dashboard_ejecutivo_page.dart';
 import '../../ciclos/presentation/dashboard_catalogo.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../admin/presentation/reportes_admin_dialog.dart';
@@ -38,18 +38,171 @@ class KardexPage extends ConsumerStatefulWidget {
 }
 
 class _KardexPageState extends ConsumerState<KardexPage> {
-  bool _sincronizando = false;
+  bool _sincronizando = false, _falloSincronizacion = false;
+  DateTime? _ultimaActualizacion;
+
+  Future<void> _cambiarArea() async {
+    final area = await showModalBottomSheet<Rol>(
+      context: context,
+      showDragHandle: true,
+      builder:
+          (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ListTile(title: Text('Cambiar área')),
+                for (final opcion in [
+                  (
+                    Rol.produccion,
+                    'Producción',
+                    Icons.precision_manufacturing_outlined,
+                  ),
+                  (Rol.logistica, 'Bodega', Icons.warehouse_outlined),
+                  (Rol.despacho, 'Despacho', Icons.local_shipping_outlined),
+                ])
+                  ListTile(
+                    leading: Icon(opcion.$3),
+                    title: Text(opcion.$2),
+                    onTap: () => Navigator.pop(context, opcion.$1),
+                  ),
+              ],
+            ),
+          ),
+    );
+    if (mounted && area != null) ref.read(rolProvider.notifier).cambiar(area);
+  }
 
   Future<void> _sincronizar() async {
-    setState(() => _sincronizando = true);
-    await ref.read(wmsRepositoryProvider).refrescar();
-    if (!mounted) return;
-    setState(() => _sincronizando = false);
-    mostrarAvisoSnack(context, 
-      const SnackBar(
-        content: Text('Datos sincronizados'),
-        backgroundColor: AppColors.actionGreen,
-        duration: Duration(seconds: 1),
+    if (_sincronizando) return;
+    setState(() {
+      _sincronizando = true;
+      _falloSincronizacion = false;
+    });
+    try {
+      await ref.read(wmsRepositoryProvider).refrescar();
+      if (mounted) setState(() => _ultimaActualizacion = DateTime.now());
+    } catch (_) {
+      if (mounted) setState(() => _falloSincronizacion = true);
+    } finally {
+      if (mounted) setState(() => _sincronizando = false);
+    }
+  }
+
+  Widget _menuUsuario(UsuarioSesion? sesion, bool conectado, bool admin) {
+    final nombre = sesion?.nombre ?? 'Usuario de demostración';
+    final nav = palNavegacion(context);
+    return PopupMenuButton<String>(
+      tooltip: 'Menú de usuario',
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onSelected: (v) {
+        if (v.startsWith('tema-')) {
+          ref
+              .read(temaProvider.notifier)
+              .seleccionar(TemaModo.values.byName(v.substring(5)));
+        }
+        if (v == 'sync') _sincronizar();
+        if (v == 'salir') ref.read(authRepositoryProvider)?.cerrarSesion();
+        if (v == 'ordenes') showImportarOrdenesDialog(context);
+      },
+      itemBuilder:
+          (_) => [
+            PopupMenuItem<String>(
+              enabled: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nombre,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    sesion?.rolCuenta.etiqueta ?? 'Administrador',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem<String>(
+              enabled: false,
+              height: 28,
+              child: Text('Tema', style: TextStyle(fontSize: 11)),
+            ),
+            for (final tema in TemaModo.values)
+              PopupMenuItem(
+                value: 'tema-${tema.name}',
+                child: Text(SelectorTema.nombres[tema]!),
+              ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'sync',
+              enabled: !_sincronizando,
+              child: const Row(
+                children: [
+                  Icon(Icons.sync, size: 18),
+                  SizedBox(width: 10),
+                  Text('Sincronizar ahora'),
+                ],
+              ),
+            ),
+            if (admin)
+              const PopupMenuItem(
+                value: 'ordenes',
+                child: Text('Importar órdenes ERP'),
+              ),
+            if (conectado)
+              const PopupMenuItem(
+                value: 'salir',
+                child: Text(
+                  'Cerrar sesión',
+                  style: TextStyle(color: Color(0xffb42318)),
+                ),
+              ),
+          ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 17,
+              backgroundColor: const Color(0xffe7efa2),
+              child: Text(
+                nombre.trim().isEmpty ? '?' : nombre.trim()[0].toUpperCase(),
+                style: const TextStyle(
+                  color: Color(0xff123e4f),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 9),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 150),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nombre,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: nav.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    sesion?.rolCuenta.etiqueta ?? 'Administrador',
+                    style: TextStyle(fontSize: 10, color: nav.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.expand_more, size: 16, color: nav.textSecondary),
+          ],
+        ),
       ),
     );
   }
@@ -57,12 +210,33 @@ class _KardexPageState extends ConsumerState<KardexPage> {
   @override
   Widget build(BuildContext context) {
     final pal = palOf(context);
-    final modoTema = ref.watch(temaProvider);
+    final nav = palNavegacion(context);
     final usarSupabase = ref.watch(usarSupabaseProvider);
     final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
-    if (sesion?.rolCuenta == RolCuenta.gerencia) return const DashboardCatalogoPage();
+    if (sesion?.rolCuenta == RolCuenta.gerencia) {
+      return const DashboardCatalogoPage();
+    }
     final rol = ref.watch(rolProvider);
+    ref.listen(wmsSnapshotProvider, (_, siguiente) {
+      if (siguiente.hasValue && !siguiente.hasError && !siguiente.isLoading) {
+        _ultimaActualizacion = DateTime.now();
+      }
+    });
     final snapshot = ref.watch(wmsSnapshotProvider);
+    final area = switch (rol) {
+      Rol.produccion => 'Producción',
+      Rol.logistica => 'Bodega',
+      Rol.despacho => 'Despacho',
+    };
+    final falloSync = snapshot.hasError || _falloSincronizacion;
+    final estadoSync =
+        _sincronizando
+            ? 'Sincronizando...'
+            : falloSync
+            ? 'Error de sincronización'
+            : snapshot.hasValue
+            ? 'Sincronizado'
+            : 'Cargando datos';
     final esAdmin = !usarSupabase || sesion?.rolCuenta == RolCuenta.admin;
 
     final compacto = MediaQuery.sizeOf(context).width < 1200;
@@ -79,16 +253,125 @@ class _KardexPageState extends ConsumerState<KardexPage> {
               )
               : null,
       appBar: AppBar(
-        backgroundColor: pal.header,
-        foregroundColor: pal.textPrimary,
+        backgroundColor: nav.header,
+        foregroundColor: nav.textPrimary,
         elevation: 0,
-        toolbarHeight: 72,
-        surfaceTintColor: pal.header,
-        shape: Border(bottom: BorderSide(color: pal.cardBorder)),
-        titleSpacing: 20,
+        toolbarHeight: compacto ? 68 : 64,
+        surfaceTintColor: nav.header,
+        shape: Border(bottom: BorderSide(color: nav.cardBorder)),
+        titleSpacing: compacto ? 4 : 20,
+        leadingWidth: compacto ? 44 : 56,
+        bottom:
+            (_sincronizando || falloSync)
+                ? PreferredSize(
+                  preferredSize: Size.fromHeight(falloSync ? 64 : 3),
+                  child:
+                      falloSync
+                          ? Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            color: const Color(0xFFFFF3DB),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.wifi_off,
+                                  size: 15,
+                                  color: Color(0xff865100),
+                                ),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'No se pudieron actualizar los datos. Revisa la conexión.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xff865100),
+                                    ),
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed:
+                                      _sincronizando ? null : _sincronizar,
+                                  icon: const Icon(Icons.refresh, size: 14),
+                                  label: const Text('Reintentar'),
+                                ),
+                              ],
+                            ),
+                          )
+                          : const LinearProgressIndicator(
+                            minHeight: 3,
+                            color: AppColors.lima,
+                            backgroundColor: Color(0xFF315B6A),
+                          ),
+                )
+                : null,
         title:
             compacto
-                ? const Text('ORBILOQ', style: TextStyle(fontSize: 18))
+                ? Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        color: Colors.white,
+                        child: Image.asset(
+                          'assets/images/logo_orbiloq.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: InkWell(
+                        onTap: esAdmin && !_sincronizando ? _cambiarArea : null,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'ORBILOQ',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: .5,
+                                color: nav.textPrimary,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    _sincronizando ? 'Sincronizando...' : area,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color:
+                                          _sincronizando
+                                              ? AppColors.lima
+                                              : nav.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                                if (esAdmin && !_sincronizando)
+                                  Icon(
+                                    Icons.keyboard_arrow_down,
+                                    size: 15,
+                                    color: nav.textSecondary,
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                )
                 : Row(
                   children: [
                     ClipRRect(
@@ -113,7 +396,8 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    SizedBox(
+                      width: 240,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -127,49 +411,82 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                               ).textTheme.titleMedium!.copyWith(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: pal.textPrimary,
+                                color: nav.textPrimary,
                               ),
-                              children: [
-                                const TextSpan(text: 'ORBILOQ '),
-                                TextSpan(
-                                  text: '| KARDEX MAESTRO',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    color: pal.accent,
-                                  ),
-                                ),
-                              ],
+                              text: 'ORBILOQ',
                             ),
                           ),
                           Text(
-                            'CONTROL OPERATIVO DE BODEGA Y PRODUCCIÓN',
+                            'Control operativo de bodega y producción',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 10,
-                              color: pal.textMuted,
+                              color: nav.textMuted,
                               letterSpacing: 0.4,
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 20),
+                    Container(height: 28, width: 1, color: nav.cardBorder),
+                    const SizedBox(width: 12),
+                    _SelectorPerfil(rol: rol),
                   ],
                 ),
         actions:
             compacto
                 ? [
                   IconButton(
-                    tooltip: 'Sincronizar',
+                    tooltip: '$estadoSync · Sincronizar',
                     onPressed: _sincronizando ? null : _sincronizar,
-                    icon: const Icon(Icons.sync),
+                    icon:
+                        _sincronizando
+                            ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: WmsLoader(),
+                            )
+                            : Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                const Icon(Icons.sync),
+                                Positioned(
+                                  right: -2,
+                                  top: -2,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color:
+                                          falloSync
+                                              ? Colors.amber
+                                              : snapshot.hasValue
+                                              ? const Color(0xFF7ED957)
+                                              : Colors.blueGrey,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                   ),
                   PopupMenuButton<String>(
                     tooltip: 'Menú',
+                    position: PopupMenuPosition.under,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     onSelected: (v) {
-                      if (v == 'tema') {
-                        ref.read(temaProvider.notifier).alternar();
+                      if (v.startsWith('tema-')) {
+                        ref
+                            .read(temaProvider.notifier)
+                            .seleccionar(
+                              TemaModo.values.byName(v.substring(5)),
+                            );
                       }
+                      if (v == 'area' && esAdmin) _cambiarArea();
                       if (v == 'ordenes') showImportarOrdenesDialog(context);
                       if (v == 'salir') {
                         ref.read(authRepositoryProvider)?.cerrarSesion();
@@ -186,23 +503,54 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                     },
                     itemBuilder:
                         (_) => [
-                          const PopupMenuItem(
-                            value: 'tema',
-                            child: Text('Cambiar tema'),
+                          PopupMenuItem<String>(
+                            enabled: false,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.person_outline, size: 20),
+                                const SizedBox(width: 10),
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        sesion?.nombre ??
+                                            'Usuario de demostración',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      Text(
+                                        _ultimaActualizacion == null
+                                            ? estadoSync
+                                            : 'Actualizado a las ${TimeOfDay.fromDateTime(_ultimaActualizacion!).format(context)}',
+                                        style: const TextStyle(fontSize: 11),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          if (esAdmin)
+                            const PopupMenuItem(
+                              value: 'area',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.warehouse_outlined, size: 20),
+                                  SizedBox(width: 10),
+                                  Text('Cambiar área'),
+                                ],
+                              ),
+                            ),
+                          const PopupMenuDivider(),
+                          for (final tema in TemaModo.values)
+                            PopupMenuItem(
+                              value: 'tema-${tema.name}',
+                              child: Text(SelectorTema.nombres[tema]!),
+                            ),
                           if (esAdmin) ...[
-                            const PopupMenuItem(
-                              value: 'produccion',
-                              child: Text('Vista Producción'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'logistica',
-                              child: Text('Vista Bodega'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'despacho',
-                              child: Text('Vista Despacho'),
-                            ),
                             const PopupMenuItem(
                               value: 'ordenes',
                               child: Text('Importar órdenes ERP'),
@@ -211,66 +559,64 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                           if (usarSupabase)
                             const PopupMenuItem(
                               value: 'salir',
-                              child: Text('Cerrar sesión'),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.logout,
+                                    color: Color(0xFFB42318),
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Cerrar sesión',
+                                    style: TextStyle(color: Color(0xFFB42318)),
+                                  ),
+                                ],
+                              ),
                             ),
                         ],
                   ),
                 ]
                 : [
-                  IconButton(
-                    tooltip:
-                        modoTema == TemaModo.claro
-                            ? 'Cambiar a tema oscuro'
-                            : 'Cambiar a tema claro',
-                    onPressed: () => ref.read(temaProvider.notifier).alternar(),
-                    icon: Icon(
-                      modoTema == TemaModo.claro
-                          ? Icons.dark_mode_outlined
-                          : Icons.light_mode_outlined,
-                      color: pal.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  if (esAdmin) ...[
-                    OutlinedButton.icon(
-                      onPressed: () => showImportarOrdenesDialog(context),
-                      icon: const Icon(Icons.upload_file_outlined, size: 18),
-                      label: const Text('Importar órdenes ERP'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: pal.textSecondary,
-                        side: BorderSide(color: pal.cardBorder),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  ElevatedButton.icon(
+                  OutlinedButton.icon(
                     onPressed: _sincronizando ? null : _sincronizar,
-                    icon:
-                        _sincronizando
-                            ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: WmsLoader(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                            : const Icon(Icons.sync, size: 18),
-                    label: Text(
-                      _sincronizando ? 'Sincronizando...' : 'Sincronizar BD',
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: nav.textPrimary,
+                      side: BorderSide(color: nav.cardBorder),
+                      shape: const StadiumBorder(),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.tealPrimary,
-                      foregroundColor: Colors.white,
+                    icon: Icon(
+                      Icons.sync,
+                      size: 18,
+                      color:
+                          falloSync
+                              ? Colors.amber
+                              : _sincronizando
+                              ? AppColors.lima
+                              : const Color(0xff7ed957),
+                    ),
+                    label: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(estadoSync, style: const TextStyle(fontSize: 11)),
+                        if (_ultimaActualizacion != null && !_sincronizando)
+                          Text(
+                            'Última: ${TimeOfDay.fromDateTime(_ultimaActualizacion!).format(context)}',
+                            style: const TextStyle(fontSize: 9),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 10),
-                  _SelectorPerfil(rol: rol),
-                  const SizedBox(width: 20),
+                  const SelectorTema(),
+                  const SizedBox(width: 8),
+                  Container(height: 28, width: 1, color: nav.cardBorder),
+                  _menuUsuario(sesion, usarSupabase, esAdmin),
                 ],
       ),
       body: snapshot.when(
-        loading: () => Center(child: WmsLoader(color: pal.accent)),
+        loading: () => WmsLoadingPanel(),
         error:
             (e, _) => Center(
               child: Text(
@@ -453,27 +799,11 @@ class _SelectorPerfil extends ConsumerWidget {
     final usarSupabase = ref.watch(usarSupabaseProvider);
     final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
     final esAdmin = !usarSupabase || sesion?.rolCuenta == RolCuenta.admin;
-    final pal = palOf(context);
+    final pal = palNavegacion(context);
 
-    final pastilla =
-        esAdmin
-            ? _pastillaDesplegable(context, ref, pal)
-            : _pastillaFija(sesion?.nombre ?? _etiqueta(rol), pal);
-
-    if (!usarSupabase) return pastilla; // modo memoria: sin sesión que cerrar
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        pastilla,
-        const SizedBox(width: 8),
-        IconButton(
-          tooltip: 'Cerrar sesión',
-          icon: Icon(Icons.logout, size: 18, color: pal.textMuted),
-          onPressed: () => ref.read(authRepositoryProvider)?.cerrarSesion(),
-        ),
-      ],
-    );
+    return esAdmin
+        ? _pastillaDesplegable(context, ref, pal)
+        : _pastillaFija(_etiqueta(rol), pal);
   }
 
   /// Producción o Logística: no pueden cambiar de rol, solo ven quiénes son.
@@ -523,7 +853,7 @@ class _SelectorPerfil extends ConsumerWidget {
               enabled: false,
               height: 32,
               child: Text(
-                'PERFIL DE TRABAJO',
+                'CAMBIAR ÁREA',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
@@ -602,11 +932,13 @@ class _AdminDrawer extends ConsumerWidget {
   final BuildContext pageContext;
 
   Future<void> _exportar(BuildContext context, WidgetRef ref) async {
-    mostrarAvisoSnack(context, 
+    mostrarAvisoSnack(
+      context,
       const SnackBar(
         content: Text('Generando el archivo de Excel…'),
         duration: Duration(seconds: 2),
       ),
+      tipo: TipoAviso.informacion,
     );
     try {
       final service = ref.read(importadorKardexProvider);
@@ -628,11 +960,13 @@ class _AdminDrawer extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        mostrarAvisoSnack(context, 
+        mostrarAvisoSnack(
+          context,
           SnackBar(
             content: Text('No se pudo exportar: $e'),
             backgroundColor: AppColors.alertRed,
           ),
+          tipo: TipoAviso.error,
         );
       }
     }
@@ -640,77 +974,177 @@ class _AdminDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pal = palOf(context);
+    final pal = palNavegacion(context);
+    final nombre = ref.watch(nombreOperarioProvider);
+    final area = switch (rol) {
+      Rol.produccion => 'Producción',
+      Rol.logistica => 'Bodega',
+      Rol.despacho => 'Despacho',
+    };
+    final usuario = nombre.trim().isEmpty ? 'Administrador' : nombre;
+    final iniciales =
+        usuario
+            .split(RegExp(r'\s+'))
+            .take(2)
+            .map((p) => p.substring(0, 1))
+            .join()
+            .toUpperCase();
+    Widget seccion(String titulo) => Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 16, 6),
+      child: Text(
+        titulo,
+        style: TextStyle(
+          color: pal.textPrimary.withValues(alpha: .65),
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1,
+        ),
+      ),
+    );
     return Drawer(
+      width:
+          MediaQuery.sizeOf(context).width < 380
+              ? MediaQuery.sizeOf(context).width - 24
+              : 340,
       backgroundColor: pal.header,
       semanticLabel: 'Menú del administrador',
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+      ),
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.only(left: 20, right: 8),
+              padding: const EdgeInsets.fromLTRB(18, 18, 8, 16),
               child: Row(
                 children: [
-                  Expanded(
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: pal.accent,
+                    foregroundColor: pal.header,
                     child: Text(
-                      'Menú del administrador',
-                      style: TextStyle(
-                        color: pal.textPrimary,
-                        fontSize: 18,
+                      iniciales,
+                      style: const TextStyle(
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          usuario,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: pal.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Acceso completo · $area',
+                          style: TextStyle(
+                            color: pal.textPrimary.withValues(alpha: .8),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
                     tooltip: 'Cerrar menú',
                     onPressed: () => Scaffold.of(context).closeDrawer(),
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close, color: pal.textPrimary, size: 21),
                   ),
                 ],
               ),
             ),
-            const Divider(),
-            _enlace(
-              context,
-              Icons.manage_accounts_outlined,
-              'Administración',
-              () => showCatalogosDialog(pageContext),
-            ),
-            _enlace(
-              context,
-              Icons.analytics_outlined,
-              'Reportes y auditoría',
-              () => showReportesAdminDialog(pageContext),
-            ),
-            _enlace(
-              context,
-              Icons.dashboard_outlined,
-              'Dashboards',
-              () => Navigator.of(pageContext).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const DashboardCatalogoPage(),
-                ),
+            Divider(height: 1, color: pal.textPrimary.withValues(alpha: .2)),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: 12),
+                children: [
+                  seccion('CONFIGURACIÓN'),
+                  _enlace(
+                    context,
+                    Icons.manage_accounts_outlined,
+                    'Administración',
+                    'Catálogos, usuarios y personal',
+                    () => showCatalogosDialog(pageContext),
+                    destacado: true,
+                  ),
+                  seccion('ANÁLISIS'),
+                  _enlace(
+                    context,
+                    Icons.dashboard_outlined,
+                    'Dashboard',
+                    'Resumen, tiempos y capacidad',
+                    () => Navigator.of(pageContext).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const DashboardCatalogoPage(),
+                      ),
+                    ),
+                  ),
+                  _enlace(
+                    context,
+                    Icons.analytics_outlined,
+                    'Reportes y auditoría',
+                    'Quién cambió qué y cuándo',
+                    () => showReportesAdminDialog(pageContext),
+                  ),
+                  seccion('DATOS EN EXCEL'),
+                  _enlace(
+                    context,
+                    Icons.upload_file_outlined,
+                    'Importar tabla',
+                    'Actualiza muchas OP a la vez',
+                    () => showImportarKardexDialog(pageContext, rol),
+                  ),
+                  _enlace(
+                    context,
+                    Icons.file_download_outlined,
+                    'Exportar tabla',
+                    'Descarga todas las OP',
+                    datosDisponibles ? () => _exportar(pageContext, ref) : null,
+                  ),
+                  _enlace(
+                    context,
+                    Icons.event_available_outlined,
+                    'Importar fechas',
+                    'Fechas esperadas por OP',
+                    () => showImportarFechasDialog(pageContext),
+                  ),
+                ],
               ),
             ),
-            _enlace(context, Icons.analytics_outlined, 'Dashboard ejecutivo', () => Navigator.of(pageContext).push(MaterialPageRoute<void>(builder: (_) => const DashboardEjecutivoPage()))),
-            _enlace(
-              context,
-              Icons.upload_file_outlined,
-              'Importar tabla',
-              () => showImportarKardexDialog(pageContext, rol),
-            ),
-            _enlace(
-              context,
-              Icons.file_download_outlined,
-              'Extraer tabla',
-              datosDisponibles ? () => _exportar(pageContext, ref) : null,
-            ),
-            _enlace(
-              context,
-              Icons.event_available_outlined,
-              'Importar fechas',
-              () => showImportarFechasDialog(pageContext),
+            Divider(height: 1, color: pal.textPrimary.withValues(alpha: .15)),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 22,
+                vertical: 4,
+              ),
+              leading: const Icon(
+                Icons.logout,
+                size: 19,
+                color: Color(0xFFFFB4AB),
+              ),
+              title: const Text(
+                'Cerrar sesión',
+                style: TextStyle(
+                  color: Color(0xFFFFB4AB),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () {
+                Scaffold.of(context).closeDrawer();
+                ref.read(authRepositoryProvider)?.cerrarSesion();
+              },
             ),
           ],
         ),
@@ -722,19 +1156,56 @@ class _AdminDrawer extends ConsumerWidget {
     BuildContext context,
     IconData icono,
     String texto,
-    VoidCallback? accion,
-  ) {
-    return ListTile(
-      leading: Icon(icono, color: palOf(context).accent),
-      title: Text(texto),
-      enabled: accion != null,
-      onTap:
-          accion == null
-              ? null
-              : () {
-                Scaffold.of(context).closeDrawer();
-                accion();
-              },
+    String descripcion,
+    VoidCallback? accion, {
+    bool destacado = false,
+  }) {
+    final pal = palNavegacion(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+        tileColor: destacado ? pal.textPrimary.withValues(alpha: .09) : null,
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color:
+                destacado ? pal.accent : pal.textPrimary.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(
+            icono,
+            size: 19,
+            color: destacado ? pal.header : pal.accent,
+          ),
+        ),
+        title: Text(
+          texto,
+          style: TextStyle(
+            color: pal.textPrimary.withValues(alpha: accion == null ? .45 : 1),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          descripcion,
+          style: TextStyle(
+            color: pal.textPrimary.withValues(
+              alpha: accion == null ? .35 : .75,
+            ),
+            fontSize: 11,
+          ),
+        ),
+        enabled: accion != null,
+        onTap:
+            accion == null
+                ? null
+                : () {
+                  Scaffold.of(context).closeDrawer();
+                  accion();
+                },
+      ),
     );
   }
 }
@@ -848,8 +1319,17 @@ class _BotonAccion extends StatelessWidget {
       label: Text(texto),
       style: OutlinedButton.styleFrom(
         backgroundColor:
-            principal ? AppColors.tealPrimary : palOf(context).card,
-        foregroundColor: principal ? Colors.white : palOf(context).textPrimary,
+            esCorporativo(context)
+                ? AppColors.lima
+                : principal
+                ? Theme.of(context).colorScheme.primary
+                : palOf(context).card,
+        foregroundColor:
+            esCorporativo(context)
+                ? AppColors.petroleo
+                : principal
+                ? Colors.white
+                : palOf(context).textPrimary,
         side: BorderSide(color: palOf(context).cardBorder),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),

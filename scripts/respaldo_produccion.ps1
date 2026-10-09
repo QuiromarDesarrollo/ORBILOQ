@@ -12,6 +12,9 @@ foreach ($tool in @('pg_dump.exe', 'pg_dumpall.exe', 'pg_restore.exe')) {
     if (!(Test-Path -LiteralPath (Join-Path $pgBin $tool))) { throw "Falta $tool en $pgBin" }
 }
 New-Item -ItemType Directory -Path $backupDir | Out-Null
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+& icacls.exe $backupDir /inheritance:r /grant:r "*${sid}:(OI)(CI)F" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'No se pudo proteger la carpeta del respaldo.' }
 $dumpPartial = Join-Path $backupDir 'produccion.dump.partial'
 $dumpFinal = Join-Path $backupDir 'produccion.dump'
 $rolesPartial = Join-Path $backupDir 'roles.sql.partial'

@@ -69,7 +69,7 @@ class AddablePersonDropdown extends ConsumerWidget {
         onChanged(value);
       case Err(:final message):
         if (context.mounted) {
-          mostrarAvisoSnack(context, SnackBar(content: Text(message)));
+          mostrarAvisoSnack(context, SnackBar(content: Text(message)), tipo: TipoAviso.error);
         }
     }
   }

@@ -158,7 +158,7 @@ class _ParametrosState extends State<ParametrosCiclosDialog> {
         _error = null;
         _desde = null;
       });
-      mostrarAvisoSnack(context, const SnackBar(content: Text('Versión guardada.')));
+      mostrarAvisoSnack(context, const SnackBar(content: Text('Versión guardada.')), tipo: TipoAviso.exito);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {

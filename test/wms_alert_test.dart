@@ -43,7 +43,9 @@ void main() {
         await tester.tap(find.text('Validar'));
         await tester.pumpAndSettle();
         expect(find.text('Revisa las cantidades.'), findsOneWidget);
-        final centro = tester.getCenter(find.byType(AlertDialog).last);
+        final centro = tester.getCenter(
+          find.byKey(const ValueKey('aviso-global')),
+        );
         expect(centro.dx, closeTo(400, 1));
         expect(centro.dy, closeTo(300, 1));
         await tester.tap(find.text('Cerrar aviso'));
@@ -54,4 +56,29 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Avisos de todos los tipos admiten texto largo y acción en móvil', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final tipo in TipoAviso.values) {
+      var acciones = 0;
+      await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+        body: TextButton(onPressed: () => mostrarAvisoContenido(
+          context, Text(List.filled(20, 'Detalle del resultado.').join(' ')), tipo: tipo,
+          accion: SnackBarAction(label: 'Reintentar', onPressed: () => acciones++),
+        ), child: const Text('Abrir aviso')),
+      ))));
+      await tester.tap(find.text('Abrir aviso'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Reintentar'));
+      await tester.tap(find.text('Reintentar'));
+      await tester.pumpAndSettle();
+      expect(acciones, 1);
+      expect(find.byKey(const ValueKey('aviso-global')), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+  });
 }

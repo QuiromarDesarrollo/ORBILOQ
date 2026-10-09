@@ -21,8 +21,9 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
   @override
   void initState() {
     super.initState();
-    _busquedaCtrl =
-        TextEditingController(text: ref.read(kardexFiltersProvider).busqueda);
+    _busquedaCtrl = TextEditingController(
+      text: ref.read(kardexFiltersProvider).busqueda,
+    );
   }
 
   @override
@@ -37,18 +38,22 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
     final opciones = ref.watch(opcionesFiltroProvider);
     final notifier = ref.read(kardexFiltersProvider.notifier);
     final rol = ref.watch(rolProvider);
-    final colEstado = rol == Rol.produccion
-        ? ColKardex.estadoProduccion
-        : ColKardex.estadoBodega;
+    final colEstado =
+        rol == Rol.produccion
+            ? ColKardex.estadoProduccion
+            : ColKardex.estadoBodega;
     final pal = palOf(context);
     final tipoFecha = switch (rol) {
       Rol.produccion => 'Fecha de entrega',
       Rol.logistica => 'Fecha de recibido',
       Rol.despacho => 'Fecha de despacho',
     };
-    String fecha(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+    String fecha(DateTime d) =>
+        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
     ref.listen(kardexFiltersProvider, (_, nuevo) {
-      if (_busquedaCtrl.text != nuevo.busqueda) _busquedaCtrl.text = nuevo.busqueda;
+      if (_busquedaCtrl.text != nuevo.busqueda) {
+        _busquedaCtrl.text = nuevo.busqueda;
+      }
     });
 
     return Container(
@@ -72,13 +77,18 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
                 decoration: InputDecoration(
                   hintText: 'Buscar por OP, cliente, OC o producto',
                   hintStyle: TextStyle(color: pal.textMuted, fontSize: 13),
-                  prefixIcon:
-                      Icon(Icons.search, size: 20, color: pal.textMuted),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    size: 20,
+                    color: pal.textMuted,
+                  ),
                   filled: true,
                   fillColor: pal.input,
                   isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 4,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: pal.cardBorder),
@@ -99,42 +109,66 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
               etiquetaTodos: 'Todos los clientes',
               valor: filtros.valoresDe(ColKardex.cliente).firstOrNull,
               opciones: opciones.de(ColKardex.cliente),
-              onChanged: (v) =>
-                  notifier.setColumna(ColKardex.cliente, v == null ? {} : {v}),
+              onChanged:
+                  (v) => notifier.setColumna(
+                    ColKardex.cliente,
+                    v == null ? {} : {v},
+                  ),
             ),
             _Desplegable(
               ancho: estrecho ? double.infinity : 190,
               etiquetaTodos: 'Todos los estados',
               valor: filtros.valoresDe(colEstado).firstOrNull,
               opciones: opciones.de(colEstado),
-              onChanged: (v) =>
-                  notifier.setColumna(colEstado, v == null ? {} : {v}),
+              onChanged:
+                  (v) => notifier.setColumna(colEstado, v == null ? {} : {v}),
             ),
             SizedBox(
               width: estrecho ? double.infinity : 275,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.date_range_outlined, size: 18),
-                label: Text(filtros.desde == null
-                    ? '$tipoFecha: todas'
-                    : '$tipoFecha\n${fecha(filtros.desde!)} – ${fecha(filtros.hasta!)}'),
+                label: Text(
+                  filtros.desde == null
+                      ? '$tipoFecha: todas'
+                      : '$tipoFecha\n${fecha(filtros.desde!)} – ${fecha(filtros.hasta!)}',
+                ),
                 onPressed: () async {
-                  final fechas = ref.read(kardexProvider).map((i) => switch (rol) {
-                    Rol.produccion => i.fechaEntrega,
-                    Rol.logistica => i.fechaRecepcion,
-                    Rol.despacho => i.fechaDespacho,
-                  }).whereType<DateTime>().toList();
+                  final fechas =
+                      ref
+                          .read(kardexProvider)
+                          .map(
+                            (i) => switch (rol) {
+                              Rol.produccion => i.fechaEntrega,
+                              Rol.logistica => i.fechaRecepcion,
+                              Rol.despacho => i.fechaDespacho,
+                            },
+                          )
+                          .whereType<DateTime>()
+                          .toList();
                   final hoy = DateTime.now();
                   var inicio = DateTime(2000);
                   var fin = DateTime(hoy.year + 5, 12, 31);
-                  for (final f in [...fechas, if (filtros.desde != null) filtros.desde!, if (filtros.hasta != null) filtros.hasta!]) {
-                    if (f.isBefore(inicio)) inicio = DateTime(f.year, f.month, f.day);
+                  for (final f in [
+                    ...fechas,
+                    if (filtros.desde != null) filtros.desde!,
+                    if (filtros.hasta != null) filtros.hasta!,
+                  ]) {
+                    if (f.isBefore(inicio)) {
+                      inicio = DateTime(f.year, f.month, f.day);
+                    }
                     if (f.isAfter(fin)) fin = DateTime(f.year, f.month, f.day);
                   }
                   final rango = await showDateRangePicker(
                     context: context,
                     firstDate: inicio,
                     lastDate: fin,
-                    initialDateRange: filtros.desde == null ? null : DateTimeRange(start: filtros.desde!, end: filtros.hasta!),
+                    initialDateRange:
+                        filtros.desde == null
+                            ? null
+                            : DateTimeRange(
+                              start: filtros.desde!,
+                              end: filtros.hasta!,
+                            ),
                     helpText: tipoFecha,
                     saveText: 'Aplicar',
                     cancelText: 'Cancelar',
@@ -142,13 +176,21 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
                     fieldStartLabelText: 'Desde',
                     fieldEndLabelText: 'Hasta',
                   );
-                  if (!mounted || rango == null || ref.read(rolProvider) != rol) return;
-                  ref.read(kardexFiltersProvider.notifier).setFechas(rango.start, rango.end);
+                  if (!mounted || rango == null || ref.read(rolProvider) != rol) {
+                    return;
+                  }
+                  ref
+                      .read(kardexFiltersProvider.notifier)
+                      .setFechas(rango.start, rango.end);
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: filtros.desde == null ? pal.textSecondary : pal.accent,
+                  foregroundColor:
+                      filtros.desde == null ? pal.textSecondary : pal.accent,
                   side: BorderSide(color: pal.cardBorder),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 14,
+                  ),
                 ),
               ),
             ),
@@ -168,20 +210,48 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: pal.textSecondary,
                 side: BorderSide(color: pal.cardBorder),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
           ];
 
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Wrap(spacing: 12, runSpacing: 12, children: campos),
-            if (filtros.desde != null) ...[
-              const SizedBox(height: 8),
-              Text('Filtra por la última fecha registrada. Las tarjetas muestran los saldos actuales de las filas seleccionadas.',
-                style: TextStyle(fontSize: 12, color: pal.textSecondary)),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (estrecho) ...[
+                campos[0],
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: campos[1]),
+                    const SizedBox(width: 8),
+                    Expanded(child: campos[2]),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: campos[3]),
+                    const SizedBox(width: 8),
+                    campos.last,
+                  ],
+                ),
+                if (filtros.desde != null) campos[4],
+              ] else
+                Wrap(spacing: 12, runSpacing: 12, children: campos),
+              if (filtros.desde != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Filtra por la última fecha registrada. Las tarjetas muestran los saldos actuales de las filas seleccionadas.',
+                  style: TextStyle(fontSize: 12, color: pal.textSecondary),
+                ),
+              ],
             ],
-          ]);
+          );
         },
       ),
     );
@@ -225,29 +295,37 @@ class _Desplegable extends StatelessWidget {
             isDense: true,
             value: valor,
             dropdownColor: pal.card,
-            hint: Text(etiquetaTodos,
-                style: TextStyle(fontSize: 13, color: pal.textSecondary)),
+            hint: Text(
+              etiquetaTodos,
+              style: TextStyle(fontSize: 13, color: pal.textSecondary),
+            ),
             icon: Icon(Icons.expand_more, size: 18, color: pal.textMuted),
             items: [
               if (valor != null && !opciones.contains(valor))
                 DropdownMenuItem<String?>(
                   value: valor,
                   enabled: false,
-                  child: Text('$valor (sin coincidencias)',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 13, color: pal.textSecondary)),
+                  child: Text(
+                    '$valor (sin coincidencias)',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: pal.textSecondary),
+                  ),
                 ),
               DropdownMenuItem<String?>(
                 value: null,
-                child: Text(etiquetaTodos,
-                    style: TextStyle(fontSize: 13, color: pal.textPrimary)),
+                child: Text(
+                  etiquetaTodos,
+                  style: TextStyle(fontSize: 13, color: pal.textPrimary),
+                ),
               ),
               for (final o in opciones)
                 DropdownMenuItem<String?>(
                   value: o,
-                  child: Text(o,
-                      style: TextStyle(fontSize: 13, color: pal.textPrimary),
-                      overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    o,
+                    style: TextStyle(fontSize: 13, color: pal.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
             ],
             onChanged: onChanged,

@@ -139,24 +139,27 @@ class _PanelMarca extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: compacto ? 96 : 220,
-                height: compacto ? 96 : 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1),
-                ),
-                child: Center(
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/images/logo_orbiloq.png',
-                      width: compacto ? 84 : 190,
-                      height: compacto ? 84 : 190,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stack) => Icon(
-                        Icons.inventory_2_outlined,
-                        size: 90,
-                        color: tealBright,
+              Semantics(
+                label: 'ORBILOQ by Quiromar',
+                image: true,
+                child: ExcludeSemantics(
+                  child: Container(
+                    width: compacto ? 96 : 280,
+                    height: compacto ? 96 : 280,
+                    padding: EdgeInsets.all(compacto ? 6 : 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                    ),
+                    child: Center(
+                      child: Theme(
+                        data: Theme.of(context).copyWith(brightness: Brightness.light),
+                        child: WmsLoader(
+                          key: const ValueKey('login-logo-animado'),
+                          mode: OrbiloqLoaderMode.orbit,
+                          width: compacto ? 84 : 252,
+                        ),
                       ),
                     ),
                   ),
@@ -302,7 +305,7 @@ class _PanelFormulario extends StatelessWidget {
                 ),
                 child: cargando
                     ? const SizedBox(
-                        width: 18, height: 18, child: WmsLoader(strokeWidth: 2, color: Colors.white))
+                        width: 48, height: 30, child: WmsLoader(strokeWidth: 2, color: Colors.white))
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

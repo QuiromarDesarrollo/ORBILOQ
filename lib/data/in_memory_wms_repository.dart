@@ -1117,10 +1117,11 @@ class InMemoryWmsRepository implements WmsRepository {
         'Debes indicar quién de Producción entregó esta prenda.',
       );
     }
-    final producido = _snapshot().kardexPorId(itemId)?.producido ?? 0;
-    if (cantidad > producido) {
+    final kardex = _snapshot().kardexPorId(itemId)!;
+    final disponible = kardex.disponibleParaDespacho;
+    if (cantidad > disponible) {
       return Err<void>(
-        'LÍMITE EXCEDIDO: solo hay $producido Uds entregadas por Producción para este producto.',
+        'LÍMITE EXCEDIDO: solo hay $disponible Uds disponibles sin reservar en Bodega para este producto.',
       );
     }
 
@@ -1138,15 +1139,23 @@ class InMemoryWmsRepository implements WmsRepository {
         recibidoDeProduccion: recibidoDeProduccion.trim(),
       ),
     );
-    _movimientos.add(
-      Movimiento(
-        tipo: TipoMovimiento.devolucionProduccion,
-        itemId: item.id,
-        cantidad: cantidad,
-        fecha: fecha,
-        nota: '$causalId${nota.trim().isEmpty ? '' : ' - ${nota.trim()}'}',
-      ),
-    );
+    var restante = cantidad;
+    for (final ubicacion in kardex.ubicaciones.keys) {
+      final libre = kardex.disponibleEn(ubicacion);
+      if (libre <= 0 || restante == 0) continue;
+      final retirar = libre < restante ? libre : restante;
+      _movimientos.add(
+        Movimiento(
+          tipo: TipoMovimiento.devolucionProduccion,
+          itemId: item.id,
+          cantidad: retirar,
+          ubicacion: ubicacion,
+          fecha: fecha,
+          nota: '$causalId${nota.trim().isEmpty ? '' : ' - ${nota.trim()}'}',
+        ),
+      );
+      restante -= retirar;
+    }
     _emitir();
     return const Ok<void>(null);
   }

@@ -41,7 +41,7 @@ class _PuertaDeEntrada extends ConsumerWidget {
     return sesion.when(
       loading: () => Scaffold(
         backgroundColor: pal.bg,
-        body: Center(child: WmsLoader(color: pal.accent)),
+        body: WmsLoadingPanel(),
       ),
       error: (e, _) => LoginPage(errorInicial: 'Error verificando la sesión: $e'),
       data: (usuario) => usuario == null ? const LoginPage() : usuario.rolCuenta == RolCuenta.gerencia ? const DashboardCatalogoPage() : const KardexPage(),

@@ -5,13 +5,14 @@ import 'package:orbiloq_wms/shared/widgets/feedback_banner.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_camera_scanner.dart';
 
 void main() {
+ for(final produccion in [false, true]) {
   testWidgets(
       'Mantiene cámara abierta, evita duplicados y permite repetir explícitamente',
       (tester) async {
     late ValueChanged<List<String>> detectar;
     final leidos = <String>[];
     await tester.pumpWidget(MaterialApp(
-        home: WmsCameraScanner(
+        home: WmsCameraScanner(produccion: produccion,
       onRead: (v) {
         leidos.add(v);
         return FeedbackMessage.ok('Tarjeta $v actualizada');
@@ -31,9 +32,9 @@ void main() {
     await tester.pump();
     expect(leidos, ['OP1', 'OP2']);
     expect(find.text('Tarjeta OP2 actualizada'), findsOneWidget);
-    expect(find.text('2 lectura(s) aceptada(s)'), findsOneWidget);
+    expect(find.text(produccion ? '2 leídas' : '2 lectura(s) aceptada(s)'), findsOneWidget);
     expect(find.byType(WmsCameraScanner), findsOneWidget);
-    await tester.tap(find.text('Releer mismo código'));
+    await tester.tap(find.text(produccion ? 'Releer' : 'Releer mismo código'));
     await tester.pump();
     detectar(['OP2']);
     await tester.pump();
@@ -56,7 +57,7 @@ void main() {
     final espera = Completer<FeedbackMessage>();
     var llamadas = 0;
     await tester.pumpWidget(MaterialApp(
-        home: WmsCameraScanner(
+        home: WmsCameraScanner(produccion: produccion,
       onRead: (_) {
         llamadas++;
         return espera.future;
@@ -73,11 +74,11 @@ void main() {
     detectar(['b']);
     await tester.pump();
     expect(llamadas, 1);
-    expect(find.text('Actualizando tarjeta…'), findsOneWidget);
+    expect(find.text(produccion ? 'Actualizando lote…' : 'Actualizando tarjeta…'), findsOneWidget);
     espera.complete(const FeedbackMessage.error('Límite alcanzado'));
     await tester.pump();
     expect(find.text('Límite alcanzado'), findsOneWidget);
-    expect(find.text('0 lectura(s) aceptada(s)'), findsOneWidget);
+    expect(find.text(produccion ? '0 leídas' : '0 lectura(s) aceptada(s)'), findsOneWidget);
   });
 
   for (final size in [
@@ -99,7 +100,7 @@ void main() {
                     body: TextButton(
                         onPressed: () => showDialog<void>(
                             context: context,
-                            builder: (_) => WmsCameraScanner(
+                            builder: (_) => WmsCameraScanner(produccion: produccion,
                                   onRead: (_) {
                                     lecturas++;
                                     return const FeedbackMessage.ok(
@@ -117,10 +118,12 @@ void main() {
       detectar(['etiqueta']);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Ver tarjetas'));
+      await tester.tap(find.text(produccion ? 'Revisar lote · 1 lecturas  →' : 'Ver tarjetas'));
       await tester.pumpAndSettle();
       expect(find.byType(WmsCameraScanner), findsNothing);
       expect(lecturas, 1);
     });
   }
+}
+
 }

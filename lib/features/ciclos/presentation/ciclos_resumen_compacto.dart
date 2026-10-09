@@ -100,15 +100,10 @@ class _ResumenState extends State<CiclosResumenCompacto> {
         unidad: '%',
         porcentaje: true,
       ),
-      'Ciclo total por mes': DatosGrafica(
-        labels,
-        [
-          for (final m in mensual)
-            percentil(m.completas.map(m.duracionTotal), _p80 ? .8 : .5),
-        ],
-        metas: List.filled(labels.length, i.objetivoActual?.toDouble()),
-        unidad: 'días hábiles',
-      ),
+      'Ciclo total por mes': DatosGrafica(labels, [
+        for (final m in mensual)
+          percentil(m.completas.map(m.duracionTotal), _p80 ? .8 : .5),
+      ], unidad: 'días hábiles'),
       'Cumplimiento por mes': DatosGrafica(
         labels,
         [for (final m in mensual) m.cumplimientoTotal],
@@ -269,7 +264,7 @@ class _ResumenState extends State<CiclosResumenCompacto> {
       ),
       _card(
         'Ciclo total por mes',
-        'P50 y P80 en días hábiles de OP con trazabilidad completa. El marcador es la promesa total actual. Los controles permiten recorrer todos los meses.',
+        'P50 y P80 en días hábiles de OP con trazabilidad completa. Los controles permiten recorrer todos los meses.',
         Column(
           children: [
             _controlMeses(meses.length, offset),
@@ -388,13 +383,199 @@ class _ResumenState extends State<CiclosResumenCompacto> {
       builder: (context, c) {
         final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
         final ancho = c.maxWidth >= 1100 && escala <= 1.2;
-        Widget columna(int arriba, int abajo) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            tarjetas[arriba],
-            const SizedBox(height: 12),
-            tarjetas[abajo],
-          ],
+        final ruta = Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color:
+                CiclosColores.oscuro(context)
+                    ? CiclosColores.panel
+                    : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: .25),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Ruta de una OP por proceso',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Duración de cada proceso y cumplimiento de su objetivo',
+                style: TextStyle(fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _selector('P50', !_p80, () => setState(() => _p80 = false)),
+                  _selector('P80', _p80, () => setState(() => _p80 = true)),
+                  _selector(
+                    'Histórico',
+                    !_actual,
+                    () => setState(() => _actual = false),
+                  ),
+                  _selector(
+                    'Actual',
+                    _actual,
+                    () => setState(() => _actual = true),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (duraciones.any((v) => v != null && v > 0))
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    height: 32,
+                    child: Row(
+                      children: [
+                        for (var n = 0; n < 7; n++)
+                          if ((duraciones[n] ?? 0) > 0)
+                            Expanded(
+                              flex: math.max(
+                                1,
+                                ((duraciones[n] ?? 0) * 100).round(),
+                              ),
+                              child: Tooltip(
+                                message:
+                                    '${ProcesoCiclo.values[n].titulo}: ${duraciones[n]!.toStringAsFixed(1)} días',
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  color:
+                                      CiclosColores.paleta(context)[n %
+                                          CiclosColores.paleta(context).length],
+                                  child: FittedBox(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(3),
+                                      child: Text(
+                                        duraciones[n]!.toStringAsFixed(1),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 6),
+              Text(
+                'Suma de procesos: ${duraciones.whereType<double>().fold<double>(0, (a, b) => a + b).toStringAsFixed(1)} días · ${_p80 ? 'P80' : 'P50'}. No equivale al percentil del ciclo total.',
+                style: const TextStyle(fontSize: 10),
+              ),
+              const SizedBox(height: 12),
+              for (var n = 0; n < 7; n++)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        ProcesoCiclo.values[n].titulo,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      LayoutBuilder(
+                        builder: (context, r) {
+                          final cumplimiento = i.cumplimientoProceso(
+                            ProcesoCiclo.values[n],
+                            compararActual: _actual,
+                          );
+                          Widget indicador(
+                            double? valor,
+                            double maximo,
+                            Color color,
+                            String texto,
+                          ) => Row(
+                            children: [
+                              Expanded(
+                                child: LinearProgressIndicator(
+                                  value:
+                                      valor == null
+                                          ? 0
+                                          : (valor / maximo).clamp(0, 1),
+                                  color: color,
+                                  backgroundColor: Theme.of(
+                                    context,
+                                  ).dividerColor.withValues(alpha: .12),
+                                  minHeight: 6,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              SizedBox(
+                                width: 52,
+                                child: Text(
+                                  texto,
+                                  style: const TextStyle(fontSize: 10),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ),
+                            ],
+                          );
+                          final tiempo = indicador(
+                            duraciones[n],
+                            duraciones.whereType<double>().fold<double>(
+                              1,
+                              math.max,
+                            ),
+                            CiclosColores.paleta(context)[0],
+                            duraciones[n] == null
+                                ? '—'
+                                : '${duraciones[n]!.toStringAsFixed(1)} d',
+                          );
+                          final cumple = indicador(
+                            cumplimiento,
+                            100,
+                            cumplimiento == null
+                                ? Colors.grey
+                                : cumplimiento >= 85
+                                ? CiclosColores.bien(context)
+                                : cumplimiento >= 75
+                                ? CiclosColores.alerta(context)
+                                : CiclosColores.error(context),
+                            cumplimiento == null
+                                ? '—'
+                                : '${cumplimiento.toStringAsFixed(1)} %',
+                          );
+                          return r.maxWidth < 400
+                              ? Column(
+                                children: [
+                                  tiempo,
+                                  const SizedBox(height: 5),
+                                  cumple,
+                                ],
+                              )
+                              : Row(
+                                children: [
+                                  Expanded(child: tiempo),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: cumple),
+                                ],
+                              );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              const Text(
+                'Cumplimiento: referencia 85 % · — sin datos evaluables',
+                style: TextStyle(fontSize: 10),
+              ),
+            ],
+          ),
         );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -403,24 +584,33 @@ class _ResumenState extends State<CiclosResumenCompacto> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 4, child: columna(0, 2)),
+                  Expanded(flex: 7, child: ruta),
                   const SizedBox(width: 12),
-                  Expanded(flex: 3, child: columna(3, 4)),
-                  const SizedBox(width: 12),
-                  Expanded(flex: 3, child: columna(1, 5)),
+                  Expanded(flex: 3, child: tarjetas[1]),
                 ],
               )
             else ...[
+              ruta,
+              const SizedBox(height: 12),
               tarjetas[1],
-              const SizedBox(height: 12),
-              tarjetas[0],
-              const SizedBox(height: 12),
-              for (final n in [3, 4, 2, 5])
+            ],
+            const SizedBox(height: 12),
+            if (ancho)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final n in [3, 4, 5]) ...[
+                    if (n != 3) const SizedBox(width: 12),
+                    Expanded(child: tarjetas[n]),
+                  ],
+                ],
+              )
+            else
+              for (final n in [3, 4, 5])
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: tarjetas[n],
                 ),
-            ],
           ],
         );
       },
@@ -533,7 +723,7 @@ class _ResumenState extends State<CiclosResumenCompacto> {
                   title == 'Duración por proceso'
                       ? TipoGrafica.columnas
                       : title == 'Ciclo total por mes'
-                      ? TipoGrafica.area
+                      ? TipoGrafica.columnas
                       : title == 'Cumplimiento por mes'
                       ? TipoGrafica.lineas
                       : null,

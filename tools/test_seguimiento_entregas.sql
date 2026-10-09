@@ -1,0 +1,64 @@
+BEGIN;
+DO $$ BEGIN IF current_database()<>'ensayo' THEN RAISE EXCEPTION 'Solo ensayo'; END IF; END $$;
+-- Prueba el flujo real con Seguimiento, sin privilegios de administrador.
+UPDATE public.usuarios SET rol='seguimiento' WHERE auth_id='00000000-0000-0000-0000-000000000001';
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',true);
+SET LOCAL ROLE authenticated;
+DO $$ DECLARE d jsonb; doc jsonb; id uuid; destino uuid; v integer; rechazado boolean; ruta text; datos jsonb; ctx jsonb; BEGIN
+ IF jsonb_array_length(public.seguimiento_entregas_listar())<>0 THEN RAISE EXCEPTION 'Empacado aparece como liberado'; END IF;
+ d:=public.historial_despachos_empaques()->0;
+ id:=(d->>'despacho_oc_id')::uuid;
+ destino:=(public.le_documento('destino-test')->>'destinatario_id')::uuid;
+ doc:=public.seguimiento_confirmar(id,1,destino);
+ d:=public.seguimiento_entregas_listar()->0;
+ IF d->>'le'<>'2971' OR d->>'cajas'<>'1' OR d->>'empaques'<>'0' THEN RAISE EXCEPTION 'Conteo de piezas incorrecto %',d; END IF;
+ IF jsonb_array_length(public.seguimiento_entregas_listar(2971))<>0 THEN RAISE EXCEPTION 'Cursor incorrecto'; END IF;
+ ruta:=id::text||'/1/evidencia_le/prueba.pdf';
+ INSERT INTO storage.objects(bucket_id,name) VALUES('seguimiento-evidencias',ruta);
+ datos:=jsonb_build_object('transportadora','QUIROMAR','placa_guia','ABC123','recibido',(now() AT TIME ZONE 'America/Bogota')::date,'observaciones','Recibido completo','evidencia_le',jsonb_build_object('path',ruta,'nombre','LE firmada.pdf'));
+ v:=public.seguimiento_entregas_guardar(id,1,0,datos);
+ IF v<>1 OR public.seguimiento_entregas_listar()->0->>'transportadora'<>'QUIROMAR' THEN RAISE EXCEPTION 'No guardo seguimiento'; END IF;
+ rechazado:=false;
+ BEGIN PERFORM public.seguimiento_entregas_guardar(id,1,0,datos); EXCEPTION WHEN raise_exception THEN rechazado:=true; END;
+ IF NOT rechazado THEN RAISE EXCEPTION 'Acepto escritura obsoleta'; END IF;
+ rechazado:=false;
+ BEGIN PERFORM public.seguimiento_entregas_guardar(id,1,1,jsonb_set(datos,'{recibido}','"2000-01-01"')); EXCEPTION WHEN raise_exception THEN rechazado:=true; END;
+ IF NOT rechazado THEN RAISE EXCEPTION 'Acepto recibido anterior'; END IF;
+ rechazado:=false;
+ BEGIN PERFORM public.seguimiento_entregas_guardar(id,1,1,jsonb_set(datos,'{evidencia_le,path}',to_jsonb(id::text||'/1/evidencia_le/inexistente.pdf'))); EXCEPTION WHEN raise_exception THEN rechazado:=true; END;
+ IF NOT rechazado THEN RAISE EXCEPTION 'Acepto evidencia inexistente'; END IF;
+ UPDATE storage.objects SET name='alterado' WHERE name=ruta;
+ IF NOT EXISTS(SELECT 1 FROM storage.objects WHERE name=ruta) THEN RAISE EXCEPTION 'Alteró evidencia'; END IF;
+ DELETE FROM storage.objects WHERE name=ruta;
+ IF NOT EXISTS(SELECT 1 FROM storage.objects WHERE name=ruta) THEN RAISE EXCEPTION 'Borro evidencia'; END IF;
+ v:=public.seguimiento_entregas_guardar(id,1,1,datos||'{"estado":"devuelto_cliente"}');
+ IF public.seguimiento_entregas_listar()->0->>'estado'<>'devuelto_cliente' THEN RAISE EXCEPTION 'No guardo estado devuelto'; END IF;
+ IF (SELECT sum(cantidad) FROM public.movimientos WHERE tipo='despacho')<>6 THEN RAISE EXCEPTION 'Estado altero inventario'; END IF;
+ rechazado:=false;
+ BEGIN PERFORM public.seguimiento_entregas_guardar(id,1,v,datos||'{"estado":"inventado"}'); EXCEPTION WHEN check_violation THEN rechazado:=true; END;
+ IF NOT rechazado THEN RAISE EXCEPTION 'Acepto estado no permitido'; END IF;
+ v:=public.seguimiento_entregas_guardar(id,1,v,datos||'{"estado":"en_transito"}');
+ IF public.seguimiento_entregas_listar()->0->>'estado'<>'en_transito' THEN RAISE EXCEPTION 'No guardo transito'; END IF;
+ v:=public.seguimiento_entregas_guardar(id,1,v,datos||'{"estado":"entregado"}');
+ IF public.seguimiento_entregas_listar()->0->>'estado'<>'entregado' THEN RAISE EXCEPTION 'No guardo entregado'; END IF;
+ v:=public.seguimiento_entregas_guardar(id,1,v,datos||'{"estado":"devolucion_parcial","evidencia_le":null,"evidencia_guia":null}');
+ IF public.seguimiento_entregas_listar()->0->>'estado'<>'devolucion_parcial' THEN RAISE EXCEPTION 'No guardo devolucion parcial'; END IF;
+ IF public.seguimiento_entregas_listar()->0->'evidencia_le'<>'null'::jsonb THEN RAISE EXCEPTION 'No quito evidencia'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM storage.objects WHERE name=ruta) THEN RAISE EXCEPTION 'Elimino archivo historico'; END IF;
+ ctx:=public.despacho_para_corregir(id);
+ d:=public.destinatarios_para_empaque()->1;
+ PERFORM public.guardar_empaque_destinatario('correccion-transporte','TEST','TEST-OC',
+ '[{"item_id":"0701856a-7771-4536-9762-658a58af8803","ubicacion":"TEST-A","cantidad":6}]',
+ (SELECT jsonb_agg(e||jsonb_build_object('item_id',e->>'item_id','empaque_id',e->>'id','version',(SELECT c->>'version' FROM jsonb_array_elements(public.empaques_listar(false)) c WHERE c->>'id'=e->>'id'))) FROM jsonb_array_elements(ctx->'empaques') e),
+ (d->>'id')::uuid,d->>'version',id,ctx->>'version','Correccion transporte');
+ IF jsonb_array_length(public.seguimiento_entregas_listar())<>0 THEN RAISE EXCEPTION 'Sigue liberado durante correccion'; END IF;
+ PERFORM public.seguimiento_confirmar(id,2,(d->>'id')::uuid);
+ IF public.seguimiento_entregas_listar()->0->>'version'<>'0' THEN RAISE EXCEPTION 'Mezclo seguimiento de revisiones'; END IF;
+ PERFORM set_config('request.jwt.claim.sub','',true);
+ rechazado:=false;
+ BEGIN PERFORM public.seguimiento_entregas_listar(); EXCEPTION WHEN insufficient_privilege THEN rechazado:=true; END;
+ IF NOT rechazado THEN RAISE EXCEPTION 'Acceso sin cuenta'; END IF;
+END $$;
+RESET ROLE;
+UPDATE public.usuarios SET rol='admin' WHERE auth_id='00000000-0000-0000-0000-000000000001';
+COMMIT;

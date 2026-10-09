@@ -1,3 +1,5 @@
+import 'dart:convert';
+import '../shared/tema_guardado.dart';
 import '../data/despachos_oc_repository.dart';
 import '../data/reportes_admin_repository.dart';
 import '../data/catalogos_repository.dart';
@@ -87,15 +89,54 @@ final sobrantesProvider = FutureProvider<List<SobranteBodega>>(
 
 // ------------------------------------------------------------------ tema
 
-/// Modo de color de la pantalla del Kardex (oscuro/claro). Solo cambia el
-/// estilo visual, no afecta ninguna funcionalidad. Arranca en oscuro, el
-/// tema de siempre.
+/// Cada sesión comienza con la identidad corporativa Quiromar. El usuario
+/// puede cambiar de apariencia durante esa sesión.
 class TemaNotifier extends Notifier<TemaModo> {
+  String? _usuario;
+
   @override
-  TemaModo build() => TemaModo.oscuro;
+  TemaModo build() {
+    var inicial = TemaModo.corporativo;
+    try {
+      final guardado = jsonDecode(leerTemaGuardado() ?? '{}') as Map;
+      _usuario = guardado['usuario'] as String?;
+      inicial = TemaModo.values.byName(guardado['modo'] as String);
+    } catch (_) {
+      // Primera visita o preferencia inválida: usar la identidad corporativa.
+    }
+    if (ref.watch(usarSupabaseProvider)) {
+      final authActual = ref.read(authStateProvider);
+      if (authActual.hasValue && !authActual.isLoading) {
+        final usuario = authActual.value?.session?.user.id;
+        if (usuario != _usuario) {
+          _usuario = usuario;
+          inicial = TemaModo.corporativo;
+          escribirTemaGuardado(
+            jsonEncode({'usuario': _usuario, 'modo': inicial.name}),
+          );
+        }
+      }
+      ref.listen(authStateProvider, (_, siguiente) {
+        if (!siguiente.hasValue || siguiente.isLoading) return;
+        final usuario = siguiente.value?.session?.user.id;
+        // Una sesión restaurada o un token renovado conserva la apariencia.
+        // Cerrar sesión o entrar con otra cuenta inicia de nuevo en corporativo.
+        if (usuario != _usuario) {
+          _usuario = usuario;
+          seleccionar(TemaModo.corporativo);
+        }
+      });
+    }
+    return inicial;
+  }
 
   void alternar() =>
-      state = state == TemaModo.oscuro ? TemaModo.claro : TemaModo.oscuro;
+      seleccionar(TemaModo.values[(state.index + 1) % TemaModo.values.length]);
+
+  void seleccionar(TemaModo modo) {
+    state = modo;
+    escribirTemaGuardado(jsonEncode({'usuario': _usuario, 'modo': modo.name}));
+  }
 }
 
 final temaProvider = NotifierProvider<TemaNotifier, TemaModo>(TemaNotifier.new);

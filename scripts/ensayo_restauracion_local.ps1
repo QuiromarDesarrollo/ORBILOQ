@@ -1,7 +1,13 @@
-param([string]$DiagnosticoSql = '')
+param(
+ [Parameter(Mandatory=$true)][string]$Backup,
+ [string]$DiagnosticoSql = ''
+)
 $ErrorActionPreference = 'Stop'
 $bin = 'C:\Users\analistadatos\Downloads\postgresql-17.11-5-windows-x64-binaries\pgsql\bin'
-$backup = 'C:\Users\analistadatos\Downloads\ORBILOQ-respaldos\produccion-20261002-164922-b4e74515'
+$backup = (Resolve-Path -LiteralPath $Backup).Path
+foreach ($name in @('produccion.dump','roles.sql')) {
+ if (!(Test-Path -LiteralPath (Join-Path $backup $name))) { throw "Falta $name en el respaldo seleccionado" }
+}
 $dest = Join-Path 'D:\' ('ORBILOQ-restauracion-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 $null = New-Item -ItemType Directory -Path $dest
 # Restrict the local copy (including Auth data) to this Windows account.

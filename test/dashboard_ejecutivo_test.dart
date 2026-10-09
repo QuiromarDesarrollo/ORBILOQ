@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/features/admin/presentation/dashboard_volumen_barras.dart';
 import 'package:orbiloq_wms/application/dashboard_periodo.dart';
 import 'package:orbiloq_wms/features/admin/presentation/dashboard_calendario.dart';
 import 'package:orbiloq_wms/application/dashboard_snapshot.dart';
@@ -14,6 +15,9 @@ import 'package:orbiloq_wms/domain/sesion.dart';
 import 'package:orbiloq_wms/features/admin/presentation/dashboard_ejecutivo_page.dart';
 
 class ReportesDashboardPrueba implements ReportesAdminRepository {
+  @override
+  Future<List<FilaReporte>> trazabilidadOp() async => [];
+
   int llamadas = 0;
   @override
   Future<FilaReporte> resumen() async {
@@ -174,16 +178,20 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
-          expect(find.byType(GraficaVolumenSemanal), findsOneWidget);
+          expect(find.byType(DashboardVolumenBarras), findsOneWidget);
           expect(tester.takeException(), isNull);
-          tester.widget<DashboardCalendario>(find.byType(DashboardCalendario)).onChanged(PeriodoDashboard(DateTime(2026, 9, 28), DateTime(2026, 10, 2)));
+          tester
+              .widget<DashboardCalendario>(find.byType(DashboardCalendario))
+              .onChanged(
+                PeriodoDashboard(DateTime(2026, 9, 28), DateTime(2026, 10, 2)),
+              );
           await tester.pumpAndSettle();
           expect(
             tester
-                .widget<GraficaVolumenSemanal>(
-                  find.byType(GraficaVolumenSemanal),
+                .widget<DashboardVolumenBarras>(
+                  find.byType(DashboardVolumenBarras),
                 )
-                .semanas,
+                .datos,
             hasLength(5),
           );
           expect(repo.llamadas, 4);
@@ -218,6 +226,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(repo.llamadas, 0);
-    expect(find.text('Acceso exclusivo de Administración y Gerencia.'), findsOneWidget);
+    expect(
+      find.text('Acceso exclusivo de Administración y Gerencia.'),
+      findsOneWidget,
+    );
   });
 }

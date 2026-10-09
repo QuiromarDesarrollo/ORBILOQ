@@ -61,7 +61,7 @@ class SupabaseWmsRepository implements WmsRepository {
         'admin_eliminar_linea',
         params: {'p_item_id': itemId, 'p_version': version, 'p_motivo': motivo},
       );
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       return const Ok(null);
     } on PostgrestException catch (e) {
       return Err(e.message);
@@ -95,7 +95,7 @@ class SupabaseWmsRepository implements WmsRepository {
             : 'admin_editar_recepciones',
         params: cambio.parametros(confirmar),
       );
-      if (confirmar) await refrescar();
+      if (confirmar) await _refrescarEnSegundoPlano();
       return Ok(Map<String, dynamic>.from(data as Map));
     } on PostgrestException catch (e) {
       return Err(e.message);
@@ -114,40 +114,40 @@ class SupabaseWmsRepository implements WmsRepository {
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'items_orden',
-              callback: (_) => refrescar(),
+              callback: (_) => _refrescarEnSegundoPlano(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'ordenes_produccion',
-              callback: (_) => refrescar(),
+              callback: (_) => _refrescarEnSegundoPlano(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'movimientos',
-              callback: (_) => refrescar(),
+              callback: (_) => _refrescarEnSegundoPlano(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'lotes',
-              callback: (_) => refrescar(),
+              callback: (_) => _refrescarEnSegundoPlano(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'lote_items',
-              callback: (_) => refrescar(),
+              callback: (_) => _refrescarEnSegundoPlano(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'reservas_despacho',
-              callback: (_) => refrescar(),
+              callback: (_) => _refrescarEnSegundoPlano(),
             )
             .subscribe();
-    refrescar();
+    _refrescarEnSegundoPlano();
   }
 
   final SupabaseClient _client;
@@ -173,6 +173,17 @@ class SupabaseWmsRepository implements WmsRepository {
       if (!_controller.isClosed) _controller.add(snapshot);
     } catch (e) {
       if (!_controller.isClosed) _controller.addError(e);
+      rethrow;
+    }
+  }
+
+  // Una operación ya guardada no debe parecer fallida por su recarga posterior.
+  // El stream informa del fallo; el refresco manual sí propaga la excepción.
+  Future<void> _refrescarEnSegundoPlano() async {
+    try {
+      await refrescar();
+    } catch (_) {
+      // Ya notificado por watch().
     }
   }
 
@@ -414,7 +425,7 @@ class SupabaseWmsRepository implements WmsRepository {
         },
       );
       final numero = (res as Map)['numero'] as String;
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       final lote = _buscarLotePorNumero(numero);
       if (lote == null) {
         return Err<Lote>(
@@ -452,7 +463,7 @@ class SupabaseWmsRepository implements WmsRepository {
           'p_recibido_por': recibidoPor,
         },
       );
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       for (final lote in _ultimo?.lotes ?? const <Lote>[]) {
         for (final linea in lote.lineas) {
           if (linea.id == loteLineaId) return Ok<LoteLinea>(linea);
@@ -478,7 +489,7 @@ class SupabaseWmsRepository implements WmsRepository {
         'cerrar_lote_item_con_faltante',
         params: {'p_lote_item_id': loteLineaId, 'p_nota': nota},
       );
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);
@@ -585,7 +596,7 @@ class SupabaseWmsRepository implements WmsRepository {
           'p_ubicacion_id': ubicacionId,
         },
       );
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);
@@ -715,7 +726,7 @@ class SupabaseWmsRepository implements WmsRepository {
           'p_nota': nota,
         },
       );
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);
@@ -743,7 +754,7 @@ class SupabaseWmsRepository implements WmsRepository {
           'p_nota': nota,
         },
       );
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);
@@ -846,7 +857,7 @@ class SupabaseWmsRepository implements WmsRepository {
           'p_recibido_de_produccion': recibidoDeProduccion,
         },
       );
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);
@@ -874,7 +885,7 @@ class SupabaseWmsRepository implements WmsRepository {
           'p_recibido_por_logistica': recibidoPorLogistica,
         },
       );
-      await refrescar();
+      await _refrescarEnSegundoPlano();
       return const Ok<void>(null);
     } on PostgrestException catch (e) {
       return Err<void>(e.message);

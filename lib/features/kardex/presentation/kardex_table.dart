@@ -154,17 +154,43 @@ class _KardexTableState extends ConsumerState<KardexTable> {
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(builder: _buildTable);
-
-  Widget _buildTable(BuildContext context, BoxConstraints constraints) {
+  Widget build(BuildContext context) {
+    // Subscribe during build, never from a layout callback: provider updates
+    // must not schedule another layout while mobile cards are being measured.
     final filas = ref.watch(kardexPaginaActualProvider);
     final total = ref.watch(kardexFiltradoProvider).length;
     final pagina = ref.watch(kardexPaginaProvider);
     final rol = ref.watch(rolProvider);
-    final esProduccion = rol == Rol.produccion;
     final esAdmin =
         !ref.watch(usarSupabaseProvider) ||
         ref.watch(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
+    final extraer = ref.watch(extractoresColumnaProvider);
+    return LayoutBuilder(
+      builder:
+          (context, constraints) => _buildTable(
+            context,
+            constraints,
+            filas,
+            total,
+            pagina,
+            rol,
+            esAdmin,
+            extraer,
+          ),
+    );
+  }
+
+  Widget _buildTable(
+    BuildContext context,
+    BoxConstraints constraints,
+    List<ItemKardex> filas,
+    int total,
+    int pagina,
+    Rol rol,
+    bool esAdmin,
+    Map<String, String Function(ItemKardex)> extraer,
+  ) {
+    final esProduccion = rol == Rol.produccion;
     final anchosCompletos = [
       ...(esProduccion ? _kAnchosProduccion : _kAnchosBodega),
       if (esAdmin) 112.0,
@@ -196,9 +222,16 @@ class _KardexTableState extends ConsumerState<KardexTable> {
       var palabraMasAncha = 0.0;
       for (final palabra in etiquetasCompletas[i].split(RegExp(r'\s+'))) {
         final medida = TextPainter(
-          text: TextSpan(text: palabra, style: DefaultTextStyle.of(context).style.merge(const TextStyle(
-            fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .1,
-          ))),
+          text: TextSpan(
+            text: palabra,
+            style: DefaultTextStyle.of(context).style.merge(
+              const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .1,
+              ),
+            ),
+          ),
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout();
@@ -207,8 +240,13 @@ class _KardexTableState extends ConsumerState<KardexTable> {
       }
       // Padding, filtro y margen de redondeo: ninguna palabra se divide.
       minimos[i] = (palabraMasAncha.ceilToDouble() + 36).clamp(
-        i == 1 ? 220.0 : i == 2 ? 160.0 :
-        columnasCompletas[i] == null ? 112.0 : 70.0,
+        i == 1
+            ? 220.0
+            : i == 2
+            ? 160.0
+            : columnasCompletas[i] == null
+            ? 112.0
+            : 70.0,
         double.infinity,
       );
     }
@@ -218,9 +256,9 @@ class _KardexTableState extends ConsumerState<KardexTable> {
       final medidaOp = TextPainter(
         text: TextSpan(
           text: '#${fila.item.op}',
-          style: DefaultTextStyle.of(context).style.merge(const TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w700,
-          )),
+          style: DefaultTextStyle.of(context).style.merge(
+            const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
         ),
         textDirection: Directionality.of(context),
         textScaler: MediaQuery.textScalerOf(context),
@@ -231,15 +269,25 @@ class _KardexTableState extends ConsumerState<KardexTable> {
       medidaOp.dispose();
     }
     final minimoTabla = minimos.values.fold<double>(0, (s, v) => s + v);
-    final vistaCompacta = anchoDisponible < minimoTabla ||
+    final vistaCompacta =
+        anchoDisponible < minimoTabla ||
         anchoDisponible < 1100 * escalaTexto.clamp(1.0, 1.5);
     if (!vistaCompacta) {
-      final pesos = {for (final i in indices)
-        i: i == 1 ? 3.0 : i == 2 ? 2.0 :
-        columnasCompletas[i] == null ? 0.0 : anchosCompletos[i] / 120};
+      final pesos = {
+        for (final i in indices)
+          i:
+              i == 1
+                  ? 3.0
+                  : i == 2
+                  ? 2.0
+                  : columnasCompletas[i] == null
+                  ? 0.0
+                  : anchosCompletos[i] / 120,
+      };
       final pesoTotal = pesos.values.fold<double>(0, (s, v) => s + v);
       for (final i in indices) {
-        anchosCompletos[i] = minimos[i]! +
+        anchosCompletos[i] =
+            minimos[i]! +
             (anchoDisponible - minimoTabla) * pesos[i]! / pesoTotal;
       }
     }
@@ -254,7 +302,6 @@ class _KardexTableState extends ConsumerState<KardexTable> {
     if (vistaCompacta) {
       final campos = columnas.whereType<String>().toList();
       final labels = etiquetas.take(campos.length).toList();
-      final extraer = ref.watch(extractoresColumnaProvider);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -263,20 +310,49 @@ class _KardexTableState extends ConsumerState<KardexTable> {
               padding: EdgeInsets.all(24),
               child: Text('Sin resultados para los filtros aplicados.'),
             ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (var n = 0; n < labels.length; n++)
-                _EncabezadoConFiltro(
-                  columna: campos[n],
-                  etiqueta: labels[n],
-                  esOp: n == 0,
-                ),
-            ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: Text(
+              'FILTRAR POR COLUMNA',
+              style: TextStyle(
+                fontSize: 10,
+                color: pal.textSecondary,
+                letterSpacing: .4,
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Row(
+              children: [
+                for (var n = 0; n < labels.length; n++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: pal.card,
+                        border: Border.all(color: pal.cardBorder),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: _EncabezadoConFiltro(
+                        columna: campos[n],
+                        etiqueta: labels[n],
+                        esOp: n == 0,
+                        compacto: true,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           for (final item in filas)
             Card(
+              margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -284,30 +360,91 @@ class _KardexTableState extends ConsumerState<KardexTable> {
                   children: [
                     Text(
                       'OP ${item.item.op} · ${item.item.descripcion}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: pal.textPrimary,
+                      ),
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       '${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}',
+                      style: TextStyle(fontSize: 11, color: pal.textSecondary),
                     ),
-                    TextButton.icon(
-                      onPressed: () => showObservacionDialog(context, item),
-                      icon: const Icon(Icons.comment_outlined),
-                      label: const Text('Observaciones'),
+                    const SizedBox(height: 12),
+                    Text(
+                      'CLIENTE / OC',
+                      style: TextStyle(fontSize: 10, color: pal.textSecondary),
                     ),
-                    for (var n = 2; n < labels.length; n++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Text(
-                          '${labels[n]}: ${extraer[campos[n]]?.call(item) ?? ""}',
+                    Text(
+                      item.item.cliente,
+                      style: TextStyle(fontSize: 12, color: pal.textPrimary),
+                    ),
+                    const Divider(height: 20),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        for (final n in [
+                          for (var n = 3; n < labels.length; n++)
+                            if (!labels[n].contains('ESTADO') &&
+                                !labels[n].contains('CUMPLIMIENTO'))
+                              n,
+                          for (var n = 3; n < labels.length; n++)
+                            if (labels[n].contains('ESTADO') ||
+                                labels[n].contains('CUMPLIMIENTO'))
+                              n,
+                        ])
+                          SizedBox(
+                            width: ((constraints.maxWidth - 56) / 2).clamp(
+                              0.0,
+                              double.infinity,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  labels[n],
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: pal.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  extraer[campos[n]]?.call(item) ?? '',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color:
+                                        campos[n] == ColKardex.entregado
+                                            ? pal.chipGreen
+                                            : pal.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const Divider(height: 22),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed:
+                                () => showObservacionDialog(context, item),
+                            icon: const Icon(Icons.comment_outlined, size: 17),
+                            label: const Text(
+                              'Observaciones',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
                         ),
-                      ),
-                    if (esAdmin)
-                      Wrap(
-                        alignment: WrapAlignment.end,
-                        children: [
+                        if (esAdmin) ...[
+                          const SizedBox(width: 4),
                           IconButton(
                             tooltip: 'Editar fila',
-                            icon: const Icon(Icons.edit_outlined),
+                            icon: const Icon(Icons.edit_outlined, size: 18),
                             onPressed:
                                 () => showEdicionAdminDialog(
                                   context,
@@ -317,12 +454,13 @@ class _KardexTableState extends ConsumerState<KardexTable> {
                           ),
                           IconButton(
                             tooltip: 'Borrar fila',
-                            icon: const Icon(Icons.delete_outline),
+                            icon: const Icon(Icons.delete_outline, size: 18),
                             onPressed:
                                 () => showWmsEliminarLinea(context, item),
                           ),
                         ],
-                      ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -373,7 +511,10 @@ class _KardexTableState extends ConsumerState<KardexTable> {
                                     etiquetas[i],
                                     softWrap: true,
                                     style: TextStyle(
-                                      color: pal.textSecondary,
+                                      color:
+                                          esCorporativo(context)
+                                              ? Colors.white
+                                              : pal.textSecondary,
                                       fontWeight: FontWeight.w700,
                                       fontSize: 10,
                                       letterSpacing: 0.1,
@@ -437,11 +578,13 @@ class _EncabezadoConFiltro extends ConsumerWidget {
     required this.columna,
     required this.etiqueta,
     this.esOp = false,
+    this.compacto = false,
   });
 
   final String columna;
   final String etiqueta;
   final bool esOp;
+  final bool compacto;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -458,7 +601,10 @@ class _EncabezadoConFiltro extends ConsumerWidget {
             etiqueta,
             softWrap: true,
             style: TextStyle(
-              color: pal.textSecondary,
+              color:
+                  !compacto && esCorporativo(context)
+                      ? Colors.white
+                      : pal.textSecondary,
               fontWeight: FontWeight.w700,
               fontSize: 10,
               letterSpacing: 0.1,
@@ -487,7 +633,12 @@ class _EncabezadoConFiltro extends ConsumerWidget {
           child: Icon(
             Icons.filter_alt,
             size: 14,
-            color: activo ? pal.accent : pal.textMuted,
+            color:
+                !compacto && esCorporativo(context)
+                    ? (activo ? AppColors.lima : const Color(0xFFC5DFEB))
+                    : activo
+                    ? pal.accent
+                    : pal.textMuted,
           ),
         ),
       ],
@@ -870,7 +1021,11 @@ class _KardexRow extends ConsumerWidget {
         anchos,
         Text(
           '${item.producido}',
-          style: TextStyle(fontSize: 13, color: pal.accent),
+          style: TextStyle(
+            fontSize: 13,
+            color: pal.chipGreen,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         alignment: Alignment.center,
       ),
@@ -965,7 +1120,11 @@ class _KardexRow extends ConsumerWidget {
         anchos,
         Text(
           '${item.producido}',
-          style: TextStyle(fontSize: 13, color: pal.accent),
+          style: TextStyle(
+            fontSize: 13,
+            color: pal.chipGreen,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         alignment: Alignment.center,
       ),

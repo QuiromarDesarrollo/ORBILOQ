@@ -8,6 +8,7 @@ environment:
   flutter: ">=3.29.0"
 
 dependencies:
+  url_launcher: ^6.3.2
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.6.1

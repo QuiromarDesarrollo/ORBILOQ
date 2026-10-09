@@ -13,7 +13,8 @@ import '../../../shared/widgets/wms_loader.dart';
 
 final dashboardRecepcionProvider =
     FutureProvider.autoDispose<List<FilaReporte>>((ref) async {
-      if (!(ref.watch(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false)) {
+      if (!(ref.watch(dashboardAccesoProvider).$2?.puedeVerDashboards ??
+          false)) {
         throw StateError('Acceso exclusivo de Administración y Gerencia.');
       }
       final repo = ref.watch(reportesAdminProvider);

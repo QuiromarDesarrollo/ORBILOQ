@@ -1,3 +1,4 @@
+import '../../../shared/widgets/selector_tema.dart';
 import '../../../application/dashboard_periodo.dart';
 import 'dashboard_calendario.dart';
 import 'dart:async';
@@ -61,7 +62,8 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
   Timer? _temporizador;
 
   void _actualizar() {
-    if (!mounted || !(ref.read(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false)) {
+    if (!mounted ||
+        !(ref.read(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false)) {
       return;
     }
     if (ref.read(dashboardEjecutivoProvider).isLoading ||
@@ -97,11 +99,15 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
   @override
   Widget build(BuildContext context) {
     final pal = palOf(context);
-    final esAdmin = (ref.watch(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false);
+    final compacto = MediaQuery.sizeOf(context).width < 700;
+    final esAdmin =
+        (ref.watch(dashboardAccesoProvider).$2?.puedeVerDashboards ?? false);
     if (!esAdmin) {
       return const Scaffold(
         body: SafeArea(
-          child: Center(child: Text('Acceso exclusivo de Administración y Gerencia.')),
+          child: Center(
+            child: Text('Acceso exclusivo de Administración y Gerencia.'),
+          ),
         ),
       );
     }
@@ -117,8 +123,29 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
     return Scaffold(
       backgroundColor: pal.bg,
       appBar: AppBar(
-        title: const Text('Dashboard ejecutivo'),
+        backgroundColor: palNavegacion(context).header,
+        foregroundColor: palNavegacion(context).textPrimary,
+        title: const Text(
+          'Dashboard ejecutivo',
+          style: TextStyle(fontSize: 16),
+        ),
         actions: [
+          if (!compacto) ...[
+            const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('Tiempo real', style: TextStyle(fontSize: 11)),
+                Text('Cada 5 minutos', style: TextStyle(fontSize: 9)),
+              ],
+            ),
+            Switch(value: _tiempoReal, onChanged: _cambiarTiempoReal),
+            FilledButton.icon(
+              onPressed: actualizando ? null : _actualizar,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: Text(actualizando ? 'Actualizando…' : 'Actualizar'),
+            ),
+          ],
           IconButton(
             tooltip: _detalle ? 'Vista compacta' : 'Vista detallada',
             onPressed: () => setState(() => _detalle = !_detalle),
@@ -126,66 +153,64 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
               _detalle ? Icons.dashboard_outlined : Icons.view_agenda_outlined,
             ),
           ),
-          IconButton(
-            tooltip: 'Cambiar tema',
-            onPressed: () => ref.read(temaProvider.notifier).alternar(),
-            icon: Icon(
-              Theme.of(context).brightness == Brightness.dark
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
-            ),
-          ),
+          const SelectorTema(),
           const SizedBox(width: 12),
         ],
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(
-            MediaQuery.sizeOf(context).width < 480 ? 94 : 50,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 2,
-                alignment: WrapAlignment.end,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+        bottom:
+            compacto
+                ? PreferredSize(
+                  preferredSize: Size.fromHeight(
+                    MediaQuery.sizeOf(context).width < 480 ? 94 : 50,
+                  ),
+                  child: Container(
+                    color: pal.bg,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Wrap(
+                        spacing: 16,
+                        runSpacing: 2,
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Text('Tiempo real'),
-                          Text(
-                            'Cada 5 minutos',
-                            style: TextStyle(fontSize: 11),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Tiempo real'),
+                                  Text(
+                                    'Cada 5 minutos',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                              Semantics(
+                                label: 'Tiempo real',
+                                child: Switch(
+                                  value: _tiempoReal,
+                                  onChanged: _cambiarTiempoReal,
+                                ),
+                              ),
+                            ],
+                          ),
+                          FilledButton.icon(
+                            onPressed: actualizando ? null : _actualizar,
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: Text(
+                              actualizando
+                                  ? 'Actualizando…'
+                                  : 'Actualizar datos',
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(width: 8),
-                      Semantics(
-                        label: 'Tiempo real',
-                        child: Switch(
-                          value: _tiempoReal,
-                          onChanged: _cambiarTiempoReal,
-                        ),
-                      ),
-                    ],
-                  ),
-                  FilledButton.icon(
-                    onPressed: actualizando ? null : _actualizar,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: Text(
-                      actualizando ? 'Actualizando…' : 'Actualizar datos',
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-        ),
+                )
+                : null,
       ),
       body: datos.when(
         skipLoadingOnRefresh: true,

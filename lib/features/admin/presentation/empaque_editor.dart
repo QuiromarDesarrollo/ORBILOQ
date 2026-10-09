@@ -1,3 +1,4 @@
+import 'catalogo_form_widgets.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,6 +50,7 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
                 ? const TextInputType.numberWithOptions(decimal: true)
                 : TextInputType.text,
         decoration: InputDecoration(labelText: label),
+        onChanged: (_) => setState(() {}),
         validator: (v) {
           if (!numero) {
             return (v ?? '').trim().isEmpty || v!.trim().length > 150
@@ -104,72 +106,99 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: !_ocupado,
-    child: WmsDialogShell(
-      title: widget.fila == null ? 'Agregar empaque' : 'Modificar empaque',
-      icon: Icons.inventory_2_outlined,
-      iconColor: Colors.teal,
-      maxWidth: 520,
-      canClose: !_ocupado,
-      child: Form(
-        key: _form,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: _categoria,
-              decoration: const InputDecoration(labelText: 'Categoría'),
-              items: [
-                for (final c in ['CAJA', 'BOLSA'])
-                  DropdownMenuItem(value: c, child: Text(c)),
-              ],
-              onChanged:
-                  _ocupado ? null : (v) => setState(() => _categoria = v!),
-            ),
-            const SizedBox(height: 12),
-            _campo('nombre', 'Nombre para mostrar', numero: false),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _campo('largo_cm', 'Largo (cm)')),
-                const SizedBox(width: 8),
-                Expanded(child: _campo('ancho_cm', 'Ancho (cm)')),
-                const SizedBox(width: 8),
-                Expanded(child: _campo('alto_cm', 'Alto (cm)')),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _campo('peso_neto_kg', 'Peso neto / tara (kg)'),
-            const SizedBox(height: 12),
-            _campo('peso_bruto_kg', 'Peso bruto aproximado (kg)'),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Activo'),
-              value: _activo,
-              onChanged: _ocupado ? null : (v) => setState(() => _activo = v),
-            ),
-            if (_error != null)
-              AvisoFormulario(_error!),
-            if (_ocupado) const WmsLoadingStrip(),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 12,
-              children: [
-                TextButton(
-                  onPressed: _ocupado ? null : () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
+  Widget build(BuildContext context) {
+    final volumen =
+        (_numero(_campos['largo_cm']!.text) ?? 0) *
+        (_numero(_campos['ancho_cm']!.text) ?? 0) *
+        (_numero(_campos['alto_cm']!.text) ?? 0) /
+        1000000;
+    return PopScope(
+      canPop: !_ocupado,
+      child: WmsDialogShell(
+        mobileCatalog: true,
+        title: widget.fila == null ? 'Agregar empaque' : 'Editar empaque',
+        subtitle:
+            'Catálogo de empaques${widget.fila == null ? '' : ' · ${widget.fila!['nombre']}'}',
+        icon: Icons.inventory_2_outlined,
+        iconColor: Theme.of(context).colorScheme.primary,
+        maxWidth: 600,
+        canClose: !_ocupado,
+        footer: CatalogoActions(
+          onSave: _ocupado ? null : _guardar,
+          onCancel: _ocupado ? null : () => Navigator.pop(context),
+        ),
+        child: Form(
+          key: _form,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CatalogoCampos(
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _categoria,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Categoría *'),
+                    items: const [
+                      DropdownMenuItem(value: 'CAJA', child: Text('Caja')),
+                      DropdownMenuItem(value: 'BOLSA', child: Text('Empaque')),
+                    ],
+                    onChanged:
+                        _ocupado
+                            ? null
+                            : (v) => setState(() => _categoria = v!),
+                  ),
+                  _campo('nombre', 'Nombre para mostrar *', numero: false),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Medidas exteriores *',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              CatalogoCampos(
+                children: [
+                  _campo('largo_cm', 'Largo (cm)'),
+                  _campo('ancho_cm', 'Ancho (cm)'),
+                  _campo('alto_cm', 'Alto (cm)'),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                FilledButton(
-                  onPressed: _ocupado ? null : _guardar,
-                  child: const Text('Guardar'),
+                child: Text(
+                  'Volumen calculado: ${volumen.toStringAsFixed(3).replaceAll('.', ',')} m³',
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 24),
+              const Text('Peso', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 12),
+              CatalogoCampos(
+                children: [
+                  _campo('peso_neto_kg', 'Tara (kg) *'),
+                  _campo('peso_bruto_kg', 'Peso bruto aproximado (kg) *'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'El peso bruto es el típico ya lleno; no puede ser menor que la tara.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 24),
+              CatalogoEstado(
+                value: _activo,
+                onChanged: _ocupado ? null : (v) => setState(() => _activo = v),
+              ),
+              if (_error != null) AvisoFormulario(_error!),
+              if (_ocupado) const WmsLoadingStrip(),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

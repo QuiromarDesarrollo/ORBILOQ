@@ -1,3 +1,6 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
+import '../../../shared/widgets/selector_tema.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import '../../../shared/widgets/boton_plantilla_excel.dart';
 import 'package:flutter/material.dart';
@@ -10,11 +13,10 @@ import '../../../domain/sesion.dart';
 import 'ciclos_charts.dart';
 import 'ciclos_colores.dart';
 import 'capacidad_medidor.dart';
-import '../../../application/providers.dart' show temaProvider;
-import '../../../core/theme/app_theme.dart' show TemaModo;
 import 'grafica_intercambiable.dart';
 import 'ciclos_editores.dart';
 import 'ciclos_resumen_compacto.dart';
+import 'ciclos_carga_global.dart';
 
 class CiclosPage extends ConsumerStatefulWidget {
   const CiclosPage({super.key});
@@ -36,7 +38,11 @@ class _CiclosState extends ConsumerState<CiclosPage> {
       await accion();
     } catch (e) {
       if (mounted) {
-        mostrarAvisoSnack(context, SnackBar(content: Text('$e')));
+        mostrarAvisoSnack(
+          context,
+          SnackBar(content: Text('$e')),
+          tipo: TipoAviso.error,
+        );
       }
     } finally {
       if (mounted) setState(() => _ocupado = false);
@@ -64,20 +70,12 @@ class _CiclosState extends ConsumerState<CiclosPage> {
             CiclosColores.oscuro(context)
                 ? const Border(bottom: BorderSide(color: CiclosColores.borde))
                 : null,
-        title: const Text('Tiempos de ciclo por proceso'),
+        title: const Text(
+          'Tiempos de ciclo por proceso',
+          style: TextStyle(fontSize: 16),
+        ),
         actions: [
-          IconButton(
-            tooltip:
-                ref.watch(temaProvider) == TemaModo.oscuro
-                    ? 'Cambiar a vista clara'
-                    : 'Cambiar a vista oscura',
-            onPressed: () => ref.read(temaProvider.notifier).alternar(),
-            icon: Icon(
-              ref.watch(temaProvider) == TemaModo.oscuro
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
-            ),
-          ),
+          const SelectorTema(),
           IconButton(
             tooltip: 'Actualizar',
             onPressed: _ocupado ? null : () => ref.invalidate(ciclosProvider),
@@ -86,7 +84,7 @@ class _CiclosState extends ConsumerState<CiclosPage> {
         ],
       ),
       body: estado.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const WmsLoadingPanel(),
         error:
             (e, _) => Center(
               child: Padding(
@@ -95,143 +93,313 @@ class _CiclosState extends ConsumerState<CiclosPage> {
               ),
             ),
         data:
-            (d) => ListView(
+            (d) => SingleChildScrollView(
               padding: const EdgeInsets.all(12),
-              children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (rol == RolCuenta.admin)
-                      BotonPlantillaExcel(tipo: PlantillaExcel.ciclos, habilitado: !_ocupado),
-                    if (rol == RolCuenta.admin)
-                      FilledButton.icon(
-                        icon: const Icon(Icons.upload_file),
-                        label: const Text('Importar históricos Excel'),
-                        onPressed:
-                            _ocupado || repo == null
-                                ? null
-                                : () => _accion(() async {
-                                  if (await importarCiclos(context, repo, d)) {
-                                    ref.invalidate(ciclosProvider);
-                                  }
-                                }),
-                      ),
-                    if (rol == RolCuenta.admin)
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.tune),
-                        label: const Text('Parámetros'),
-                        onPressed:
-                            _ocupado || repo == null
-                                ? null
-                                : () => _accion(() async {
-                                  await showDialog<bool>(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder:
-                                        (_) => ParametrosCiclosDialog(
-                                          repo: repo,
-                                          datos: d,
-                                        ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  LayoutBuilder(
+                    builder: (context, box) {
+                      final compact = box.maxWidth < 1050;
+                      final filtros = Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          SizedBox(
+                            width:
+                                compact
+                                    ? (box.maxWidth < 360 ? box.maxWidth : 180)
+                                    : 180,
+                            child: DropdownButtonFormField<String>(
+                              key: ValueKey(_cliente),
+                              initialValue: _cliente,
+                              isExpanded: true,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 9,
+                                ),
+                              ),
+                              items: [
+                                const DropdownMenuItem<String>(
+                                  value: null,
+                                  child: Text('Todos los clientes'),
+                                ),
+                                for (final c
+                                    in (d.ordenes
+                                        .map((o) => o.cliente)
+                                        .toSet()
+                                        .toList()
+                                      ..sort()))
+                                  DropdownMenuItem(
+                                    value: c,
+                                    child: Text(
+                                      c,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged:
+                                  (v) => setState(() {
+                                    _cliente = v;
+                                    _pagina = 0;
+                                  }),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.date_range, size: 15),
+                            label: Text(
+                              _periodo == null
+                                  ? 'Todas las fechas'
+                                  : '${fechaCiclo(_periodo!.start)} – ${fechaCiclo(_periodo!.end)}',
+                            ),
+                            onPressed: () async {
+                              final p = await showDateRangePicker(
+                                context: context,
+                                firstDate: DateTime(1900),
+                                lastDate: diaCiclo(d.hoy),
+                                initialDateRange: _periodo,
+                              );
+                              if (p != null && mounted) {
+                                setState(() {
+                                  _periodo = DateTimeRange(
+                                    start: diaCiclo(p.start),
+                                    end: diaCiclo(p.end),
                                   );
-                                  ref.invalidate(ciclosProvider);
-                                }),
-                      ),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.date_range),
-                      label: Text(
-                        _periodo == null
-                            ? 'Histórico: todas las fechas'
-                            : '${fechaCiclo(_periodo!.start)} — ${fechaCiclo(_periodo!.end)}',
-                      ),
-                      onPressed: () async {
-                        final p = await showDateRangePicker(
-                          context: context,
-                          firstDate: DateTime(1900),
-                          lastDate: DateTime(
-                            d.hoy.year,
-                            d.hoy.month,
-                            d.hoy.day,
+                                  _pagina = 0;
+                                });
+                              }
+                            },
                           ),
-                          initialDateRange: _periodo,
-                        );
-                        if (p != null && mounted) {
-                          setState(() {
-                            _periodo = DateTimeRange(
-                              start: diaCiclo(p.start),
-                              end: diaCiclo(p.end),
-                            );
-                            _pagina = 0;
-                          });
-                        }
-                      },
-                    ),
-                    SizedBox(
-                      width: 280,
-                      child: DropdownButtonFormField<String>(
-                        key: ValueKey(_cliente),
-                        initialValue: _cliente,
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Cliente'),
-                        items: [
-                          const DropdownMenuItem<String>(
-                            value: null,
-                            child: Text('Todos los clientes'),
-                          ),
-                          for (final c
-                              in (d.ordenes
-                                  .map((o) => o.cliente)
-                                  .toSet()
-                                  .toList()
-                                ..sort()))
-                            DropdownMenuItem(
-                              value: c,
-                              child: Text(c, overflow: TextOverflow.ellipsis),
+                          if (rol == RolCuenta.admin)
+                            PopupMenuButton<String>(
+                              tooltip: 'Excel',
+                              enabled: !_ocupado,
+                              onSelected:
+                                  (v) => _accion(() async {
+                                    if (v == 'plantilla') {
+                                      await FilePicker.platform.saveFile(
+                                        dialogTitle:
+                                            'Descargar plantilla Excel',
+                                        fileName: 'plantilla_ciclos.xlsx',
+                                        bytes: PlantillasExcel.generar(
+                                          PlantillaExcel.ciclos,
+                                        ),
+                                        type: FileType.custom,
+                                        allowedExtensions: ['xlsx'],
+                                      );
+                                    } else if (repo != null &&
+                                        await importarCiclos(
+                                          context,
+                                          repo,
+                                          d,
+                                        )) {
+                                      ref.invalidate(ciclosProvider);
+                                    }
+                                  }),
+                              itemBuilder:
+                                  (_) => [
+                                    const PopupMenuItem(
+                                      value: 'plantilla',
+                                      child: Text('Descargar plantilla Excel'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'importar',
+                                      enabled: repo != null,
+                                      child: const Text(
+                                        'Importar históricos Excel',
+                                      ),
+                                    ),
+                                  ],
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Theme.of(context).dividerColor,
+                                  ),
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.table_chart_outlined, size: 15),
+                                    SizedBox(width: 5),
+                                    Text(
+                                      'Excel',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                    Icon(Icons.expand_more, size: 15),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          if (rol == RolCuenta.admin)
+                            IconButton.outlined(
+                              tooltip: 'Parámetros',
+                              icon: const Icon(Icons.tune, size: 17),
+                              onPressed:
+                                  _ocupado || repo == null
+                                      ? null
+                                      : () => _accion(() async {
+                                        await showDialog<bool>(
+                                          context: context,
+                                          barrierDismissible: false,
+                                          builder:
+                                              (_) => ParametrosCiclosDialog(
+                                                repo: repo,
+                                                datos: d,
+                                              ),
+                                        );
+                                        ref.invalidate(ciclosProvider);
+                                      }),
+                            ),
+                          if (_cliente != null || _periodo != null)
+                            IconButton(
+                              tooltip: 'Limpiar filtros',
+                              icon: const Icon(
+                                Icons.filter_alt_off_outlined,
+                                size: 17,
+                              ),
+                              onPressed:
+                                  () => setState(() {
+                                    _cliente = null;
+                                    _periodo = null;
+                                    _pagina = 0;
+                                  }),
                             ),
                         ],
-                        onChanged:
-                            (v) => setState(() {
-                              _cliente = v;
-                              _pagina = 0;
-                            }),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed:
-                          () => setState(() {
-                            _cliente = null;
-                            _periodo = null;
-                            _pagina = 0;
-                          }),
-                      child: const Text('Limpiar filtros'),
-                    ),
-                  ],
-                ),
-                if (_ocupado) const LinearProgressIndicator(),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    for (var n = 0; n < 3; n++)
-                      ChoiceChip(
-                        label: Text(
-                          ['Resumen', 'Capacidad', 'Detalle por OP'][n],
+                      );
+                      final titulo = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _vista == 0
+                                ? 'Tiempos y cumplimiento'
+                                : _vista == 1
+                                ? 'Carga y capacidad'
+                                : 'Detalle por OP',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          const Text(
+                            'Producción · Días hábiles · Tiempos de entrega',
+                            style: TextStyle(fontSize: 11),
+                          ),
+                        ],
+                      );
+                      return Theme(
+                        data: Theme.of(context).copyWith(
+                          outlinedButtonTheme: OutlinedButtonThemeData(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 34),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.onSurface,
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.surface,
+                              textStyle: const TextStyle(fontSize: 12),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                          iconButtonTheme: IconButtonThemeData(
+                            style: IconButton.styleFrom(
+                              minimumSize: const Size(34, 34),
+                              padding: const EdgeInsets.all(7),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
                         ),
-                        selected: _vista == n,
-                        onSelected: (_) => setState(() => _vista = n),
+                        child:
+                            compact
+                                ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    titulo,
+                                    const SizedBox(height: 8),
+                                    filtros,
+                                  ],
+                                )
+                                : Row(
+                                  children: [
+                                    Expanded(child: titulo),
+                                    const SizedBox(width: 12),
+                                    filtros,
+                                  ],
+                                ),
+                      );
+                    },
+                  ),
+                  if (_ocupado) const WmsLoadingStrip(),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: Row(
+                        children: [
+                          for (var n = 0; n < 3; n++)
+                            Expanded(
+                              child: InkWell(
+                                onTap: () => setState(() => _vista = n),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color:
+                                            _vista == n
+                                                ? Theme.of(
+                                                  context,
+                                                ).colorScheme.primary
+                                                : Theme.of(context).dividerColor
+                                                    .withValues(alpha: .25),
+                                        width: _vista == n ? 2 : 1,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    [
+                                      'Resumen',
+                                      'Capacidad',
+                                      'Detalle por OP',
+                                    ][n],
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight:
+                                          _vista == n
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    const Tooltip(
-                      message:
-                          'Históricos independientes del kardex. Días hábiles de Colombia. El período filtra la finalización de cada proceso; el ciclo total usa Logística. Solo las finalizaciones completas liberan la OP al siguiente proceso.',
-                      child: Icon(Icons.info_outline, size: 18),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ..._contenido(datos ?? d),
-              ],
+                  ),
+                  const SizedBox(height: 10),
+                  ..._contenido(datos ?? d),
+                ],
+              ),
             ),
       ),
     );
@@ -319,8 +487,14 @@ class _CiclosState extends ConsumerState<CiclosPage> {
           runSpacing: 12,
           children: [
             _metrica('OP completas', '${completas.length}'),
-            _metrica('P50 total', _numero(percentil(duraciones, .5), ' días')),
-            _metrica('P80 total', _numero(percentil(duraciones, .8), ' días')),
+            _metrica(
+              'Tiempo típico · P50',
+              _numero(percentil(duraciones, .5), ' días'),
+            ),
+            _metrica(
+              'Casi todas terminan · P80',
+              _numero(percentil(duraciones, .8), ' días'),
+            ),
             _metrica(
               'Cumplimiento histórico',
               _numero(i.cumplimientoTotal, '%'),
@@ -383,7 +557,12 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                             : () => setState(() => _pagina = pagina - 1),
                     icon: const Icon(Icons.chevron_left),
                   ),
-                  Text('${detalles.length} OP · Página ${pagina + 1}'),
+                  Flexible(
+                    child: Text(
+                      '${detalles.length} OP · Página ${pagina + 1}',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   IconButton(
                     tooltip: 'Siguiente',
                     onPressed:
@@ -404,6 +583,8 @@ class _CiclosState extends ConsumerState<CiclosPage> {
     width:
         MediaQuery.sizeOf(context).width >= 1100
             ? (MediaQuery.sizeOf(context).width - 72) / 5
+            : MediaQuery.sizeOf(context).width < 500
+            ? (MediaQuery.sizeOf(context).width - 36) / 2
             : 205,
     child: Card(
       margin: EdgeInsets.zero,
@@ -522,6 +703,13 @@ class _CiclosState extends ConsumerState<CiclosPage> {
               'Semana en curso: carga registrada hasta hoy frente al límite semanal completo.',
             ),
           const SizedBox(height: 12),
+          CiclosCargaGlobal(
+            indicadores: i,
+            desde: desde,
+            hasta: hasta,
+            fin: fin,
+            semanal: _semanal,
+          ),
           const Text(
             'Carga / capacidad · Verde: hasta 80 % · Ámbar: hasta 100 % · Rojo: excedida',
             style: TextStyle(fontSize: 12),
@@ -555,6 +743,7 @@ class _CiclosState extends ConsumerState<CiclosPage> {
           ),
           const SizedBox(height: 8),
           ExpansionTile(
+            initiallyExpanded: true,
             title: const Text(
               'Ver tendencia de capacidad',
               style: TextStyle(fontSize: 13),

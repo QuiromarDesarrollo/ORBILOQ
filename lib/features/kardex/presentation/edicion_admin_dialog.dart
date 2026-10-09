@@ -258,8 +258,7 @@ class _EdicionAdminDialogState extends ConsumerState<EdicionAdminDialog> {
           mostrarAvisoSnack(context, 
             const SnackBar(
               content: Text('Corrección guardada. El kardex se actualizó.'),
-            ),
-          );
+            ), tipo: TipoAviso.exito);
         } else {
           setState(() {
             _preview = value;

@@ -96,7 +96,7 @@ void main() {
         expect(reportes.llamadas, 4);
         expect(repo.lecturas, 1);
       }
-      await tester.tap(find.text('Actualizar datos'));
+      await tester.tap(find.text('Actualizar'));
       await tester.pumpAndSettle();
       expect(reportes.llamadas, 8);
       expect(repo.lecturas, 2);
@@ -108,7 +108,10 @@ void main() {
       rol = RolCuenta.logistica;
       container.invalidate(usuarioSesionProvider);
       await tester.pumpAndSettle();
-      expect(find.text('Acceso exclusivo de Administración y Gerencia.'), findsOneWidget);
+      expect(
+        find.text('Acceso exclusivo de Administración y Gerencia.'),
+        findsOneWidget,
+      );
       expect(find.text('4 activas · 1 completas'), findsNothing);
       expect(reportes.llamadas, 12);
       expect(repo.lecturas, 3);
@@ -146,7 +149,11 @@ void main() {
       repo.eventos.add(repo.actual);
       await tester.pump(const Duration(minutes: 2));
       expect(find.text('4 activas · 1 completas'), findsOneWidget);
-      tester.widget<DashboardCalendario>(find.byType(DashboardCalendario)).onChanged(PeriodoDashboard(DateTime(2026, 9, 28), DateTime(2026, 10, 2)));
+      tester
+          .widget<DashboardCalendario>(find.byType(DashboardCalendario))
+          .onChanged(
+            PeriodoDashboard(DateTime(2026, 9, 28), DateTime(2026, 10, 2)),
+          );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Vista detallada'));
       await tester.pumpAndSettle();
@@ -154,7 +161,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.lecturas, 1);
       expect(reportes.llamadas, 4);
-      await tester.tap(find.text('Actualizar datos'));
+      await tester.tap(find.text('Actualizar'));
       await tester.pumpAndSettle();
       expect(repo.lecturas, 2);
       expect(reportes.llamadas, 8);
@@ -181,7 +188,7 @@ void main() {
       await tester.pump(const Duration(minutes: 15));
       expect(repo.lecturas, 4);
       expect(reportes.llamadas, 16);
-      await tester.tap(find.text('Actualizar datos'));
+      await tester.tap(find.text('Actualizar'));
       await tester.pumpAndSettle();
       expect(repo.lecturas, 5);
       // Salir con el switch encendido cancela el temporizador.
@@ -194,4 +201,3 @@ void main() {
     },
   );
 }
-

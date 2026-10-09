@@ -17,10 +17,12 @@ class WmsScanField extends StatefulWidget {
       this.autofocus = false,
       this.enabled = true,
       this.decoration = const InputDecoration(),
-      this.permiteManual = false});
+      this.permiteManual = false,
+      this.mostrarIngresoManual = true});
   final TextEditingController controller;
   final FocusNode? focusNode;
   final bool autofocus, enabled, permiteManual;
+  final bool mostrarIngresoManual;
   final InputDecoration decoration;
   final FutureOr<void> Function(String) onSubmitted;
   final FutureOr<FeedbackMessage> Function(String)? onCameraSubmitted;
@@ -204,7 +206,7 @@ class _WmsScanFieldState extends State<WmsScanField> {
         ]),
       if (_manual && _procesando)
         const WmsLoadingStrip(label: 'Procesando lectura…'),
-      Align(
+      if (widget.mostrarIngresoManual) Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
               onPressed: widget.enabled && !_procesando

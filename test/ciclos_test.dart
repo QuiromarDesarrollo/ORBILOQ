@@ -54,6 +54,33 @@ List<CellValue?> fila(
   TextCellValue('-'),
 ];
 void main() {
+  for (final ancho in [280.0, 800.0, 1366.0]) {
+    testWidgets('Barra compacta de administrador $ancho', (tester) async {
+      tester.view.physicalSize = Size(ancho, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            dashboardAccesoProvider.overrideWithValue(('1', RolCuenta.admin)),
+            ciclosProvider.overrideWith(
+              (ref) async => DatosCiclos([], [], d('2026-10-09'), '0'),
+            ),
+          ],
+          child: MaterialApp(theme: AppTheme.light, home: const CiclosPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Importar históricos Excel'), findsNothing);
+      await tester.tap(find.byTooltip('Excel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Descargar plantilla Excel'), findsOneWidget);
+      expect(find.text('Importar históricos Excel'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   test(
     'Calendario colombiano: Emiliani, Semana Santa, fin de año y mismo día',
     () {
@@ -302,18 +329,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       Theme.of(tester.element(find.byType(CiclosPage))).brightness,
-      Brightness.dark,
+      Brightness.light,
     );
     await tester.tap(find.text('Detalle por OP'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Cambiar a vista clara'));
+    await tester.tap(find.byTooltip('Elegir apariencia'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tema-claro')));
     await tester.pumpAndSettle();
     expect(
       Theme.of(tester.element(find.byType(CiclosPage))).brightness,
       Brightness.light,
     );
     expect(find.text('Trazabilidad por OP'), findsOneWidget);
-    await tester.tap(find.byTooltip('Cambiar a vista oscura'));
+    await tester.tap(find.byTooltip('Elegir apariencia'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tema-oscuro')));
     await tester.pumpAndSettle();
     expect(
       Theme.of(tester.element(find.byType(CiclosPage))).brightness,
@@ -321,7 +352,7 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
-  for (final ancho in [390.0, 1366.0]) {
+  for (final ancho in [280.0, 390.0, 1366.0]) {
     testWidgets('Gerencia solo lectura y dashboard adaptable a $ancho', (
       tester,
     ) async {
@@ -365,13 +396,25 @@ void main() {
       expect(find.text('Importar históricos Excel'), findsNothing);
       expect(find.text('Parámetros'), findsNothing);
       expect(find.text('Tiempos de ciclo por proceso'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      if (ancho >= 1100) {
-        expect(
-          tester.getBottomRight(find.text('Ver desglose en Capacidad')).dy,
-          lessThanOrEqualTo(768),
-        );
+      if (ancho == 1366) {
+        for (final size in [
+          const Size(300, 720),
+          const Size(390, 844),
+          const Size(1366, 768),
+          const Size(280, 640),
+          const Size(1366, 768),
+        ]) {
+          tester.view.physicalSize = size;
+          await tester.pumpAndSettle();
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'Resumen al redimensionar a $size',
+          );
+        }
       }
+
+      expect(tester.takeException(), isNull);
       await tester.scrollUntilVisible(find.text('P50'), 200);
       await tester.ensureVisible(find.text('P50').first);
       await tester.pumpAndSettle();
@@ -383,13 +426,28 @@ void main() {
       await tester.tap(find.text('Capacidad').first);
       await tester.pumpAndSettle();
       expect(find.text('Carga disponible y capacidad'), findsOneWidget);
-      if (ancho >= 1100) {
-        expect(
-          tester.getBottomRight(find.text('Ver tendencia de capacidad')).dy,
-          lessThanOrEqualTo(768),
-        );
+      expect(find.text('Carga total por proceso'), findsOneWidget);
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
+      await tester.pumpAndSettle();
+      if (ancho == 1366) {
+        for (final size in [
+          const Size(300, 720),
+          const Size(844, 390),
+          const Size(1366, 768),
+        ]) {
+          tester.view.physicalSize = size;
+          await tester.pumpAndSettle();
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'Capacidad al redimensionar a $size',
+          );
+        }
       }
+
       expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Detalle por OP').first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Detalle por OP').first);
       await tester.pumpAndSettle();
       expect(find.text('Trazabilidad por OP'), findsOneWidget);

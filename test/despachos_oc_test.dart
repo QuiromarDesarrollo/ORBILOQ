@@ -1,3 +1,6 @@
+import 'package:orbiloq_wms/data/seguimiento_entregas.dart';
+import 'package:orbiloq_wms/data/destinatarios_empaque.dart';
+import 'package:orbiloq_wms/domain/sesion.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -26,8 +29,10 @@ class _Despachos extends DespachosOcRepository {
     String cliente,
     String oc,
     List<Map<String, dynamic>> lineas,
-    List<Map<String, dynamic>> empaques,
-  ) async {
+    List<Map<String, dynamic>> empaques, {
+    String? destinatarioId,
+    String? destinatarioVersion,
+  }) async {
     correcciones.add(id);
     planes.add(lineas);
     empaquesEnviados.add(empaques);
@@ -46,6 +51,8 @@ class _Despachos extends DespachosOcRepository {
     String oc,
     List<Map<String, dynamic>> lineas, {
     List<Map<String, dynamic>> empaques = const [],
+    String? destinatarioId,
+    String? destinatarioVersion,
   }) async {
     solicitudes.add(solicitud);
     planes.add(lineas);
@@ -101,6 +108,176 @@ ItemKardex prenda({
 );
 
 void main() {
+  for (final rol in [
+    RolCuenta.despacho,
+    RolCuenta.seguimiento,
+    RolCuenta.admin,
+  ]) {
+    testWidgets('Pestañas de despacho según rol ${rol.name}', (tester) async {
+      var consultasEntregas = 0;
+      final repo = InMemoryWmsRepository.seeded();
+      addTearDown(repo.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            usarSupabaseProvider.overrideWithValue(true),
+            usuarioSesionProvider.overrideWith(
+              (ref) async => UsuarioSesion(
+                numeroUsuario: '1',
+                nombre: 'Ana',
+                rolCuenta: rol,
+              ),
+            ),
+            wmsRepositoryProvider.overrideWithValue(repo),
+            despachosOcProvider.overrideWithValue(_Despachos()),
+            destinatariosEmpaqueProvider.overrideWith((ref) async => []),
+            entregasProvider.overrideWith((ref) async {
+              consultasEntregas++;
+              return [];
+            }),
+          ],
+          child: const MaterialApp(home: Scaffold(body: DespachoDialog())),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(Tab, 'Despacho'), findsOneWidget);
+      expect(find.widgetWithText(Tab, 'Historial'), findsOneWidget);
+      expect(
+        find.widgetWithText(Tab, 'Seguimiento'),
+        rol == RolCuenta.seguimiento ? findsOneWidget : findsNothing,
+      );
+      await tester.tap(find.widgetWithText(Tab, 'Despacho'));
+      await tester.pumpAndSettle();
+      expect(find.text('¿A quién va el empaque?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(Tab, 'Historial'));
+      await tester.pumpAndSettle();
+      if (rol == RolCuenta.despacho) {
+        expect(consultasEntregas, 0);
+        expect(find.text('Entregadas'), findsNothing);
+      } else {
+        expect(find.text('Entregadas'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('Conserva destinatario al avanzar: habilita rótulos y revisión', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1500, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repo = InMemoryWmsRepository.seeded();
+    addTearDown(repo.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          usarSupabaseProvider.overrideWithValue(true),
+          wmsRepositoryProvider.overrideWithValue(repo),
+          despachosOcProvider.overrideWithValue(_Despachos()),
+          wmsSnapshotProvider.overrideWith(
+            (ref) => Stream.value(WmsSnapshot(kardex: [prenda()], lotes: [])),
+          ),
+          empaquesProvider.overrideWith(
+            (ref) async => [
+              {
+                'id': 'caja1',
+                'nombre': 'Caja prueba',
+                'categoria': 'CAJA',
+                'largo_cm': 30,
+                'ancho_cm': 20,
+                'alto_cm': 10,
+                'version': 'v1',
+              },
+            ],
+          ),
+          usuarioSesionProvider.overrideWith(
+            (ref) async => const UsuarioSesion(
+              numeroUsuario: '1',
+              nombre: 'Ana',
+              rolCuenta: RolCuenta.despacho,
+            ),
+          ),
+          destinatariosEmpaqueProvider.overrideWith(
+            (ref) async => [
+              {
+                'id': 'destino-1',
+                'version': 'v1',
+                'datos': {
+                  'nombre': 'DESTINATARIO NORTE',
+                  'sede': 'SEDE 1',
+                  'direccion': 'CALLE 9',
+                  'ciudad': 'Bogotá',
+                },
+              },
+            ],
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: DespachoDialog())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Destino del empaque'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('destino-null')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('DESTINATARIO NORTE').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('destino-destino-1')), findsOneWidget);
+    await tester.ensureVisible(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Cliente'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Cliente'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cliente').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Elegir prendas'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Armar empaques'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Agregar empaque'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Nuevo ·').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Prendas'), '5');
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<IconButton>(
+            find.byWidgetPredicate(
+              (w) => w is IconButton && w.tooltip == 'Generar rótulo 1',
+            ),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Generar todos los rótulos'),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.text('Revisar empaque'));
+    await tester.pumpAndSettle();
+    expect(find.text('Revisa antes de confirmar'), findsOneWidget);
+    expect(find.text('DESTINATARIO NORTE · Bogotá'), findsOneWidget);
+    expect(
+      find.text('Selecciona el destinatario antes de empacar.'),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   test('Reservas conservan stock físico y excluyen ubicaciones al empacar', () {
     final i = prenda(reservas: {'A': 4, 'B': 2});
     expect(i.stockDisponible, 10);
@@ -135,10 +312,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('SEGUIMIENTO'));
+    await tester.tap(find.text('Seguimiento'));
     await tester.pumpAndSettle();
     expect(find.text('LE N° 2971'), findsOneWidget);
-    await tester.tap(find.text('HISTORIAL'));
+    await tester.tap(find.text('Historial'));
     await tester.pumpAndSettle();
     expect(find.text('LE N° 2971'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -226,18 +403,8 @@ void main() {
       );
       await tester.tap(find.text('Abrir corrección'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Correcciones realizadas: 2'), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.widgetWithText(TextFormField, 'Prendas'),
-        250,
-        scrollable:
-            find
-                .descendant(
-                  of: find.byType(ListView).first,
-                  matching: find.byType(Scrollable),
-                )
-                .first,
-      );
+      expect(find.textContaining('Corregir despacho'), findsOneWidget);
+
       expect(
         tester
             .widget<TextFormField>(
@@ -246,18 +413,8 @@ void main() {
             .initialValue,
         '10',
       );
-      final revisar = find.text('Revisar y confirmar empaque');
-      await tester.scrollUntilVisible(
-        revisar,
-        250,
-        scrollable:
-            find
-                .descendant(
-                  of: find.byType(ListView).first,
-                  matching: find.byType(Scrollable),
-                )
-                .first,
-      );
+      final revisar = find.text('Revisar empaque');
+
       await tester.tap(revisar);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirmar empaque'));
@@ -274,41 +431,19 @@ void main() {
         find.widgetWithText(TextField, 'Motivo de la corrección (obligatorio)'),
         'Cantidad equivocada',
       );
-      await tester.tap(find.text('Cancelar'));
+      await tester.tap(find.text('Atrás'));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.widgetWithText(TextFormField, 'Prendas'),
-        250,
-        scrollable:
-            find
-                .descendant(
-                  of: find.byType(ListView).first,
-                  matching: find.byType(Scrollable),
-                )
-                .first,
-      );
+
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Prendas'),
         '7',
       );
-      await tester.scrollUntilVisible(
-        revisar,
-        250,
-        scrollable:
-            find
-                .descendant(
-                  of: find.byType(ListView).first,
-                  matching: find.byType(Scrollable),
-                )
-                .first,
-      );
+
       await tester.tap(revisar);
       await tester.pumpAndSettle();
-      expect(find.textContaining('Total: 7 Uds'), findsOneWidget);
+      expect(find.text('7 prendas'), findsOneWidget);
       expect(despachos.correcciones, isEmpty);
       await tester.tap(find.text('Confirmar empaque'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Cerrar aviso'));
       await tester.pumpAndSettle();
       expect(despachos.correcciones, ['d1']);
       expect(despachos.planes.single.single['cantidad'], 7);
@@ -318,7 +453,7 @@ void main() {
   testWidgets('Clientes de despacho: stock y pendiente, con actualización', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1100, 1000);
+    tester.view.physicalSize = const Size(320, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -392,17 +527,14 @@ void main() {
           .items,
       isEmpty,
     );
-    expect(
-      find.text('No hay clientes con prendas disponibles para despachar'),
-      findsOneWidget,
-    );
+    expect(find.text('No hay prendas disponibles en bodega.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets(
     'Selección, vista previa cancelable, reintento sin duplicar e historial plegado',
     (tester) async {
-      tester.view.physicalSize = const Size(1100, 1000);
+      tester.view.physicalSize = const Size(320, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -445,9 +577,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cliente').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('OC: OC1'));
+      await tester.tap(find.text('Elegir prendas'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Armar empaques'));
       await tester.pumpAndSettle();
       final agregar = find.widgetWithText(
         DropdownButtonFormField<String>,
@@ -462,7 +596,7 @@ void main() {
       final cajas = find.widgetWithText(TextFormField, 'Prendas');
       await tester.enterText(cajas, '999');
       await tester.pump();
-      expect(find.textContaining('Solo hay'), findsOneWidget);
+      expect(find.textContaining('Quedan -989 en bodega'), findsOneWidget);
       await tester.enterText(cajas, '3');
       await tester.ensureVisible(agregar);
       await tester.tap(agregar);
@@ -471,27 +605,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(cajas, findsNWidgets(2));
       await tester.enterText(cajas.last, '5');
-      await tester.scrollUntilVisible(
-        find.widgetWithText(FilledButton, 'Revisar y confirmar empaque'),
-        160,
-        scrollable:
-            find
-                .descendant(
-                  of: find.byType(ListView).first,
-                  matching: find.byType(Scrollable),
-                )
-                .first,
-      );
+
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Revisar y confirmar empaque'));
+      await tester.tap(find.text('Revisar empaque'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('4 Uds desde A'), findsOneWidget);
-      expect(find.textContaining('4 Uds desde B'), findsOneWidget);
+      expect(find.textContaining('4 desde A'), findsOneWidget);
+      expect(find.textContaining('4 desde B'), findsOneWidget);
       expect(despachos.solicitudes, isEmpty);
-      await tester.tap(find.text('Cancelar'));
+      await tester.tap(find.text('Atrás'));
       await tester.pumpAndSettle();
       expect(despachos.solicitudes, isEmpty);
-      await tester.tap(find.text('Revisar y confirmar empaque'));
+      await tester.tap(find.text('Revisar empaque'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirmar empaque'));
       await tester.pumpAndSettle();
@@ -500,8 +624,8 @@ void main() {
       await tester.ensureVisible(find.text('Reintentar mismo despacho'));
       await tester.tap(find.text('Reintentar mismo despacho'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Cerrar aviso'));
-      await tester.pumpAndSettle();
+      expect(find.text('Empaque confirmado'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       expect(despachos.solicitudes.length, 2);
       expect(despachos.solicitudes.toSet().length, 1);
       expect(despachos.planes[0], despachos.planes[1]);
@@ -516,8 +640,16 @@ void main() {
         despachos.empaquesEnviados[0].every((e) => e['item_id'] == 'i'),
         isTrue,
       );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Empacar otra OC'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Elegir prendas'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byType(CheckboxListTile));
       await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Armar empaques'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(agregar);
       await tester.pumpAndSettle();
@@ -527,50 +659,50 @@ void main() {
       await tester.pumpAndSettle();
       await tester.ensureVisible(cajas);
       await tester.enterText(cajas, '10');
-      await tester.ensureVisible(find.text('Empacar toda la OC'));
-      await tester.tap(find.text('Empacar toda la OC'));
+      await tester.ensureVisible(find.text('Revisar empaque'));
+      await tester.tap(find.text('Revisar empaque'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Total: 10 Uds'), findsOneWidget);
-      expect(find.textContaining('6 Uds desde B'), findsOneWidget);
+      expect(find.text('10 prendas'), findsOneWidget);
+      expect(find.textContaining('6 desde B'), findsOneWidget);
       await tester.tap(find.text('Confirmar empaque'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Cerrar aviso'));
       await tester.pumpAndSettle();
       expect(despachos.solicitudes.length, 3);
       expect(despachos.solicitudes.last, isNot(despachos.solicitudes.first));
-      await tester.tap(find.text('HISTORIAL'));
+      await tester.tap(find.text('Historial'));
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.widgetWithText(TextField, 'Buscar por LE N°'),
+        find.widgetWithText(TextField, 'Buscar por LE, OC u OP'),
         '9999',
       );
       await tester.pumpAndSettle();
       expect(find.text('LE N° 2971'), findsNothing);
       await tester.enterText(
-        find.widgetWithText(TextField, 'Buscar por LE N°'),
+        find.widgetWithText(TextField, 'Buscar por LE, OC u OP'),
         '2971',
       );
       await tester.pumpAndSettle();
       expect(find.text('LE N° 2971'), findsOneWidget);
       await tester.enterText(
-        find.widgetWithText(TextField, 'Buscar por OC'),
+        find.widgetWithText(TextField, 'Buscar por LE, OC u OP'),
         'oc1',
       );
       await tester.pumpAndSettle();
-      expect(find.textContaining('Estado actual: Parcial'), findsOneWidget);
+      expect(find.text('LE N° 2971'), findsOneWidget);
       await tester.enterText(
-        find.widgetWithText(TextField, 'Buscar por OP'),
+        find.widgetWithText(TextField, 'Buscar por LE, OC u OP'),
         'otra',
       );
       await tester.pumpAndSettle();
       expect(find.text('OP 1 · Camisa (M)'), findsNothing);
-      expect(find.textContaining('Estado actual: Parcial'), findsOneWidget);
+      expect(find.text('LE N° 2971'), findsNothing);
       await tester.enterText(
-        find.widgetWithText(TextField, 'Buscar por OP'),
+        find.widgetWithText(TextField, 'Buscar por LE, OC u OP'),
         '1',
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('Por: Ana'), findsNothing);
+      await tester.ensureVisible(find.text('LE N° 2971'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('LE N° 2971'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Por: Ana'), findsOneWidget);
@@ -634,9 +766,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cliente').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('OC: OC1'));
+    await tester.tap(find.text('Elegir prendas'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(CheckboxListTile));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Armar empaques'));
     await tester.pumpAndSettle();
     final agregar = find.widgetWithText(
       DropdownButtonFormField<String>,
@@ -662,19 +796,9 @@ void main() {
       find.widgetWithText(TextFormField, 'Prendas').last,
       '3',
     );
-    await tester.scrollUntilVisible(
-      find.text('Revisar y confirmar empaque'),
-      250,
-      scrollable:
-          find
-              .descendant(
-                of: find.byType(ListView).first,
-                matching: find.byType(Scrollable),
-              )
-              .first,
-    );
+
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Revisar y confirmar empaque'));
+    await tester.tap(find.text('Revisar empaque'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Confirmar empaque'));
     await tester.pumpAndSettle();

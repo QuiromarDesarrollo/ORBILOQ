@@ -1,3 +1,4 @@
+import 'dashboard_volumen_barras.dart';
 import 'dashboard_calendario.dart';
 import '../../../application/dashboard_periodo.dart';
 import '../../../application/dashboard_snapshot.dart';
@@ -36,6 +37,7 @@ class DashboardResumen extends ConsumerStatefulWidget {
 
 class _DashboardResumenState extends ConsumerState<DashboardResumen> {
   String? cliente;
+  bool _porSemana = true;
   int proximos = 3, antiguedad = 7;
   @override
   Widget build(BuildContext context) {
@@ -123,9 +125,8 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
     );
     return LayoutBuilder(
       builder: (context, c) {
-        final desktop = c.maxWidth >= 1100;
-        final rowHeight =
-            desktop ? math.max(160.0, (c.maxHeight - 152) / 3) : 270.0;
+        final desktop = c.maxWidth >= 1000;
+        final rowHeight = desktop ? 250.0 : 290.0;
         Widget tile(
           String titulo,
           String ayuda,
@@ -139,8 +140,8 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
         );
         final cards = <Widget>[
           tile(
-            'Volumen diario',
-            'Unidades positivas entregadas por Producción, recibidas y despachadas por día en Bogotá. Excluye ajustes administrativos y movimientos inversos. El día actual puede estar incompleto. El cliente y el período seleccionados se aplican a las tres líneas.',
+            _porSemana ? 'Volumen por semana' : 'Volumen por día',
+            'Unidades positivas entregadas por Producción, recibidas y despachadas en Bogotá, agrupadas por día o semana. Excluye ajustes administrativos y movimientos inversos. El día actual puede estar incompleto. El cliente y el período seleccionados se aplican a las tres series.',
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -152,16 +153,34 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                         '${nombresSeries[i]}  ${numero(tendencia.totales[i])}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: coloresSeries(context)[i],
+                          color: DashboardVolumenBarras.colores(context)[i],
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                   ],
                 ),
-                GraficaVolumenSemanal(
-                  semanas: tendencia.semanas,
-                  altura: math.max(100, rowHeight - 125),
-                  compacta: true,
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SegmentedButton<bool>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('Día')),
+                      ButtonSegment(value: true, label: Text('Semana')),
+                    ],
+                    selected: {_porSemana},
+                    onSelectionChanged:
+                        (v) => setState(() => _porSemana = v.single),
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      textStyle: WidgetStatePropertyAll(
+                        TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+                ),
+                DashboardVolumenBarras(
+                  datos: tendencia.semanas,
+                  porSemana: _porSemana,
                 ),
                 if (tendencia.registrosInvalidos > 0)
                   Text(
@@ -303,7 +322,7 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
             }),
           ),
           tile(
-            'Top 10 · despachos',
+            'Despachos por cliente',
             'Suma unidades despachadas operativas del cliente y período seleccionados. Ordena de mayor a menor y muestra los diez primeros; excluye ajustes administrativos. La tabla de salud conserva todos los clientes.',
             volumen.isEmpty
                 ? const Text('Sin despachos en este período.')
@@ -437,7 +456,7 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
             ),
           ),
           tile(
-            'Mapa de OP · estado actual',
+            'Órdenes de producción hoy',
             'Cada OP cuenta una vez en la primera etapa pendiente entre sus líneas vigentes. Producción incluye no conformes pendientes. Después: recepción, despacho y completo. Se excluyen líneas eliminadas. El cliente filtra las OP; el período no cambia su estado actual.',
             estado(() {
               final etapas = contarEtapas(kardex!);
@@ -448,42 +467,60 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                     style: const TextStyle(fontSize: 11),
                   ),
                   const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder:
-                        (_, box) => Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (var i = 0; i < 4; i++)
-                              Container(
-                                width: (box.maxWidth - 24) / 4,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: pal.accent.withValues(alpha: .07),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      '${etapas[i]}',
-                                      style:
-                                          Theme.of(
-                                            context,
-                                          ).textTheme.headlineSmall,
-                                    ),
-                                    Text(
-                                      etapasDashboard[i],
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
-                                  ],
+                  if (etapas.fold<int>(0, (a, b) => a + b) > 0)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < 4; i++)
+                            if (etapas[i] > 0)
+                              Expanded(
+                                flex: etapas[i],
+                                child: Container(
+                                  height: 8,
+                                  color:
+                                      [
+                                        const Color(0xFF093E52),
+                                        const Color(0xFF4EA4BF),
+                                        const Color(0xFF91A500),
+                                        const Color(0xFFCFDDE2),
+                                      ][i],
                                 ),
                               ),
-                          ],
-                        ),
-                  ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  for (var i = 0; i < 4; i++)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.circle,
+                            size: 7,
+                            color:
+                                [
+                                  const Color(0xFF093E52),
+                                  const Color(0xFF4EA4BF),
+                                  const Color(0xFF91A500),
+                                  const Color(0xFFCFDDE2),
+                                ][i],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              etapasDashboard[i],
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          Text(
+                            '${etapas[i]}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               );
             }),
@@ -574,6 +611,122 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
             ),
           ),
         ];
+        cards.add(
+          tile(
+            'Calidad en recepción',
+            'Conformidad, novedades y causales del período seleccionado. Las líneas en tránsito se excluyen del porcentaje de conformidad.',
+            datosAud((f) {
+              final d = recepcion(f);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  LinearProgressIndicator(
+                    value:
+                        d.porcentajeConforme == null
+                            ? 0
+                            : d.porcentajeConforme! / 100,
+                    color: const Color(0xFF299D64),
+                    backgroundColor: pal.cardBorder,
+                    minHeight: 8,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${d.conformes} conformes · ${d.novedades} con novedad · ${d.enTransito} en tránsito excluidas',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  const SizedBox(height: 14),
+                  datosNc(
+                    (f) => _CausalesCompactas(
+                      datos: compararCausales(
+                        f,
+                        widget.datos.corte,
+                        periodo: widget.periodo,
+                      ),
+                      alto: 140,
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ),
+        );
+        Widget valor(String numero, String pie, {Color? color}) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              numero,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: color ?? pal.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(pie, style: TextStyle(fontSize: 10, color: pal.textMuted)),
+          ],
+        );
+        final kpis = <(String, Widget)>[
+          (
+            'Entregado',
+            valor(numero(tendencia.totales[0]), 'Producción → logística'),
+          ),
+          (
+            'Recibido',
+            valor(numero(tendencia.totales[1]), 'Validado en logística'),
+          ),
+          (
+            'Despachado',
+            valor(numero(tendencia.totales[2]), 'Enviado a clientes'),
+          ),
+          (
+            'Conformidad de recepción',
+            datosAud((f) {
+              final d = recepcion(f);
+              return valor(
+                d.porcentajeConforme == null
+                    ? 'Sin datos'
+                    : '${d.porcentajeConforme!.toStringAsFixed(1)} %',
+                '${d.conformes} conformes · ${d.novedades} con novedad',
+                color: const Color(0xFF299D64),
+              );
+            }),
+          ),
+          (
+            'Tasa de sobrantes',
+            datosAud((f) {
+              final d = recepcion(f);
+              return valor(
+                d.tasaSobrantes == null
+                    ? 'Sin datos'
+                    : '${d.tasaSobrantes!.toStringAsFixed(1)} %',
+                d.diasPromedio == null
+                    ? 'Resolución promedio: sin datos'
+                    : 'Resolución: ${d.diasPromedio!.toStringAsFixed(1)} días',
+              );
+            }),
+          ),
+          (
+            'Alertas',
+            estado(
+              () => datosAud((f) {
+                final a = calcularAtencion(
+                  kardex!,
+                  f,
+                  corte: widget.datos.corte,
+                  proximos: proximos,
+                  antiguedad: antiguedad,
+                );
+                return valor(
+                  '${a.length}',
+                  a.isEmpty
+                      ? 'Sin alertas con estos criterios'
+                      : 'Requieren atención',
+                  color: a.isEmpty ? const Color(0xFF299D64) : pal.chipRed,
+                );
+              }),
+            ),
+          ),
+        ];
         Widget fila(List<int> indices, List<int> pesos) => SizedBox(
           height: rowHeight,
           child: Row(
@@ -633,25 +786,71 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, box) {
+                    final columnas =
+                        box.maxWidth >= 1000
+                            ? 6
+                            : box.maxWidth >= 600
+                            ? 3
+                            : 2;
+                    final ancho =
+                        (box.maxWidth - (columnas - 1) * 10) / columnas;
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final k in kpis)
+                          SizedBox(
+                            width: ancho,
+                            child: Container(
+                              constraints: const BoxConstraints(minHeight: 115),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: pal.card,
+                                border: Border.all(color: pal.cardBorder),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    k.$1,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: pal.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  k.$2,
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
                 if (desktop) ...[
-                  fila([0, 1, 2], [2, 1, 1]),
+                  fila([0, 6], [7, 3]),
                   const SizedBox(height: 12),
-                  fila([3, 4, 5], [1, 1, 1]),
+                  fila([3, 5, 8], [1, 1, 1]),
                   const SizedBox(height: 12),
-                  fila([6, 7], [1, 1]),
+                  SizedBox(height: 200, child: cards[7]),
                 ] else
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
                     children: [
-                      for (final card in cards)
+                      for (final i in [0, 6, 3, 5, 8, 7])
                         SizedBox(
                           width:
                               c.maxWidth >= 700
                                   ? (c.maxWidth - 44) / 2
                                   : c.maxWidth - 32,
-                          height: rowHeight,
-                          child: card,
+                          height: i == 0 ? 320 : 290,
+                          child: cards[i],
                         ),
                     ],
                   ),

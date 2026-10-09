@@ -72,15 +72,19 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Eliminar registro'));
+    await tester.ensureVisible(find.byTooltip('Desactivar Ana'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Desactivar Ana'));
     await tester.pumpAndSettle();
     expect(cat.guardados, 0);
-    await tester.tap(find.text('Cancelar'));
+    await tester.tap(find.text('Cancelar').last);
     await tester.pumpAndSettle();
     expect(cat.guardados, 0);
-    await tester.tap(find.byTooltip('Eliminar registro'));
+    await tester.ensureVisible(find.byTooltip('Desactivar Ana'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Confirmar eliminación'));
+    await tester.tap(find.byTooltip('Desactivar Ana'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Desactivar usuario'));
     await tester.pumpAndSettle();
     expect(cat.guardados, 1);
     expect(cat.filas.single['activo'], false);
@@ -131,15 +135,15 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Ana'), findsOneWidget);
-    await tester.tap(find.byTooltip('Editar registro'));
+    await tester.tap(find.byTooltip('Editar Ana'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'Ana corregida');
-    await tester.tap(find.byType(SwitchListTile));
+    await tester.tap(find.text('Inactivo'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Guardar cambios'));
     await tester.pumpAndSettle();
     expect(catalogos.guardados, 0);
-    await tester.tap(find.text('Cancelar'));
+    await tester.tap(find.text('Cancelar').last);
     await tester.pumpAndSettle();
     expect(catalogos.guardados, 0);
     await tester.tap(find.text('Guardar cambios'));
@@ -166,18 +170,15 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Agregar'));
+    await tester.tap(find.text('Agregar usuario'));
     await tester.pumpAndSettle();
     Finder campo(String label) => find.byWidgetPredicate(
       (w) => w is TextField && w.decoration?.labelText == label,
     );
-    await tester.enterText(campo('Nombre'), 'Nueva persona');
-    await tester.enterText(campo('Número de usuario'), '003');
-    await tester.enterText(
-      campo('Contraseña inicial (mínimo 12 caracteres)'),
-      'Clave-segura-2026',
-    );
-    await tester.tap(find.text('Guardar cambios'));
+    await tester.enterText(campo('Nombre *'), 'Nueva persona');
+    await tester.enterText(campo('Número de usuario *'), '003');
+    await tester.enterText(campo('Contraseña inicial *'), 'Clave-segura-2026');
+    await tester.tap(find.text('Crear usuario'));
     await tester.pumpAndSettle();
     expect(cat.altas, 0);
     await tester.tap(find.text('Confirmar'));

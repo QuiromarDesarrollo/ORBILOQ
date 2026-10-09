@@ -39,7 +39,7 @@ void main() {
         tester.element(find.byType(KardexPage)),
       );
       if (cuenta == RolCuenta.gerencia) {
-        expect(find.text('Dashboards'), findsOneWidget);
+        expect(find.text('Indicadores'), findsOneWidget);
         expect(find.text('Control de operaciones'), findsNothing);
         return;
       }

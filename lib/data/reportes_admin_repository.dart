@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 typedef FilaReporte = Map<String, dynamic>;
 
 abstract class ReportesAdminRepository {
+  Future<List<FilaReporte>> trazabilidadOp() =>
+      throw UnsupportedError("Trazabilidad no disponible en esta conexión");
   Future<FilaReporte> resumen();
   Future<List<FilaReporte>> cargar(String tipo);
 }
@@ -11,8 +13,17 @@ class SupabaseReportesAdminRepository implements ReportesAdminRepository {
   SupabaseReportesAdminRepository(this.client);
   final SupabaseClient client;
   @override
+  Future<List<FilaReporte>> trazabilidadOp() async {
+    final datos = await client.rpc('admin_trazabilidad_op');
+    return (datos as List)
+        .map((f) => Map<String, dynamic>.from(f as Map))
+        .toList();
+  }
+
+  @override
   Future<FilaReporte> resumen() async => Map<String, dynamic>.from(
-      await client.rpc('admin_reporte_resumen') as Map);
+    await client.rpc('admin_reporte_resumen') as Map,
+  );
   @override
   Future<List<FilaReporte>> cargar(String tipo) async {
     // El corte viene del servidor: el reloj del dispositivo puede estar desfasado.
@@ -20,13 +31,18 @@ class SupabaseReportesAdminRepository implements ReportesAdminRepository {
     var cursor = '';
     final todas = <FilaReporte>[];
     while (true) {
-      final pagina = (await client.rpc('admin_reporte_pagina', params: {
-        'p_tipo': tipo,
-        'p_despues': cursor,
-        'p_corte': corte,
-      }) as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      final pagina =
+          (await client.rpc(
+                    'admin_reporte_pagina',
+                    params: {
+                      'p_tipo': tipo,
+                      'p_despues': cursor,
+                      'p_corte': corte,
+                    },
+                  )
+                  as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
       todas.addAll(pagina);
       if (pagina.length < 1000) break;
       final siguiente = pagina.last['registro'] as String;
@@ -45,8 +61,14 @@ DateTime? fechaReporte(dynamic valor) {
   final fecha = DateTime.tryParse('$valor');
   if (fecha == null) return null;
   final bogota = fecha.toUtc().subtract(const Duration(hours: 5));
-  return DateTime(bogota.year, bogota.month, bogota.day, bogota.hour,
-      bogota.minute, bogota.second);
+  return DateTime(
+    bogota.year,
+    bogota.month,
+    bogota.day,
+    bogota.hour,
+    bogota.minute,
+    bogota.second,
+  );
 }
 
 List<FilaReporte> filtrarReporte(
@@ -64,7 +86,7 @@ List<FilaReporte> filtrarReporte(
           .toLowerCase()
           .contains(filtro.trim().toLowerCase());
       final fecha = fechaReporte(f['fecha']);
-      return contiene('op', op) &&
+      return (contiene('op', op) || contiene('codigo', op)) &&
           contiene('persona', persona) &&
           contiene('cliente', cliente) &&
           contiene('causal', causal) &&
@@ -72,32 +94,39 @@ List<FilaReporte> filtrarReporte(
           (desde == null ||
               (fecha != null &&
                   !fecha.isBefore(
-                      DateTime(desde.year, desde.month, desde.day)))) &&
+                    DateTime(desde.year, desde.month, desde.day),
+                  ))) &&
           (hasta == null ||
               (fecha != null &&
                   fecha.isBefore(
-                      DateTime(hasta.year, hasta.month, hasta.day + 1))));
+                    DateTime(hasta.year, hasta.month, hasta.day + 1),
+                  )));
     }).toList();
 
 List<FilaReporte> resumirNoConforme(List<FilaReporte> filas, String dimension) {
   final grupos = <String, FilaReporte>{};
   for (final f in filas) {
     final fecha = fechaReporte(f['fecha']);
-    final etiqueta = dimension == 'mes'
-        ? (fecha == null
-            ? 'Sin fecha'
-            : '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}')
-        : ('${f[dimension] ?? ''}'.trim().isEmpty
-            ? 'Sin registrar'
-            : '${f[dimension]}');
+    final etiqueta =
+        dimension == 'mes'
+            ? (fecha == null
+                ? 'Sin fecha'
+                : '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}')
+            : ('${f[dimension] ?? ''}'.trim().isEmpty
+                ? 'Sin registrar'
+                : '${f[dimension]}');
     final g = grupos.putIfAbsent(
-        etiqueta, () => {'grupo': etiqueta, 'reportes': 0, 'unidades': 0});
+      etiqueta,
+      () => {'grupo': etiqueta, 'reportes': 0, 'unidades': 0},
+    );
     g['reportes'] = (g['reportes'] as int) + 1;
     g['unidades'] =
         (g['unidades'] as int) + ((f['cantidad'] as num?)?.toInt() ?? 0);
   }
-  return grupos.values.toList()
-    ..sort((a, b) => dimension == 'mes'
-        ? '${a['grupo']}'.compareTo('${b['grupo']}')
-        : (b['unidades'] as int).compareTo(a['unidades'] as int));
+  return grupos.values.toList()..sort(
+    (a, b) =>
+        dimension == 'mes'
+            ? '${a['grupo']}'.compareTo('${b['grupo']}')
+            : (b['unidades'] as int).compareTo(a['unidades'] as int),
+  );
 }
