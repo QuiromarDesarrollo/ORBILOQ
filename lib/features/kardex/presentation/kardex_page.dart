@@ -4,7 +4,7 @@ import '../../ciclos/presentation/dashboard_catalogo.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../admin/presentation/reportes_admin_dialog.dart';
 import '../../admin/presentation/catalogos_dialog.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:orbiloq_wms/shared/descargar_excel.dart';
 import '../../../data/excel_kardex.dart';
 import '../../importacion/presentation/importar_kardex_dialog.dart';
 import 'package:flutter/material.dart';
@@ -944,13 +944,7 @@ class _AdminDrawer extends ConsumerWidget {
       final service = ref.read(importadorKardexProvider);
       if (service != null) {
         final archivo = await service.exportar(rol);
-        await FilePicker.platform.saveFile(
-          dialogTitle: 'Guardar tabla completa',
-          fileName: 'orbiloq_${rol.name}.xlsx',
-          bytes: ExcelKardex.generar(archivo),
-          type: FileType.custom,
-          allowedExtensions: ['xlsx'],
-        );
+        await descargarExcel(ExcelKardex.generar(archivo), 'orbiloq_${rol.name}.xlsx', titulo: 'Guardar tabla completa');
         return;
       }
       if (rol == Rol.produccion) {

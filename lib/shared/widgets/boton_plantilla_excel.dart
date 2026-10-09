@@ -2,7 +2,7 @@ import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:orbiloq_wms/shared/descargar_excel.dart';
 import '../../data/plantillas_excel.dart';
 export '../../data/plantillas_excel.dart' show PlantillaExcel, PlantillasExcel;
 
@@ -21,9 +21,7 @@ class _BotonPlantillaExcelState extends State<BotonPlantillaExcel> {
     setState(() => ocupado = true);
     try {
       final bytes = widget.generar != null ? await widget.generar!() : PlantillasExcel.generar(widget.tipo!);
-      await FilePicker.platform.saveFile(dialogTitle: 'Descargar plantilla Excel',
-        fileName: 'plantilla_${widget.nombre ?? widget.tipo!.name}.xlsx', bytes: bytes,
-        type: FileType.custom, allowedExtensions: ['xlsx']);
+      await descargarExcel(bytes, 'plantilla_${widget.nombre ?? widget.tipo!.name}.xlsx', titulo: 'Descargar plantilla Excel');
     } catch (e) {
       if (mounted) mostrarAvisoSnack(context, SnackBar(content: Text('No se pudo descargar la plantilla: $e')), tipo: TipoAviso.error);
     } finally {

@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:orbiloq_wms/shared/descargar_excel.dart';
 
 import '../application/kardex_columnas.dart';
 import '../domain/models.dart';
@@ -41,8 +41,7 @@ class KardexExcelExportador {
   }
 
   static Future<void> exportarReporte(String nombre, Map<String,List<List<Object?>>> hojas) async {
-    await FilePicker.platform.saveFile(dialogTitle: 'Guardar reporte', fileName: '$nombre.xlsx',
-      bytes: generarReporte(hojas), type: FileType.custom, allowedExtensions: ['xlsx']);
+    await descargarExcel(generarReporte(hojas), '$nombre.xlsx', titulo: 'Guardar reporte');
   }
 
   static Future<void> exportarProduccion(List<ItemKardex> todosLosItems) => _exportar(
@@ -95,12 +94,6 @@ class KardexExcelExportador {
     final sufijo =
         '${hoy.year}${hoy.month.toString().padLeft(2, '0')}${hoy.day.toString().padLeft(2, '0')}';
 
-    await FilePicker.platform.saveFile(
-      dialogTitle: 'Guardar histórico',
-      fileName: '${nombreBase}_$sufijo.xlsx',
-      bytes: Uint8List.fromList(bytes),
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
-    );
+    await descargarExcel(Uint8List.fromList(bytes), '${nombreBase}_$sufijo.xlsx', titulo: 'Guardar histórico');
   }
 }

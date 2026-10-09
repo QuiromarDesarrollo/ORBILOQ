@@ -1,4 +1,4 @@
-import 'package:file_picker/file_picker.dart';
+import 'package:orbiloq_wms/shared/descargar_excel.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../shared/widgets/selector_tema.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
@@ -184,16 +184,7 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                               onSelected:
                                   (v) => _accion(() async {
                                     if (v == 'plantilla') {
-                                      await FilePicker.platform.saveFile(
-                                        dialogTitle:
-                                            'Descargar plantilla Excel',
-                                        fileName: 'plantilla_ciclos.xlsx',
-                                        bytes: PlantillasExcel.generar(
-                                          PlantillaExcel.ciclos,
-                                        ),
-                                        type: FileType.custom,
-                                        allowedExtensions: ['xlsx'],
-                                      );
+                                      await descargarExcel(PlantillasExcel.generar(PlantillaExcel.ciclos), 'plantilla_ciclos.xlsx', titulo: 'Descargar plantilla Excel');
                                     } else if (repo != null &&
                                         await importarCiclos(
                                           context,
