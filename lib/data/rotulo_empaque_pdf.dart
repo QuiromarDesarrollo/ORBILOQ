@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../domain/rotulo_empaque.dart';
@@ -18,6 +19,12 @@ Future<Uint8List> crearRotuloEmpaquePdf(
       'El empaque debe contener prendas con cantidades válidas.',
     );
   }
+  if (!rotulo.pesoBrutoKg.isFinite || rotulo.pesoBrutoKg <= 0) {
+    throw const FormatException(
+      'Indica el peso bruto del empaque antes de generar su rótulo.',
+    );
+  }
+  final logoVector = utf8.decode(logo);
   final doc = pw.Document();
   final font = PdfTtfFont(doc.document, fuenteRegular);
   const mm = PdfPageFormat.mm;
@@ -59,10 +66,18 @@ Future<Uint8List> crearRotuloEmpaquePdf(
   );
   final oc = envolver(rotulo.oc, 57 * mm, 8);
   final ciudad = envolver('${rotulo.destinatario['ciudad'] ?? ''}', 67 * mm, 8);
-  final hc = math.max(5 * mm, cliente.length * 9.3 + 3);
-  final ho = math.max(5 * mm, oc.length * 9.3 + 3);
-  final hu = math.max(5 * mm, ciudad.length * 9.3 + 3);
-  final inicioTabla = 70.5 * mm - hc - ho - hu - 1.5 * mm - 5 * mm;
+  final direccion = envolver(
+    '${rotulo.destinatario['direccion'] ?? ''}',
+    67 * mm,
+    8,
+  );
+  final sede = envolver('${rotulo.destinatario['sede'] ?? ''}', 67 * mm, 8);
+  final hs = math.max(3.8 * mm, sede.length * 9.3 + 1);
+  final hd = math.max(3.8 * mm, direccion.length * 9.3 + 1);
+  final hc = math.max(3.8 * mm, cliente.length * 9.3 + 1);
+  final ho = math.max(3.8 * mm, oc.length * 9.3 + 1);
+  final hu = math.max(3.8 * mm, ciudad.length * 9.3 + 1);
+  final inicioTabla = 70.5 * mm - hc - ho - hu - hs - hd - .5 * mm - 5 * mm;
   final capacidad = inicioTabla - 12 * mm;
   if (capacidad < 10 * mm) {
     throw const FormatException(
@@ -70,23 +85,37 @@ Future<Uint8List> crearRotuloEmpaquePdf(
     );
   }
   final filas =
-      <({String descripcion, String talla, String cantidad, double altura})>[];
+      <
+        ({
+          String op,
+          String descripcion,
+          String talla,
+          String cantidad,
+          double altura,
+        })
+      >[];
   final maxLineas = math.max(1, ((capacidad - 3) / 8).floor());
   for (final p in rotulo.productos) {
-    final lineas = envolver(p.descripcion, 56 * mm, 6.8);
+    final lineas = envolver(p.descripcion, 43 * mm, 6.8);
+    final ops = envolver(p.op, 12 * mm, 6.5);
     final tallas = envolver(p.talla, 15 * mm, 7);
     for (var i = 0; i < lineas.length; i += maxLineas) {
       final parte = lineas.skip(i).take(maxLineas).toList();
       final altura = math.max(
         3.9 * mm,
-        math.max(parte.length * 8, i == 0 ? tallas.length * 8 : 8) + 3,
+        math.max(
+              math.max(parte.length * 8, ops.length * 8),
+              i == 0 ? tallas.length * 8 : 8,
+            ) +
+            3,
       );
       if (altura > capacidad) {
         throw const FormatException(
-          'La talla es demasiado extensa para el rótulo.',
+          'La OP o talla es demasiado extensa para el rótulo.',
         );
       }
       filas.add((
+        op: ops.join('\n'),
         descripcion: parte.join('\n'),
         talla: i == 0 ? tallas.join('\n') : '',
         cantidad: i == 0 ? '${p.cantidad}' : '',
@@ -97,7 +126,13 @@ Future<Uint8List> crearRotuloEmpaquePdf(
   final paginas =
       <
         List<
-          ({String descripcion, String talla, String cantidad, double altura})
+          ({
+            String op,
+            String descripcion,
+            String talla,
+            String cantidad,
+            double altura,
+          })
         >
       >[];
   var usadas = 0.0;
@@ -111,21 +146,26 @@ Future<Uint8List> crearRotuloEmpaquePdf(
   }
   for (var pagina = 0; pagina < paginas.length; pagina++) {
     final widgets = <pw.Widget>[];
-    void caja(double x, double y, double w, double h, {bool negro = false}) =>
-        widgets.add(
-          pw.Positioned(
-            left: x,
-            bottom: y,
-            right: alto - x - w,
-            top: alto - y - h,
-            child: pw.Container(
-              decoration: pw.BoxDecoration(
-                color: negro ? PdfColors.black : null,
-                border: pw.Border.all(width: .5),
-              ),
-            ),
+    void caja(
+      double x,
+      double y,
+      double w,
+      double h, {
+      bool encabezado = false,
+    }) => widgets.add(
+      pw.Positioned(
+        left: x,
+        bottom: y,
+        right: alto - x - w,
+        top: alto - y - h,
+        child: pw.Container(
+          decoration: pw.BoxDecoration(
+            color: encabezado ? PdfColors.grey300 : null,
+            border: pw.Border.all(width: .5),
           ),
-        );
+        ),
+      ),
+    );
     void texto(
       double x,
       double y,
@@ -163,11 +203,11 @@ Future<Uint8List> crearRotuloEmpaquePdf(
     texto(8 * mm, 92 * mm, 55 * mm, 3 * mm, 'REMITE:', size: 6.3, bold: true);
     widgets.add(
       pw.Positioned(
-        left: 8 * mm,
-        bottom: 79 * mm,
-        right: 34 * mm,
-        top: 10 * mm,
-        child: pw.Image(pw.MemoryImage(logo), fit: pw.BoxFit.contain),
+        left: 12 * mm,
+        bottom: 80 * mm,
+        right: 38 * mm,
+        top: 11.5 * mm,
+        child: pw.SvgImage(svg: logoVector, fit: pw.BoxFit.contain),
       ),
     );
     texto(
@@ -215,6 +255,8 @@ Future<Uint8List> crearRotuloEmpaquePdf(
       (hc, 'CLIENTE:', cliente.join('\n'), 26.0),
       (ho, 'ORDEN DE COMPRA:', oc.join('\n'), 37.0),
       (hu, 'CIUDAD:', ciudad.join('\n'), 26.0),
+      (hs, 'SEDE:', sede.join('\n'), 26.0),
+      (hd, 'DIRECCIÓN:', direccion.join('\n'), 26.0),
     ]) {
       y -= campo.$1;
       texto(
@@ -236,16 +278,25 @@ Future<Uint8List> crearRotuloEmpaquePdf(
         bold: campo.$2 == 'CLIENTE:',
       );
     }
-    caja(4 * mm, inicioTabla, 92 * mm, 5 * mm, negro: true);
+    caja(4 * mm, inicioTabla, 92 * mm, 5 * mm, encabezado: true);
     texto(
-      7 * mm,
-      inicioTabla,
-      56 * mm,
       5 * mm,
-      'DESCRIPCIÓN DEL PRODUCTO',
+      inicioTabla,
+      12 * mm,
+      5 * mm,
+      'OP',
       size: 6.6,
       bold: true,
-      blanco: true,
+      align: pw.Alignment.center,
+    );
+    texto(
+      19 * mm,
+      inicioTabla,
+      43 * mm,
+      5 * mm,
+      'DESCRIPCIÓN DEL PRODUCTO',
+      size: 5.8,
+      bold: true,
     );
     texto(
       63 * mm,
@@ -255,7 +306,6 @@ Future<Uint8List> crearRotuloEmpaquePdf(
       'TALLA',
       size: 6.6,
       bold: true,
-      blanco: true,
       align: pw.Alignment.center,
     );
     texto(
@@ -266,16 +316,25 @@ Future<Uint8List> crearRotuloEmpaquePdf(
       'CANT.',
       size: 6.6,
       bold: true,
-      blanco: true,
       align: pw.Alignment.center,
     );
     y = inicioTabla;
     for (final f in paginas[pagina]) {
       y -= f.altura;
-      caja(4 * mm, y, 59 * mm, f.altura);
+      caja(4 * mm, y, 14 * mm, f.altura);
+      caja(18 * mm, y, 45 * mm, f.altura);
       caja(63 * mm, y, 17 * mm, f.altura);
       caja(80 * mm, y, 16 * mm, f.altura);
-      texto(7 * mm, y, 56 * mm, f.altura, f.descripcion, size: 6.8);
+      texto(
+        5 * mm,
+        y,
+        12 * mm,
+        f.altura,
+        f.op,
+        size: 6.5,
+        align: pw.Alignment.center,
+      );
+      texto(19 * mm, y, 43 * mm, f.altura, f.descripcion, size: 6.8);
       texto(
         64 * mm,
         y,
@@ -296,38 +355,55 @@ Future<Uint8List> crearRotuloEmpaquePdf(
         align: pw.Alignment.center,
       );
     }
-    texto(
-      7 * mm,
-      8.5 * mm,
-      25 * mm,
-      3.5 * mm,
-      'EMPACADO POR:',
-      size: 6.7,
-      bold: true,
-    );
-    widgets.add(
-      pw.Positioned(
-        left: 32 * mm,
-        bottom: 8.5 * mm,
-        right: 7 * mm,
-        top: 88 * mm,
-        child: pw.FittedBox(
-          alignment: pw.Alignment.centerLeft,
-          fit: pw.BoxFit.scaleDown,
-          child: pw.Text(
-            rotulo.empacadoPor,
-            style: const pw.TextStyle(fontSize: 8),
+    // Pie independiente de la tabla: nombre y peso en una fila; tipo debajo.
+    void ajustado(double x, double y, double w, String valor, double size) {
+      widgets.add(
+        pw.Positioned(
+          left: x * mm,
+          bottom: y * mm,
+          right: (100 - x - w) * mm,
+          top: (100 - y - 3) * mm,
+          child: pw.FittedBox(
+            alignment: pw.Alignment.centerLeft,
+            fit: pw.BoxFit.scaleDown,
+            child: pw.Text(valor, style: pw.TextStyle(fontSize: size)),
           ),
         ),
-      ),
-    );
+      );
+    }
+
     texto(
       7 * mm,
-      4.5 * mm,
-      86 * mm,
+      7.8 * mm,
+      25 * mm,
       3 * mm,
+      'EMPACADO POR:',
+      size: 6.5,
+      bold: true,
+    );
+    ajustado(32, 7.8, 28, rotulo.empacadoPor, 7.5);
+    final bruto = rotulo.pesoBrutoKg
+        .toStringAsFixed(3)
+        .replaceFirst(RegExp(r'\.?0+$'), '')
+        .replaceAll('.', ',');
+    ajustado(62, 7.8, 31, 'PESO BRUTO: $bruto kg', 6.7);
+    texto(
+      7 * mm,
+      4.4 * mm,
+      28 * mm,
+      3 * mm,
+      'TIPO DE EMPAQUE:',
+      size: 6.5,
+      bold: true,
+    );
+    ajustado(35, 4.4, 22, rotulo.tipoEmpaque, 7.5);
+    texto(
+      58 * mm,
+      4.4 * mm,
+      35 * mm,
+      2.5 * mm,
       'RÓTULO ${pagina + 1} DE ${paginas.length} · MISMA PIEZA ${rotulo.numero}',
-      size: 6.2,
+      size: 4.3,
       align: pw.Alignment.centerRight,
     );
     doc.addPage(

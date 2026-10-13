@@ -1,3 +1,4 @@
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'historial_recepcion_vista.dart';
 import '../../../shared/widgets/wms_scan_field.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
@@ -365,7 +366,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder:
-          (dialogContext) => AlertDialog(
+          (dialogContext) => WmsExpandableAlertDialog(
             title: const Text('¿Cerrar con faltante?'),
             content: Text(
               'Faltan ${grupo.cantidadPendiente} Uds de ${linea.item.descripcion} (${linea.item.talla}) que nunca llegaron. '
@@ -423,7 +424,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder:
-          (dialogContext) => AlertDialog(
+          (dialogContext) => WmsExpandableAlertDialog(
             title: const Text('Reportar sobrante'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -501,7 +502,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   Future<void> _lector() => showDialog<void>(
     context: context,
     builder:
-        (ctx) => AlertDialog(
+        (ctx) => WmsExpandableAlertDialog(
           title: const Text('Escanear con lector'),
           content: SizedBox(
             width: 360,

@@ -11,13 +11,18 @@ Future<void> main() async {
     await File('assets/fonts/LiberationSans-Bold.ttf').readAsBytes(),
   );
   final logo =
-      await File('assets/images/logo_quiromar_formato.jpg').readAsBytes();
-  for (final cantidad in [9, 24]) {
+      await File('assets/images/logo_quiromar_vector_bn.svg').readAsBytes();
+  for (final cantidad in [1, 9, 24]) {
     final rotulo = RotuloEmpaque(
       numero: 1,
+      tipoEmpaque: cantidad == 1 ? 'Paquete' : 'Caja',
+      pesoBrutoKg: 10.5,
       destinatario: {
         'nombre': 'CLIENTE DE EJEMPLO S.A.S.',
         'ciudad': 'BARRANQUILLA',
+        'sede': 'SEDE NORTE · BODEGA PRINCIPAL',
+        'direccion':
+            'Carrera 50 # 29B - 19 Sur, bodega 2, entrada por portería principal',
       },
       oc: 'OC-5153',
       empacadoPor: 'ANDREA · EJEMPLO',
@@ -29,6 +34,7 @@ Future<void> main() async {
               : 'CAMISA MANGA LARGA ${i + 1}',
           ['S / 8', 'M / 10', 'L / 12'][i % 3],
           i + 1,
+          op: '${90003 + i}',
         ),
       ),
     );

@@ -1,3 +1,9 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:orbiloq_wms/features/despacho/presentation/lista_empaque_dialog.dart';
+import 'package:orbiloq_wms/shared/widgets/wms_dialog.dart';
 import 'package:orbiloq_wms/domain/models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,6 +62,96 @@ class _Catalogos extends CatalogosRepository {
 }
 
 void main() {
+  for (final ancho in [1200.0, 390.0]) {
+    testWidgets(
+      'Destinatarios dentro del catálogo sin segunda ventana $ancho',
+      (tester) async {
+        tester.view.physicalSize = Size(ancho, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final cat = _Catalogos(), repo = InMemoryWmsRepository.seeded();
+        addTearDown(repo.dispose);
+        final api = SupabaseClient(
+          'https://test.example',
+          'test',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+          httpClient: MockClient(
+            (request) async => http.Response(
+              jsonEncode([
+                {
+                  'id': 'd1',
+                  'datos': {
+                    'nombre': 'Destino Norte',
+                    'sede': 'Principal',
+                    'direccion': 'Calle 1',
+                    'ciudad': 'Bogotá',
+                  },
+                },
+              ]),
+              200,
+              headers: {'content-type': 'application/json'},
+              request: request,
+            ),
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            usarSupabaseProvider.overrideWithValue(true),
+            catalogosAdminProvider.overrideWithValue(cat),
+            wmsRepositoryProvider.overrideWithValue(repo),
+            listaEmpaqueApiProvider.overrideWithValue(api),
+            usuarioSesionProvider.overrideWith(
+              (ref) async => const UsuarioSesion(
+                numeroUsuario: '1',
+                nombre: 'Admin',
+                rolCuenta: RolCuenta.admin,
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await tester.runAsync(
+          () => container.read(usuarioSesionProvider.future),
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(home: Scaffold(body: CatalogosDialog())),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final selector = find.byType(DropdownButtonFormField<String>);
+        await tester.tap(selector);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Destinatarios').last);
+        await tester.tap(find.text('Destinatarios').last);
+        await tester.pumpAndSettle();
+        expect(find.byType(WmsDialogShell), findsOneWidget);
+        expect(find.text('Destino Norte'), findsOneWidget);
+        expect(find.text('Nuevo destinatario'), findsOneWidget);
+        final buscar = find.widgetWithText(
+          TextField,
+          'Nombre, NIT, sede o dirección',
+        );
+        await tester.enterText(buscar, 'no coincide');
+        await tester.pumpAndSettle();
+        expect(
+          find.text('No hay destinatarios con esta búsqueda.'),
+          findsOneWidget,
+        );
+        await tester.tap(selector);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Usuarios').last);
+        await tester.tap(find.text('Usuarios').last);
+        await tester.pumpAndSettle();
+        expect(find.byType(ListaEmpaqueDialog), findsNothing);
+        expect(find.text('Ana'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('Eliminar exige confirmacion y conserva la fila inactiva', (
     tester,
   ) async {

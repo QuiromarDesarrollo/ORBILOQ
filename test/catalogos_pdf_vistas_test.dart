@@ -50,6 +50,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Volumen calculado: 0,048 m³'), findsOneWidget);
+      expect(find.textContaining('Peso bruto aproximado'), findsNothing);
+      expect(find.text('Paquete'), findsOneWidget);
       expect(find.text('Guardar cambios').hitTestable(), findsOneWidget);
       if (size.width > 1000) {
         (key.currentContext!.findRenderObject()! as RenderRepaintBoundary)

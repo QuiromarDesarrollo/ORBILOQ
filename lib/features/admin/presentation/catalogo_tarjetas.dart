@@ -1,3 +1,4 @@
+import '../../../data/empaques_repository.dart';
 import 'package:flutter/material.dart';
 import '../../../domain/sesion.dart';
 
@@ -32,7 +33,10 @@ class CatalogoTarjetas extends StatelessWidget {
         itemBuilder: (context, i) {
           final f = filas[i];
           final activo = (f['activo'] ?? f['activa']) == true;
-          final nombre = '${f['nombre'] ?? f['codigo'] ?? ''}';
+          final nombre =
+              empaque
+                  ? textoEmpaque(f['nombre'])
+                  : '${f['nombre'] ?? f['codigo'] ?? ''}';
           final rol =
               RolCuenta.values.where((r) => r.valorBd == f['rol']).firstOrNull;
           final acceso = activo && f['auth_id'] != null;
@@ -155,7 +159,7 @@ class CatalogoTarjetas extends StatelessWidget {
                             ),
                           if (empaque)
                             Text(
-                              f['categoria'] == 'CAJA' ? 'Caja' : 'Empaque',
+                              f['categoria'] == 'CAJA' ? 'Caja' : 'Paquete',
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: Colors.blueGrey,
@@ -215,12 +219,6 @@ class CatalogoTarjetas extends StatelessWidget {
                           children: [
                             Expanded(
                               child: dato('Tara', '${n('peso_neto_kg')} kg'),
-                            ),
-                            Expanded(
-                              child: dato(
-                                'Peso bruto aprox.',
-                                '${n('peso_bruto_kg')} kg',
-                              ),
                             ),
                           ],
                         ),

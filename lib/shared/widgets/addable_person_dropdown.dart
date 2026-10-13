@@ -1,3 +1,4 @@
+import 'wms_expandable_alert_dialog.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
@@ -33,31 +34,38 @@ class AddablePersonDropdown extends ConsumerWidget {
     final ctrl = TextEditingController();
     final nombre = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(tituloDialogo),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: wmsInput('Nombre completo'),
-          onSubmitted: (v) {
-            // Misma causa que el fix de "+ AGREGAR NUEVA PERSONA": cerrar el
-            // diálogo (Navigator.pop) en el mismo instante en que el campo
-            // de texto todavía está procesando el ENTER del teclado/IME
-            // puede romper el árbol de elementos. Se retrasa al siguiente
-            // frame para que el campo termine de procesar el ENTER primero.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (dialogContext.mounted) Navigator.of(dialogContext).pop(v.trim());
-            });
-          },
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('CANCELAR')),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(ctrl.text.trim()),
-            child: const Text('AGREGAR'),
+      builder:
+          (dialogContext) => WmsExpandableAlertDialog(
+            title: Text(tituloDialogo),
+            content: TextField(
+              controller: ctrl,
+              autofocus: true,
+              decoration: wmsInput('Nombre completo'),
+              onSubmitted: (v) {
+                // Misma causa que el fix de "+ AGREGAR NUEVA PERSONA": cerrar el
+                // diálogo (Navigator.pop) en el mismo instante en que el campo
+                // de texto todavía está procesando el ENTER del teclado/IME
+                // puede romper el árbol de elementos. Se retrasa al siguiente
+                // frame para que el campo termine de procesar el ENTER primero.
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop(v.trim());
+                  }
+                });
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('CANCELAR'),
+              ),
+              TextButton(
+                onPressed:
+                    () => Navigator.of(dialogContext).pop(ctrl.text.trim()),
+                child: const Text('AGREGAR'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
     ctrl.dispose();
     if (nombre == null || nombre.isEmpty) return;
@@ -69,7 +77,11 @@ class AddablePersonDropdown extends ConsumerWidget {
         onChanged(value);
       case Err(:final message):
         if (context.mounted) {
-          mostrarAvisoSnack(context, SnackBar(content: Text(message)), tipo: TipoAviso.error);
+          mostrarAvisoSnack(
+            context,
+            SnackBar(content: Text(message)),
+            tipo: TipoAviso.error,
+          );
         }
     }
   }
@@ -79,37 +91,46 @@ class AddablePersonDropdown extends ConsumerWidget {
     final items = ref.watch(itemsProvider);
     return items.when(
       loading: () => const WmsLoadingStrip(),
-      error: (e, _) => Text('No se pudo cargar la lista: $e', style: const TextStyle(color: AppColors.alertRed)),
+      error:
+          (e, _) => Text(
+            'No se pudo cargar la lista: $e',
+            style: const TextStyle(color: AppColors.alertRed),
+          ),
       data: (lista) {
-        if(valor!=null && !lista.contains(valor)) {
-          WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)onChanged(null);});
+        if (valor != null && !lista.contains(valor)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) onChanged(null);
+          });
         }
         return DropdownButtonFormField<String>(
-                  isExpanded: true,
-        key: ValueKey('${lista.join('|')}::$valor'),
-        initialValue: lista.contains(valor) ? valor : null,
-        decoration: wmsInput(label, icon: Icons.person_outline),
-        items: [
-          for (final n in lista) DropdownMenuItem(value: n, child: Text(n)),
-          const DropdownMenuItem(
-            value: _valorAgregar,
-            child: Text('+ AGREGAR NUEVA PERSONA…', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-        onChanged: (v) {
-          if (v == _valorAgregar) {
-            // Se retrasa al siguiente frame: si se abre el diálogo en el
-            // mismo instante en que el desplegable todavía está cerrando su
-            // propio menú, Flutter puede romper el árbol de elementos
-            // ("_dependents.isEmpty is not true").
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (context.mounted) _agregarNuevo(context, ref);
-            });
-            return;
-          }
-          onChanged(v);
-        },
-      );
+          isExpanded: true,
+          key: ValueKey('${lista.join('|')}::$valor'),
+          initialValue: lista.contains(valor) ? valor : null,
+          decoration: wmsInput(label, icon: Icons.person_outline),
+          items: [
+            for (final n in lista) DropdownMenuItem(value: n, child: Text(n)),
+            const DropdownMenuItem(
+              value: _valorAgregar,
+              child: Text(
+                '+ AGREGAR NUEVA PERSONA…',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+          onChanged: (v) {
+            if (v == _valorAgregar) {
+              // Se retrasa al siguiente frame: si se abre el diálogo en el
+              // mismo instante en que el desplegable todavía está cerrando su
+              // propio menú, Flutter puede romper el árbol de elementos
+              // ("_dependents.isEmpty is not true").
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) _agregarNuevo(context, ref);
+              });
+              return;
+            }
+            onChanged(v);
+          },
+        );
       },
     );
   }

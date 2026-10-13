@@ -1,4 +1,4 @@
-﻿param([string]$PgBin='C:\Users\analistadatos\Downloads\postgresql-17.11-5-windows-x64-binaries\pgsql\bin')
+param([string]$PgBin='C:\Users\analistadatos\Downloads\postgresql-17.11-5-windows-x64-binaries\pgsql\bin')
 $ErrorActionPreference='Stop'
 $repo=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $dest=Join-Path $repo ('.dart_tool\empaques-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
@@ -19,8 +19,11 @@ try {
  & "$PgBin\initdb.exe" -D (Join-Path $dest 'data') -U postgres --auth=scram-sha-256 --encoding=UTF8 --locale=C "--pwfile=$pw" *> (Join-Path $dest 'initdb.log')
  if($LASTEXITCODE -ne 0){throw 'Fallo initdb'}
  Remove-Item -LiteralPath $pw
- & "$PgBin\pg_ctl.exe" -D (Join-Path $dest 'data') -l (Join-Path $dest 'servidor.log') -o '-h 127.0.0.1 -p 55434' -w start
- if($LASTEXITCODE -ne 0){throw 'Fallo pg_ctl'}
+ # Redirigir pg_ctl a archivos evita que el servidor herede la tubería de PowerShell.
+ $pgArgs=@('-D', ('"'+(Join-Path $dest 'data')+'"'), '-l', ('"'+(Join-Path $dest 'servidor.log')+'"'), '-o', '"-h 127.0.0.1 -p 55434"', '-w', 'start')
+ $pgStart=Start-Process -FilePath "$PgBin\pg_ctl.exe" -ArgumentList $pgArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $dest 'arranque.log') -RedirectStandardError (Join-Path $dest 'arranque-error.log')
+ $pgStart.WaitForExit()
+ if($pgStart.ExitCode -ne 0){throw 'Fallo pg_ctl'}
  $started=$true
  $init=Join-Path $dest 'init.sql'
  [IO.File]::WriteAllText($init,'CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS; CREATE ROLE supabase_admin; CREATE DATABASE ensayo;')
@@ -70,9 +73,23 @@ try {
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/086_devolucion_parcial_seguimiento.sql') 'estado086.log'
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/087_trazabilidad_op.sql') 'traza087.log'
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/087_trazabilidad_op.sql') 'traza087_repetida.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/088_no_conforme_stock_disponible.sql') 'nc088.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/089_permisos_seguimiento.sql') 'permisos089.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/090_oc_documento_despacho.sql') 'oc090.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/090_oc_documento_despacho.sql') 'oc090_repetida.log'
+ RunSql 'ensayo' (Join-Path $repo 'tools/test_oc_documento_despacho.sql') 'oc_documento.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_reset_rotulos_preparar.sql') 'preparar.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_seguimiento_entregas.sql') 'entregas.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_trazabilidad_op.sql') 'trazabilidad.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/091_fecha_recibido_libre.sql') 'fecha091.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/091_fecha_recibido_libre.sql') 'fecha091_repetida.log'
+ RunSql 'ensayo' (Join-Path $repo 'tools/test_fecha_recibido_libre.sql') 'fecha_libre.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/092_peso_por_empaque.sql') 'peso092.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/092_peso_por_empaque.sql') 'peso092_repetida.log'
+ RunSql 'ensayo' (Join-Path $repo 'tools/test_peso_por_empaque.sql') 'peso_empaque.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/093_destinatarios_internacionales.sql') 'internacional093.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/093_destinatarios_internacionales.sql') 'internacional093_repetida.log'
+ RunSql 'ensayo' (Join-Path $repo 'tools/test_destinatarios_internacionales.sql') 'internacional.log'
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/083_reiniciar_movimientos_y_empaques.sql') 'reset.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_reset_rotulos_verificar.sql') 'reset_verificado.log'
  Write-Output "OK: listas de empaque, numeracion, tallas compartidas, stock, consecutivos, reimpresion, sedes y seguimiento. Logs: $dest"

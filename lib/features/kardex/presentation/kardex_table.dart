@@ -1,3 +1,4 @@
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import '../../../domain/cumplimiento.dart';
 import 'eliminar_linea_dialog.dart';
 import 'package:flutter/material.dart';
@@ -902,7 +903,7 @@ class _KardexRow extends ConsumerWidget {
     showDialog<void>(
       context: context,
       builder:
-          (_) => AlertDialog(
+          (_) => WmsExpandableAlertDialog(
             backgroundColor: pal.card,
             title: Row(
               children: [

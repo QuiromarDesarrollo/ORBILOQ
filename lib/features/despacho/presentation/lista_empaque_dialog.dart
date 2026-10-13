@@ -1,3 +1,5 @@
+import '../../../domain/destinatario_internacional.dart';
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../data/seguimiento_entregas.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
@@ -13,6 +15,10 @@ import '../../../application/providers.dart';
 import '../../../domain/sesion.dart';
 import '../../../data/lista_empaque_pdf.dart';
 
+final listaEmpaqueApiProvider = Provider<SupabaseClient>(
+  (ref) => Supabase.instance.client,
+);
+
 Future<void> mostrarListaEmpaque(BuildContext context, String solicitud) =>
     showDialog<void>(
       context: context,
@@ -20,8 +26,13 @@ Future<void> mostrarListaEmpaque(BuildContext context, String solicitud) =>
     );
 
 class ListaEmpaqueDialog extends ConsumerStatefulWidget {
-  const ListaEmpaqueDialog({super.key, required this.solicitud});
+  const ListaEmpaqueDialog({
+    super.key,
+    required this.solicitud,
+    this.integrado = false,
+  });
   final String solicitud;
+  final bool integrado;
   @override
   ConsumerState<ListaEmpaqueDialog> createState() => _ListaState();
 }
@@ -32,7 +43,7 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
       factura = TextEditingController(),
       siguiente = TextEditingController(),
       busqueda = TextEditingController();
-  final api = Supabase.instance.client;
+  SupabaseClient get api => ref.read(listaEmpaqueApiProvider);
   List<Map<String, dynamic>> clientes = [];
   String? destino, error;
   Map<String, dynamic>? documento;
@@ -109,7 +120,9 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
           // El RPC existente valida permisos de administrador y guarda en PostgreSQL.
           // Recibe datos del formulario, sin archivo Excel.
           await api.rpc(
-            'le_importar_clientes',
+            esDestinatarioInternacional(datos)
+                ? 'le_importar_clientes_internacionales'
+                : 'le_importar_clientes',
             params: {
               'p_filas': [datos],
             },
@@ -199,6 +212,258 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
           )
           .take(99),
     ];
+    final contenido = SizedBox(
+      width: 650,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (widget.solicitud.isNotEmpty)
+              Text(
+                enSeguimiento && documento == null
+                    ? 'Las prendas están reservadas. Revisa el destinatario y confirma la salida para descontarlas de Bodega y generar el PDF.'
+                    : 'Salida confirmada. Descargar el PDF nuevamente no vuelve a descontar prendas.',
+              ),
+            if (ocupado) const WmsLoadingStrip(),
+            if (error != null) AvisoFormulario(error!),
+            if (documento != null)
+              Text(
+                'LE ${documento!['numero']} · Documento emitido. Los datos se conservan para reimpresión.',
+              )
+            else ...[
+              if (admin && widget.solicitud.isEmpty)
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      onPressed: ocupado ? null : crearDestinatario,
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text('Nuevo destinatario'),
+                    ),
+                    TextButton(
+                      onPressed:
+                          ocupado
+                              ? null
+                              : () => showDialog<void>(
+                                context: context,
+                                builder:
+                                    (c) => WmsExpandableAlertDialog(
+                                      title: const Text(
+                                        'Próximo consecutivo LE',
+                                      ),
+                                      content: TextField(
+                                        controller: siguiente,
+                                        keyboardType: TextInputType.number,
+                                        decoration: const InputDecoration(
+                                          labelText:
+                                              'Confirmado por la empresa',
+                                        ),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(c),
+                                          child: const Text('Cancelar'),
+                                        ),
+                                        FilledButton(
+                                          onPressed: () async {
+                                            Navigator.pop(c);
+                                            await tarea(() async {
+                                              final n = int.tryParse(
+                                                siguiente.text,
+                                              );
+                                              if (n == null || n < 1) {
+                                                throw const FormatException(
+                                                  'Número inválido',
+                                                );
+                                              }
+                                              await api.rpc(
+                                                'le_configurar',
+                                                params: {'p_siguiente': n},
+                                              );
+                                            });
+                                          },
+                                          child: const Text('Guardar'),
+                                        ),
+                                      ],
+                                    ),
+                              ),
+                      child: const Text('Consecutivo LE'),
+                    ),
+                  ],
+                ),
+              if (destinatarioEmpacado != null) ...[
+                const Text(
+                  '1 · REVISA EL DESTINO',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '${destinatarioEmpacado!['nombre']} · ${destinatarioEmpacado!['sede'] ?? ''}',
+                ),
+                Text(
+                  '${destinatarioEmpacado!['ciudad'] ?? ''} · ${destinatarioEmpacado!['direccion'] ?? ''}',
+                ),
+                const Text(
+                  'Para cambiarlo, vuelve a Corregir despacho y genera los rótulos actualizados.',
+                ),
+              ] else ...[
+                TextField(
+                  controller: busqueda,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    hintText: 'Nombre, NIT, sede o dirección',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Se muestran hasta 100 coincidencias.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                if (opciones.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text('No hay destinatarios con esta búsqueda.'),
+                  ),
+                for (final e in opciones)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color:
+                          destino == '${e['id']}'
+                              ? Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: .06)
+                              : Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                          color:
+                              destino == '${e['id']}'
+                                  ? Theme.of(context).colorScheme.primary
+                                  : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap:
+                            ocupado
+                                ? null
+                                : () => setState(() => destino = '${e['id']}'),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                destino == '${e['id']}'
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_unchecked,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${e['datos']['nombre'] ?? ''}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    if (esDestinatarioInternacional(
+                                      e['datos'] as Map,
+                                    ))
+                                      Text(
+                                        'Internacional · ${e['datos']['pais_destino'] ?? ''}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    Text(
+                                      'NIT ${e['datos']['nit'] ?? ''} · Sede ${e['datos']['sede'] ?? ''}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    Text(
+                                      '${e['datos']['direccion'] ?? ''} · ${e['datos']['ciudad'] ?? ''}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+              if (widget.solicitud.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                const Text(
+                  '2 · DATOS PARA LA LISTA (OPCIONALES)',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                LayoutBuilder(
+                  builder:
+                      (context, c) => Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final f in [
+                            (remision, 'Remisión'),
+                            (idOc, 'ID OC del cliente'),
+                            (factura, 'Factura'),
+                          ])
+                            SizedBox(
+                              width:
+                                  c.maxWidth < 500
+                                      ? c.maxWidth
+                                      : (c.maxWidth - 20) / 3,
+                              child: TextField(
+                                controller: f.$1,
+                                enabled: !ocupado,
+                                maxLength: 150,
+                                decoration: InputDecoration(
+                                  labelText: '${f.$2} · opcional',
+                                  counterText: '',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                ),
+                const SizedBox(height: 12),
+                if (enSeguimiento)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xfffff4dd),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'Al confirmar, las prendas salen del inventario de bodega y la LE pasa a Liberados.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+              ],
+              const Text(
+                'Los datos se fijan al emitir la lista. Los campos opcionales vacíos se imprimen en blanco.',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (widget.integrado) return contenido;
     return WmsDialogShell(
       mobileCatalog: true,
       title:
@@ -243,249 +508,7 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
             ),
         ],
       ),
-      child: SizedBox(
-        width: 650,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.solicitud.isNotEmpty)
-                Text(
-                  enSeguimiento && documento == null
-                      ? 'Las prendas están reservadas. Revisa el destinatario y confirma la salida para descontarlas de Bodega y generar el PDF.'
-                      : 'Salida confirmada. Descargar el PDF nuevamente no vuelve a descontar prendas.',
-                ),
-              if (ocupado) const WmsLoadingStrip(),
-              if (error != null) AvisoFormulario(error!),
-              if (documento != null)
-                Text(
-                  'LE ${documento!['numero']} · Documento emitido. Los datos se conservan para reimpresión.',
-                )
-              else ...[
-                if (admin && widget.solicitud.isEmpty)
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      TextButton.icon(
-                        onPressed: ocupado ? null : crearDestinatario,
-                        icon: const Icon(Icons.person_add_alt_1),
-                        label: const Text('Nuevo destinatario'),
-                      ),
-                      TextButton(
-                        onPressed:
-                            ocupado
-                                ? null
-                                : () => showDialog<void>(
-                                  context: context,
-                                  builder:
-                                      (c) => AlertDialog(
-                                        title: const Text(
-                                          'Próximo consecutivo LE',
-                                        ),
-                                        content: TextField(
-                                          controller: siguiente,
-                                          keyboardType: TextInputType.number,
-                                          decoration: const InputDecoration(
-                                            labelText:
-                                                'Confirmado por la empresa',
-                                          ),
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(c),
-                                            child: const Text('Cancelar'),
-                                          ),
-                                          FilledButton(
-                                            onPressed: () async {
-                                              Navigator.pop(c);
-                                              await tarea(() async {
-                                                final n = int.tryParse(
-                                                  siguiente.text,
-                                                );
-                                                if (n == null || n < 1) {
-                                                  throw const FormatException(
-                                                    'Número inválido',
-                                                  );
-                                                }
-                                                await api.rpc(
-                                                  'le_configurar',
-                                                  params: {'p_siguiente': n},
-                                                );
-                                              });
-                                            },
-                                            child: const Text('Guardar'),
-                                          ),
-                                        ],
-                                      ),
-                                ),
-                        child: const Text('Consecutivo LE'),
-                      ),
-                    ],
-                  ),
-                if (destinatarioEmpacado != null) ...[
-                  const Text(
-                    '1 · REVISA EL DESTINO',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    '${destinatarioEmpacado!['nombre']} · ${destinatarioEmpacado!['sede'] ?? ''}',
-                  ),
-                  Text(
-                    '${destinatarioEmpacado!['ciudad'] ?? ''} · ${destinatarioEmpacado!['direccion'] ?? ''}',
-                  ),
-                  const Text(
-                    'Para cambiarlo, vuelve a Corregir despacho y genera los rótulos actualizados.',
-                  ),
-                ] else ...[
-                  TextField(
-                    controller: busqueda,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      hintText: 'Nombre, NIT, sede o dirección',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Se muestran hasta 100 coincidencias.',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  const SizedBox(height: 12),
-                  if (opciones.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('No hay destinatarios con esta búsqueda.'),
-                    ),
-                  for (final e in opciones)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Material(
-                        color:
-                            destino == '${e['id']}'
-                                ? Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: .06)
-                                : Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          side: BorderSide(
-                            color:
-                                destino == '${e['id']}'
-                                    ? Theme.of(context).colorScheme.primary
-                                    : const Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
-                          onTap:
-                              ocupado
-                                  ? null
-                                  : () =>
-                                      setState(() => destino = '${e['id']}'),
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  destino == '${e['id']}'
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_unchecked,
-                                  size: 20,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${e['datos']['nombre'] ?? ''}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'NIT ${e['datos']['nit'] ?? ''} · Sede ${e['datos']['sede'] ?? ''}',
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                      Text(
-                                        '${e['datos']['direccion'] ?? ''} · ${e['datos']['ciudad'] ?? ''}',
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-                if (widget.solicitud.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  const Text(
-                    '2 · DATOS PARA LA LISTA (OPCIONALES)',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  LayoutBuilder(
-                    builder:
-                        (context, c) => Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            for (final f in [
-                              (remision, 'Remisión'),
-                              (idOc, 'ID OC del cliente'),
-                              (factura, 'Factura'),
-                            ])
-                              SizedBox(
-                                width:
-                                    c.maxWidth < 500
-                                        ? c.maxWidth
-                                        : (c.maxWidth - 20) / 3,
-                                child: TextField(
-                                  controller: f.$1,
-                                  enabled: !ocupado,
-                                  maxLength: 150,
-                                  decoration: InputDecoration(
-                                    labelText: '${f.$2} · opcional',
-                                    counterText: '',
-                                    isDense: true,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (enSeguimiento)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xfffff4dd),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'Al confirmar, las prendas salen del inventario de bodega y la LE pasa a Liberados.',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                ],
-                const Text(
-                  'Los datos se fijan al emitir la lista. Los campos opcionales vacíos se imprimen en blanco.',
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+      child: contenido,
     );
   }
 }

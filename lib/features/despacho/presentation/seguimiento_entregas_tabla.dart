@@ -1,3 +1,4 @@
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../../core/theme/app_theme.dart';
@@ -356,6 +357,7 @@ class _TablaState extends ConsumerState<TablaEntregas> {
           );
 
   Future<void> editar(_Fila f) async {
+    var pantallaCompleta = false;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -369,15 +371,29 @@ class _TablaState extends ConsumerState<TablaEntregas> {
                 canPop: !f.ocupado,
                 child: Dialog(
                   backgroundColor: Colors.white,
-                  insetPadding: const EdgeInsets.all(16),
+                  insetPadding: EdgeInsets.all(pantallaCompleta ? 0 : 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      pantallaCompleta ? 0 : 18,
+                    ),
+                  ),
                   clipBehavior: Clip.antiAlias,
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxWidth: 760,
-                      maxHeight: MediaQuery.sizeOf(ctx).height - 32,
+                      minWidth:
+                          pantallaCompleta ? MediaQuery.sizeOf(ctx).width : 0,
+                      maxWidth:
+                          pantallaCompleta ? MediaQuery.sizeOf(ctx).width : 760,
+                      maxHeight:
+                          MediaQuery.sizeOf(ctx).height -
+                          MediaQuery.viewInsetsOf(ctx).bottom -
+                          (pantallaCompleta ? 0 : 32),
                     ),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisSize:
+                          pantallaCompleta
+                              ? MainAxisSize.max
+                              : MainAxisSize.min,
                       children: [
                         Container(
                           padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
@@ -406,6 +422,22 @@ class _TablaState extends ConsumerState<TablaEntregas> {
                                     ),
                                   ],
                                 ),
+                              ),
+                              IconButton(
+                                tooltip:
+                                    pantallaCompleta
+                                        ? 'Restaurar tamaño'
+                                        : 'Ampliar pantalla',
+                                icon: Icon(
+                                  pantallaCompleta
+                                      ? Icons.fullscreen_exit
+                                      : Icons.fullscreen,
+                                ),
+                                onPressed:
+                                    () => cambiar(
+                                      () =>
+                                          pantallaCompleta = !pantallaCompleta,
+                                    ),
                               ),
                               IconButton(
                                 tooltip: 'Cerrar formulario',
@@ -629,17 +661,14 @@ class _TablaState extends ConsumerState<TablaEntregas> {
   }
 
   Future<void> calendario(_Fila f) async {
-    final inicio = DateTime.parse(
-      '${f.d['fecha']}',
-    ).toUtc().subtract(const Duration(hours: 5));
     final hoy = DateTime.now().toUtc().subtract(const Duration(hours: 5));
-    final dia = DateTime(inicio.year, inicio.month, inicio.day);
     final fin = DateTime(hoy.year, hoy.month, hoy.day);
     final v = await showDatePicker(
       context: context,
       initialDate: f.recibido ?? fin,
-      firstDate: dia,
-      lastDate: fin,
+      firstDate: DateTime(1),
+      lastDate: DateTime(9999, 12, 31),
+      helpText: 'Seleccionar fecha de recibido',
     );
     if (v != null && mounted) {
       redibujar(() {
@@ -655,7 +684,7 @@ class _TablaState extends ConsumerState<TablaEntregas> {
       final descartar = await showDialog<bool>(
         context: context,
         builder:
-            (ctx) => AlertDialog(
+            (ctx) => WmsExpandableAlertDialog(
               title: const Text('Hay cambios sin guardar'),
               content: const Text(
                 '¿Descartar los cambios y actualizar los despachos?',
@@ -682,12 +711,11 @@ class _TablaState extends ConsumerState<TablaEntregas> {
   }
 
   Future<void> filtrarFecha() async {
-    final ahora = DateTime.now();
     final seleccion = await showDateRangePicker(
       context: context,
       initialDateRange: rangoRecibido,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(ahora.year + 1, 12, 31),
+      firstDate: DateTime(1),
+      lastDate: DateTime(9999, 12, 31),
       helpText: 'Filtrar por fecha de recibido',
       saveText: 'Aplicar',
     );

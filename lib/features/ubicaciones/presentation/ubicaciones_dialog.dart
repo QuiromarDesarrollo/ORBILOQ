@@ -29,10 +29,18 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
   Future<void> _imprimir(List<_Existencia> items, int total) async {
     final imprimir = await showDialog<bool>(
       context: context,
-      builder: (_) => dialogoClaro(_TicketDialog(ubicacion: _ubicacion, items: items, total: total)),
+      builder:
+          (_) => dialogoClaro(
+            _TicketDialog(ubicacion: _ubicacion, items: items, total: total),
+          ),
     );
     if (imprimir == true && mounted) {
-      setState(() => _msg = FeedbackMessage.ok('Ticket de $_ubicacion enviado a impresora térmica.'));
+      setState(
+        () =>
+            _msg = FeedbackMessage.ok(
+              'Ticket de $_ubicacion enviado a impresora térmica.',
+            ),
+      );
     }
   }
 
@@ -41,7 +49,8 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
     final kardex = ref.watch(kardexProvider);
     final items = <_Existencia>[
       for (final k in kardex)
-        if (k.stockEn(_ubicacion) > 0) (item: k, cantidad: k.stockEn(_ubicacion)),
+        if (k.stockEn(_ubicacion) > 0)
+          (item: k, cantidad: k.stockEn(_ubicacion)),
     ];
     final total = items.fold<int>(0, (s, e) => s + e.cantidad);
 
@@ -61,10 +70,11 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
             label: 'Seleccionar estante / rack',
             value: _ubicacion,
 
-            onChanged: (v) => setState(() {
-              _ubicacion = v;
-              _msg = null;
-            }),
+            onChanged:
+                (v) => setState(() {
+                  _ubicacion = v;
+                  _msg = null;
+                }),
           ),
           const SizedBox(height: 12),
           Container(
@@ -75,14 +85,18 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
                 Expanded(
                   child: Text(
                     'Total en $_ubicacion: $total unidades disponibles',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryNavy,
+                    ),
                   ),
                 ),
                 ActionButton(
                   icon: Icons.print,
                   label: 'TICKET',
                   color: AppColors.actionGreen,
-                  onPressed: items.isEmpty ? null : () => _imprimir(items, total),
+                  onPressed:
+                      items.isEmpty ? null : () => _imprimir(items, total),
                 ),
               ],
             ),
@@ -107,10 +121,16 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
                       'OP: ${e.item.item.op} - ${e.item.item.descripcion} (${e.item.item.talla})',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text('No. OC: ${e.item.item.oc} | Cliente: ${e.item.item.cliente}'),
+                    subtitle: Text(
+                      'No. OC: ${e.item.item.oc} | Cliente: ${e.item.item.cliente}',
+                    ),
                     trailing: Text(
                       '${e.cantidad} Uds',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.actionGreen),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.actionGreen,
+                      ),
                     ),
                   );
                 },
@@ -123,7 +143,11 @@ class _UbicacionesDialogState extends ConsumerState<UbicacionesDialog> {
 }
 
 class _TicketDialog extends StatelessWidget {
-  const _TicketDialog({required this.ubicacion, required this.items, required this.total});
+  const _TicketDialog({
+    required this.ubicacion,
+    required this.items,
+    required this.total,
+  });
 
   final String ubicacion;
   final List<_Existencia> items;
@@ -131,92 +155,149 @@ class _TicketDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 380, maxHeight: MediaQuery.sizeOf(context).height * 0.9),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(border: Border.all(color: Colors.black, width: 2)),
-                    child: Column(
-                      children: [
-                        const Text('ORBILOQ WMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        const Text('RÓTULO DE UBICACIÓN FÍSICA', style: TextStyle(fontSize: 11)),
-                        const Divider(thickness: 1.5, color: Colors.black),
-                        Text(ubicacion, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 110,
-                          width: 110,
-                          decoration: BoxDecoration(color: Colors.grey.shade200, border: Border.all(color: Colors.black)),
-                          child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.qr_code_2, size: 70),
-                              Text('SCAN UBICACIÓN', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text('QR ID: LOC-$ubicacion', style: const TextStyle(fontSize: 10, fontFamily: 'monospace')),
-                        const Divider(color: Colors.black),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text('CONTENIDO ALMACENADO:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                        ),
-                        const SizedBox(height: 4),
-                        for (final e in items)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: ResponsiveRow(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '${e.item.item.codigo} (${e.item.item.talla}) OP:${e.item.item.op}',
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                ),
-                                Text('${e.cantidad} Uds', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                              ],
+    return WmsDialogShell(
+      title: 'Rótulo de ubicación',
+      icon: Icons.qr_code_2,
+      iconColor: AppColors.primaryNavy,
+      maxWidth: 420,
+      expand: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.black, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'ORBILOQ WMS',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const Text(
+                      'RÓTULO DE UBICACIÓN FÍSICA',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    const Divider(thickness: 1.5, color: Colors.black),
+                    Text(
+                      ubicacion,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 110,
+                      width: 110,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        border: Border.all(color: Colors.black),
+                      ),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.qr_code_2, size: 70),
+                          Text(
+                            'SCAN UBICACIÓN',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        const Divider(color: Colors.black),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'QR ID: LOC-$ubicacion',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                    const Divider(color: Colors.black),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'CONTENIDO ALMACENADO:',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    for (final e in items)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: ResponsiveRow(
                           children: [
-                            const Text('TOTAL EN ESTANTE:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                            Text('$total UDS', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            Expanded(
+                              child: Text(
+                                '${e.item.item.codigo} (${e.item.item.talla}) OP:${e.item.item.op}',
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            ),
+                            Text(
+                              '${e.cantidad} Uds',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
+                        ),
+                      ),
+                    const Divider(color: Colors.black),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'TOTAL EN ESTANTE:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          '$total UDS',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 14),
-              ResponsiveRow(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cerrar')),
-                  const SizedBox(width: 8),
-                  ActionButton(
-                    icon: Icons.print,
-                    label: 'IMPRIMIR',
-                    color: AppColors.actionGreen,
-                    onPressed: () => Navigator.pop(context, true),
-                  ),
-                ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          ResponsiveRow(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cerrar'),
+              ),
+              const SizedBox(width: 8),
+              ActionButton(
+                icon: Icons.print,
+                label: 'IMPRIMIR',
+                color: AppColors.actionGreen,
+                onPressed: () => Navigator.pop(context, true),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

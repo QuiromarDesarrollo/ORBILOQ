@@ -1,3 +1,4 @@
+import '../../../domain/destinatario_internacional.dart';
 import 'catalogo_form_widgets.dart';
 import '../../../shared/widgets/wms_loader.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
@@ -24,8 +25,12 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
     'celular': 'Celular',
   };
   final form = GlobalKey<FormState>();
-  final controles = {for (final k in campos.keys) k: TextEditingController()};
+  final controles = {
+    for (final k in [...campos.keys, ...camposDestinatarioInternacional.keys])
+      k: TextEditingController(),
+  };
   bool ocupado = false;
+  bool internacional = false;
   String? error;
   @override
   void dispose() {
@@ -43,7 +48,12 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
     });
     try {
       await widget.guardar({
-        for (final e in controles.entries) e.key: e.value.text.trim(),
+        for (final k in campos.keys) k: controles[k]!.text.trim(),
+        if (internacional) ...{
+          'tipo_destinatario': 'internacional',
+          for (final k in camposDestinatarioInternacional.keys)
+            k: controles[k]!.text.trim(),
+        },
       });
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -67,13 +77,15 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
     enabled: !ocupado,
     maxLength: 500,
     decoration: InputDecoration(
-      labelText: '${campos[k]}${k == 'nombre' ? ' *' : ''}',
+      labelText:
+          '${campos[k] ?? camposDestinatarioInternacional[k]}${k == 'nombre' || camposDestinatarioInternacional.containsKey(k) ? ' *' : ''}',
       counterText: '',
     ),
     validator:
         (v) =>
-            k == 'nombre' && (v?.trim().isEmpty ?? true)
-                ? 'Ingresa el nombre del destinatario.'
+            (k == 'nombre' || camposDestinatarioInternacional.containsKey(k)) &&
+                    (v?.trim().isEmpty ?? true)
+                ? 'Completa este campo.'
                 : null,
   );
 
@@ -98,8 +110,23 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Datos para la lista de empaque. Puedes registrar varias sedes o contactos del mismo cliente. Solo el nombre es obligatorio.',
+            DropdownButtonFormField<bool>(
+              initialValue: internacional,
+              decoration: const InputDecoration(
+                labelText: 'Tipo de destinatario',
+              ),
+              items: const [
+                DropdownMenuItem(value: false, child: Text('Nacional')),
+                DropdownMenuItem(value: true, child: Text('Internacional')),
+              ],
+              onChanged:
+                  ocupado ? null : (v) => setState(() => internacional = v!),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              internacional
+                  ? 'Se generará una LE internacional FMT-GL-005. Completa los campos marcados con *.'
+                  : 'Datos para la lista de empaque. Puedes registrar varias sedes o contactos del mismo cliente. Solo el nombre es obligatorio.',
             ),
             const SizedBox(height: 20),
             _campo('nombre'),
@@ -111,6 +138,29 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
             _campo('direccion'),
             const SizedBox(height: 16),
             CatalogoCampos(children: [_campo('telefono'), _campo('celular')]),
+            if (internacional) ...[
+              const SizedBox(height: 20),
+              const Text(
+                'Datos para la LE internacional',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              _campo('email'),
+              const SizedBox(height: 16),
+              CatalogoCampos(children: [_campo('via'), _campo('tipo_carga')]),
+              const SizedBox(height: 16),
+              CatalogoCampos(
+                children: [_campo('embalaje'), _campo('termino_negociacion')],
+              ),
+              const SizedBox(height: 16),
+              CatalogoCampos(
+                children: [_campo('puerto_embarque'), _campo('pais_origen')],
+              ),
+              const SizedBox(height: 16),
+              CatalogoCampos(
+                children: [_campo('puerto_destino'), _campo('pais_destino')],
+              ),
+            ],
             if (ocupado) const WmsLoadingStrip(),
             if (error != null)
               Padding(

@@ -1,3 +1,5 @@
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
+import '../../../shared/widgets/wms_dialog.dart';
 import 'dashboard_volumen_barras.dart';
 import 'dashboard_calendario.dart';
 import '../../../application/dashboard_periodo.dart';
@@ -279,7 +281,7 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                           () => showDialog<void>(
                             context: context,
                             builder:
-                                (context) => AlertDialog(
+                                (context) => WmsExpandableAlertDialog(
                                   title: Text(label),
                                   content: Text(
                                     sufijo == '%'
@@ -907,28 +909,13 @@ class PanelResumen extends StatelessWidget {
                       () => showDialog<void>(
                         context: context,
                         builder:
-                            (context) => Dialog(
-                              child: SizedBox(
-                                width: 1100,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: IconButton(
-                                        tooltip: 'Cerrar detalle',
-                                        onPressed: () => Navigator.pop(context),
-                                        icon: const Icon(Icons.close),
-                                      ),
-                                    ),
-                                    Flexible(
-                                      child: SingleChildScrollView(
-                                        child: detalle!,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            (context) => WmsDialogShell(
+                              title: titulo,
+                              closeTooltip: 'Cerrar detalle',
+                              icon: Icons.analytics_outlined,
+                              iconColor: const Color(0xff123e4f),
+                              maxWidth: 1100,
+                              child: detalle!,
                             ),
                       ),
                 ),
@@ -940,7 +927,7 @@ class PanelResumen extends StatelessWidget {
                     () => showDialog<void>(
                       context: context,
                       builder:
-                          (context) => AlertDialog(
+                          (context) => WmsExpandableAlertDialog(
                             title: Text(titulo),
                             content: Text(ayuda),
                             actions: [

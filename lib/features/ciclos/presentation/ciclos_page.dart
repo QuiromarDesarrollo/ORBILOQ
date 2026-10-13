@@ -1,3 +1,4 @@
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'package:orbiloq_wms/shared/descargar_excel.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../shared/widgets/selector_tema.dart';
@@ -184,7 +185,13 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                               onSelected:
                                   (v) => _accion(() async {
                                     if (v == 'plantilla') {
-                                      await descargarExcel(PlantillasExcel.generar(PlantillaExcel.ciclos), 'plantilla_ciclos.xlsx', titulo: 'Descargar plantilla Excel');
+                                      await descargarExcel(
+                                        PlantillasExcel.generar(
+                                          PlantillaExcel.ciclos,
+                                        ),
+                                        'plantilla_ciclos.xlsx',
+                                        titulo: 'Descargar plantilla Excel',
+                                      );
                                     } else if (repo != null &&
                                         await importarCiclos(
                                           context,
@@ -428,7 +435,7 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                     () => showDialog<void>(
                       context: context,
                       builder:
-                          (context) => AlertDialog(
+                          (context) => WmsExpandableAlertDialog(
                             title: Text(titulo),
                             content: Text(ayuda),
                             actions: [

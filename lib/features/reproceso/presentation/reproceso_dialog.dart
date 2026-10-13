@@ -1,3 +1,4 @@
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import '../../../shared/widgets/wms_scan_field.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../application/auth_providers.dart';
@@ -151,7 +152,7 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
   Future<void> _lector() => showDialog<void>(
     context: context,
     builder:
-        (ctx) => AlertDialog(
+        (ctx) => WmsExpandableAlertDialog(
           title: const Text('Escanear con lector'),
           content: SizedBox(
             width: 360,

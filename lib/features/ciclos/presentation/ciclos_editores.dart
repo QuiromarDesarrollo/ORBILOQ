@@ -1,3 +1,4 @@
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +27,7 @@ Future<bool> importarCiclos(
   final confirmar = await showDialog<bool>(
     context: context,
     builder:
-        (context) => AlertDialog(
+        (context) => WmsExpandableAlertDialog(
           title: const Text('Revisar importación de ciclos'),
           content: SizedBox(
             width: 650,
@@ -158,7 +159,11 @@ class _ParametrosState extends State<ParametrosCiclosDialog> {
         _error = null;
         _desde = null;
       });
-      mostrarAvisoSnack(context, const SnackBar(content: Text('Versión guardada.')), tipo: TipoAviso.exito);
+      mostrarAvisoSnack(
+        context,
+        const SnackBar(content: Text('Versión guardada.')),
+        tipo: TipoAviso.exito,
+      );
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
@@ -169,7 +174,7 @@ class _ParametrosState extends State<ParametrosCiclosDialog> {
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !_ocupado,
-    child: AlertDialog(
+    child: WmsExpandableAlertDialog(
       title: const Text('Parámetros de tiempos y capacidad'),
       content: SizedBox(
         width: 700,
@@ -265,8 +270,7 @@ class _ParametrosState extends State<ParametrosCiclosDialog> {
               const Text(
                 'Reserva total: 3 días hábiles adicionales a la suma de los procesos.',
               ),
-              if (_error != null)
-                AvisoFormulario(_error!),
+              if (_error != null) AvisoFormulario(_error!),
               const Divider(),
               const Text('Versiones guardadas'),
               for (final p

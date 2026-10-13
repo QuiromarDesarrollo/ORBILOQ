@@ -1,3 +1,4 @@
+import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'catalogo_tarjetas.dart';
 import 'catalogo_form_widgets.dart';
 import 'catalogo_tabla.dart';
@@ -105,11 +106,14 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
   Future<void> _eliminar(Map<String, dynamic> fila) async {
     if (_cargando || !_admin(ref)) return;
     final tipo = _tipo;
-    final nombre = '${fila['nombre'] ?? fila['codigo']}';
+    final nombre =
+        tipo == 'empaques'
+            ? textoEmpaque(fila['nombre'])
+            : '${fila['nombre'] ?? fila['codigo']}';
     final ok = await showDialog<bool>(
       context: context,
       builder:
-          (ctx) => AlertDialog(
+          (ctx) => WmsExpandableAlertDialog(
             icon: const Icon(Icons.block, color: Color(0xFFB42318), size: 36),
             title: Text('¿Desactivar a $nombre?'),
             content: Text(
@@ -183,7 +187,7 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
         _filas.where((f) {
           final activo = f['activo'] ?? f['activa'] ?? false;
           return (_estado == 'Todos' || activo == (_estado == 'Activos')) &&
-              '${f['nombre'] ?? f['codigo']} ${f['numero_usuario'] ?? ''} ${f['rol'] ?? ''} ${f['categoria'] ?? ''}'
+              '${_tipo == 'empaques' ? textoEmpaque(f['nombre']) : f['nombre'] ?? f['codigo']} ${f['numero_usuario'] ?? ''} ${f['rol'] ?? ''} ${textoEmpaque(f['categoria'])}'
                   .toLowerCase()
                   .contains(_busqueda.toLowerCase());
         }).toList();
@@ -208,7 +212,7 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
       iconColor: Colors.teal,
       expand: true,
       footer:
-          MediaQuery.sizeOf(context).width < 600
+          _tipo == 'destinatarios' || MediaQuery.sizeOf(context).width < 600
               ? null
               : Text(
                 'Mostrando ${visibles.length} de ${_filas.length} registros',
@@ -242,17 +246,12 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
                     _cargando
                         ? null
                         : (v) {
-                          if (v == 'destinatarios') {
-                            _selectorCatalogo.currentState?.didChange(_tipo);
-                            mostrarListaEmpaque(context, '');
-                            return;
-                          }
                           if (v != null) {
                             setState(() {
                               _tipo = v;
                               _filas = [];
                             });
-                            _cargar();
+                            if (v != 'destinatarios') _cargar();
                           }
                         },
               );
@@ -269,6 +268,7 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
                 ),
                 onChanged: (v) => setState(() => _busqueda = v),
               );
+              if (_tipo == 'destinatarios') return catalogo;
               if (constraints.maxWidth < 600) {
                 return Column(
                   children: [catalogo, const SizedBox(height: 12), buscar],
@@ -285,90 +285,103 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
             },
           ),
           const SizedBox(height: 16),
-          CatalogoToolbar(
-            children: [
-              SegmentedButton<String>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: 'Activos',
+          if (_tipo == 'destinatarios')
+            const Expanded(
+              child: ListaEmpaqueDialog(solicitud: '', integrado: true),
+            )
+          else ...[
+            CatalogoToolbar(
+              children: [
+                SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                      value: 'Activos',
+                      label: Text(
+                        'Activos ${_filas.where((f) => (f['activo'] ?? f['activa']) == true).length}',
+                      ),
+                    ),
+                    ButtonSegment(
+                      value: 'Inactivos',
+                      label: Text(
+                        'Inactivos ${_filas.where((f) => (f['activo'] ?? f['activa']) != true).length}',
+                      ),
+                    ),
+                    const ButtonSegment(value: 'Todos', label: Text('Todos')),
+                  ],
+                  selected: {_estado},
+                  onSelectionChanged: (v) => setState(() => _estado = v.single),
+                ),
+                if (MediaQuery.sizeOf(context).width < 600)
+                  IconButton.outlined(
+                    tooltip: 'Actualizar',
+                    onPressed: _cargando ? null : _cargar,
+                    icon: const Icon(Icons.refresh),
+                  )
+                else
+                  OutlinedButton.icon(
+                    onPressed: _cargando ? null : _cargar,
+                    icon: const Icon(Icons.refresh),
                     label: Text(
-                      'Activos ${_filas.where((f) => (f['activo'] ?? f['activa']) == true).length}',
+                      MediaQuery.sizeOf(context).width < 600
+                          ? ''
+                          : 'Actualizar',
                     ),
                   ),
-                  ButtonSegment(
-                    value: 'Inactivos',
-                    label: Text(
-                      'Inactivos ${_filas.where((f) => (f['activo'] ?? f['activa']) != true).length}',
-                    ),
-                  ),
-                  const ButtonSegment(value: 'Todos', label: Text('Todos')),
-                ],
-                selected: {_estado},
-                onSelectionChanged: (v) => setState(() => _estado = v.single),
-              ),
-              if (MediaQuery.sizeOf(context).width < 600)
-                IconButton.outlined(
-                  tooltip: 'Actualizar',
-                  onPressed: _cargando ? null : _cargar,
-                  icon: const Icon(Icons.refresh),
-                )
-              else
-                OutlinedButton.icon(
-                  onPressed: _cargando ? null : _cargar,
-                  icon: const Icon(Icons.refresh),
+                FilledButton.icon(
+                  onPressed:
+                      _cargando ||
+                              !_admin(ref) ||
+                              ref.watch(catalogosAdminProvider) == null
+                          ? null
+                          : () => _editar(null),
+                  icon: const Icon(Icons.add),
                   label: Text(
-                    MediaQuery.sizeOf(context).width < 600 ? '' : 'Actualizar',
+                    'Agregar ${catalogoSingular(_tipo).toLowerCase()}',
                   ),
                 ),
-              FilledButton.icon(
-                onPressed:
-                    _cargando ||
-                            !_admin(ref) ||
-                            ref.watch(catalogosAdminProvider) == null
-                        ? null
-                        : () => _editar(null),
-                icon: const Icon(Icons.add),
-                label: Text('Agregar ${catalogoSingular(_tipo).toLowerCase()}'),
-              ),
-            ],
-          ),
-          if (_cargando) const WmsLoadingStrip(),
-          if (_error != null) AvisoFormulario(_error!),
+              ],
+            ),
+            if (_cargando) const WmsLoadingStrip(),
+            if (_error != null) AvisoFormulario(_error!),
 
-          const SizedBox(height: 12),
-          if (MediaQuery.sizeOf(context).width < 600)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                '${visibles.length} registros · ${_estado.toLowerCase()}',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF57707C)),
+            const SizedBox(height: 12),
+            if (MediaQuery.sizeOf(context).width < 600)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '${visibles.length} registros · ${_estado.toLowerCase()}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF57707C),
+                  ),
+                ),
               ),
+            Expanded(
+              child:
+                  _tipo == 'usuarios'
+                      ? UsuariosCatalogoTabla(
+                        filas: visibles,
+                        ocupado: _cargando,
+                        onEditar: _editar,
+                        onDesactivar: _eliminar,
+                      )
+                      : CatalogoTabla(
+                        tipo: _tipo,
+                        filas: visibles,
+                        ocupado: _cargando,
+                        onEditar: _editar,
+                        onDesactivar: _eliminar,
+                      ),
             ),
-          Expanded(
-            child:
-                _tipo == 'usuarios'
-                    ? UsuariosCatalogoTabla(
-                      filas: visibles,
-                      ocupado: _cargando,
-                      onEditar: _editar,
-                      onDesactivar: _eliminar,
-                    )
-                    : CatalogoTabla(
-                      tipo: _tipo,
-                      filas: visibles,
-                      ocupado: _cargando,
-                      onEditar: _editar,
-                      onDesactivar: _eliminar,
-                    ),
-          ),
-          const SizedBox(height: 12),
-          if (MediaQuery.sizeOf(context).width >= 600)
-            const Text(
-              'Desactivar conserva los registros y su historial. Los nombres corregidos se usan en operaciones nuevas.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF57707C)),
-            ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            if (MediaQuery.sizeOf(context).width >= 600)
+              const Text(
+                'Desactivar conserva los registros y su historial. Los nombres corregidos se usan en operaciones nuevas.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF57707C)),
+              ),
+            const SizedBox(height: 8),
+          ],
         ],
       ),
     );
@@ -425,7 +438,7 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder:
-          (ctx) => AlertDialog(
+          (ctx) => WmsExpandableAlertDialog(
             title: const Text('Confirmar cambios'),
             content: Text(
               '${widget.fila == null

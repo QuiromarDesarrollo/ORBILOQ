@@ -1,8 +1,11 @@
+import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 import 'package:orbiloq_wms/data/seguimiento_entregas.dart';
 import 'package:orbiloq_wms/data/destinatarios_empaque.dart';
 import 'package:orbiloq_wms/domain/sesion.dart';
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:excel/excel.dart';
@@ -20,6 +23,8 @@ import 'package:orbiloq_wms/application/kardex_filters.dart';
 
 class _Despachos extends DespachosOcRepository {
   final correcciones = <String>[];
+  final ocs = <String>[];
+  final ocsDocumento = <String?>[];
   @override
   Future<void> corregir(
     String id,
@@ -32,6 +37,7 @@ class _Despachos extends DespachosOcRepository {
     List<Map<String, dynamic>> empaques, {
     String? destinatarioId,
     String? destinatarioVersion,
+    String? ocDocumento,
   }) async {
     correcciones.add(id);
     planes.add(lineas);
@@ -53,8 +59,11 @@ class _Despachos extends DespachosOcRepository {
     List<Map<String, dynamic>> empaques = const [],
     String? destinatarioId,
     String? destinatarioVersion,
+    String? ocDocumento,
   }) async {
     solicitudes.add(solicitud);
+    ocs.add(oc);
+    ocsDocumento.add(ocDocumento);
     planes.add(lineas);
     empaquesEnviados.add(empaques);
     if (fallarPrimera && solicitudes.length == 1) {
@@ -107,7 +116,199 @@ ItemKardex prenda({
   reservas: reservas,
 );
 
+Future<void> llenarPesos(WidgetTester tester) async {
+  final campos = find.widgetWithText(TextFormField, 'Peso bruto (kg) *');
+  for (var i = 0; i < campos.evaluate().length; i++) {
+    await tester.ensureVisible(campos.at(i));
+    await tester.pumpAndSettle();
+    await tester.enterText(campos.at(i), '10');
+  }
+  await tester.ensureVisible(find.text('Revisar empaque'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  for (final size in [
+    const Size(1440, 900),
+    const Size(320, 740),
+    const Size(740, 360),
+  ]) {
+    testWidgets('Buscar OP y ampliar conserva empaques en $size', (
+      tester,
+    ) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final font = FontLoader('Roboto')
+        ..addFont(rootBundle.load('assets/fonts/LiberationSans-Regular.ttf'));
+      await font.load();
+      final icons = FontLoader('MaterialIcons')
+        ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+      await icons.load();
+      final repo = InMemoryWmsRepository.seeded();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            usarSupabaseProvider.overrideWithValue(false),
+            wmsRepositoryProvider.overrideWithValue(repo),
+            despachosOcProvider.overrideWithValue(_Despachos()),
+            destinatariosEmpaqueProvider.overrideWith((ref) async => []),
+            wmsSnapshotProvider.overrideWith(
+              (ref) => Stream.value(
+                WmsSnapshot(
+                  kardex: [
+                    prenda(),
+                    const ItemKardex(
+                      item: ItemOrden(
+                        id: 'j',
+                        op: '2',
+                        cliente: 'Cliente',
+                        oc: 'OC1',
+                        codigo: 'C2',
+                        descripcion: 'Pantalón',
+                        talla: 'M',
+                        cantidadPedida: 10,
+                      ),
+                      producido: 10,
+                      recibido: 10,
+                      despachado: 0,
+                      ubicaciones: {'A': 10},
+                    ),
+                  ],
+                  lotes: [],
+                ),
+              ),
+            ),
+            empaquesProvider.overrideWith(
+              (ref) async => [
+                {
+                  'id': 'caja1',
+                  'nombre': 'Caja prueba',
+                  'categoria': 'CAJA',
+                  'version': 'v1',
+                  'alto_cm': 10,
+                  'largo_cm': 20,
+                  'ancho_cm': 30,
+                },
+              ],
+            ),
+          ],
+          child: MaterialApp(
+            builder:
+                (context, child) => RepaintBoundary(
+                  key: const ValueKey('captura-empaque'),
+                  child: child,
+                ),
+            home: const Scaffold(
+              body: DespachoDialog(
+                correccion: {
+                  'id': 'd1',
+                  'version': 'v1',
+                  'cliente': 'Cliente',
+                  'oc': 'OC1',
+                  'detalle': [
+                    {'op': '1'},
+                    {'op': '2'},
+                  ],
+                  'empaques': [
+                    {'id': 'caja1', 'item_id': 'i', 'numero': 1, 'cantidad': 3},
+                    {'id': 'caja1', 'item_id': 'j', 'numero': 2, 'cantidad': 2},
+                  ],
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final captura = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(const ValueKey('captura-empaque')),
+      );
+      captura.markNeedsPaint();
+      await tester.pump();
+      await tester.runAsync(() async {
+        final image = await captura.toImage();
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        await File(
+          '.dart_tool/despacho-${size.width.toInt()}.png',
+        ).writeAsBytes(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+      final surface = find.byKey(const ValueKey('wms-dialog-surface'));
+      final normal = tester.getSize(surface);
+      final buscar = find.widgetWithText(TextField, 'Buscar por OP');
+      await tester.ensureVisible(buscar);
+      await tester.enterText(buscar, '#1');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('OP 1 ·'), findsOneWidget);
+      expect(find.textContaining('OP 2 ·'), findsNothing);
+      await tester.ensureVisible(find.textContaining('OP 1 ·'));
+      await tester.tap(find.textContaining('OP 1 ·'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextFormField, 'Prendas'), findsNothing);
+      await tester.tap(find.textContaining('OP 1 ·'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Prendas'),
+            )
+            .initialValue,
+        '3',
+      );
+
+      expect(find.text('5 prendas · 2 empaques'), findsOneWidget);
+      await tester.tap(find.byTooltip('Ampliar pantalla'));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(surface).width, closeTo(size.width, 1));
+      expect(tester.getSize(surface).height, closeTo(size.height, 1));
+      expect(tester.widget<TextField>(buscar).controller!.text, '#1');
+      await tester.tap(find.byTooltip('Restaurar tamaño'));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(surface), normal);
+      await tester.ensureVisible(buscar);
+      await tester.enterText(buscar, '999');
+      await tester.pumpAndSettle();
+      expect(
+        find.text('No hay OP que coincidan con la búsqueda.'),
+        findsOneWidget,
+      );
+      expect(find.text('5 prendas · 2 empaques'), findsOneWidget);
+      await tester.ensureVisible(find.byTooltip('Limpiar búsqueda de OP'));
+      await tester.tap(find.byTooltip('Limpiar búsqueda de OP'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('OP 1 ·'), findsOneWidget);
+      expect(find.textContaining('OP 2 ·'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Prendas').first,
+            )
+            .initialValue,
+        '3',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Prendas').last,
+            )
+            .initialValue,
+        '2',
+      );
+      if (size.width == 320) {
+        tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(buscar);
+        await tester.enterText(buscar, '2');
+        await tester.pumpAndSettle();
+        expect(find.textContaining('OP 2 ·'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final rol in [
     RolCuenta.despacho,
     RolCuenta.seguimiento,
@@ -144,8 +345,14 @@ void main() {
       expect(find.widgetWithText(Tab, 'Historial'), findsOneWidget);
       expect(
         find.widgetWithText(Tab, 'Seguimiento'),
-        rol == RolCuenta.seguimiento ? findsOneWidget : findsNothing,
+        rol != RolCuenta.despacho ? findsOneWidget : findsNothing,
       );
+      if (rol != RolCuenta.despacho) {
+        await tester.tap(find.widgetWithText(Tab, 'Seguimiento'));
+        await tester.pumpAndSettle();
+        expect(find.text('Por liberar'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
       await tester.tap(find.widgetWithText(Tab, 'Despacho'));
       await tester.pumpAndSettle();
       expect(find.text('¿A quién va el empaque?'), findsOneWidget);
@@ -177,7 +384,46 @@ void main() {
           wmsRepositoryProvider.overrideWithValue(repo),
           despachosOcProvider.overrideWithValue(_Despachos()),
           wmsSnapshotProvider.overrideWith(
-            (ref) => Stream.value(WmsSnapshot(kardex: [prenda()], lotes: [])),
+            (ref) => Stream.value(
+              WmsSnapshot(
+                kardex: [
+                  prenda(),
+                  const ItemKardex(
+                    item: ItemOrden(
+                      id: 'sin-stock-talla',
+                      op: '1',
+                      cliente: 'Cliente',
+                      oc: 'OC1',
+                      codigo: 'C',
+                      descripcion: 'Camisa',
+                      talla: 'L',
+                      cantidadPedida: 20,
+                    ),
+                    producido: 12,
+                    recibido: 8,
+                    despachado: 8,
+                    ubicaciones: {},
+                  ),
+                  const ItemKardex(
+                    item: ItemOrden(
+                      id: 'sin-stock-op',
+                      op: '2',
+                      cliente: 'Cliente',
+                      oc: 'OC1',
+                      codigo: 'C2',
+                      descripcion: 'Pantalón',
+                      talla: 'M',
+                      cantidadPedida: 20,
+                    ),
+                    producido: 0,
+                    recibido: 0,
+                    despachado: 0,
+                    ubicaciones: {},
+                  ),
+                ],
+                lotes: [],
+              ),
+            ),
           ),
           empaquesProvider.overrideWith(
             (ref) async => [
@@ -237,12 +483,35 @@ void main() {
     await tester.tap(find.text('Elegir prendas'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 1));
+    expect(
+      find.text('Producción OC: 22 de 50 prendas · 44.0 %'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Producción OP 1: 22 de 30 prendas · 73.3 %'),
+      findsOneWidget,
+    );
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Armar empaques'));
     await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        'Sin prendas en bodega · 4 por recibir · 8 en producción',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(
+      find
+          .widgetWithText(DropdownButtonFormField<String>, 'Agregar empaque')
+          .first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(
-      find.widgetWithText(DropdownButtonFormField<String>, 'Agregar empaque'),
+      find
+          .widgetWithText(DropdownButtonFormField<String>, 'Agregar empaque')
+          .first,
     );
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('Nuevo ·').last);
@@ -267,6 +536,19 @@ void main() {
           .onPressed,
       isNotNull,
     );
+    await tester.tap(find.text('Revisar empaque'));
+    await tester.pumpAndSettle();
+    expect(find.text('Revisa antes de confirmar'), findsNothing);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Revisar empaque'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(find.textContaining('Indica un peso bruto válido'), findsOneWidget);
+    await llenarPesos(tester);
     await tester.tap(find.text('Revisar empaque'));
     await tester.pumpAndSettle();
     expect(find.text('Revisa antes de confirmar'), findsOneWidget);
@@ -415,6 +697,7 @@ void main() {
       );
       final revisar = find.text('Revisar empaque');
 
+      await llenarPesos(tester);
       await tester.tap(revisar);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirmar empaque'));
@@ -439,6 +722,7 @@ void main() {
         '7',
       );
 
+      await llenarPesos(tester);
       await tester.tap(revisar);
       await tester.pumpAndSettle();
       expect(find.text('7 prendas'), findsOneWidget);
@@ -579,6 +863,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Elegir prendas'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(CheckboxListTile));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Armar empaques'));
@@ -598,15 +884,25 @@ void main() {
       await tester.pump();
       expect(find.textContaining('Quedan -989 en bodega'), findsOneWidget);
       await tester.enterText(cajas, '3');
+      await tester.pumpAndSettle();
       await tester.ensureVisible(agregar);
+      await tester.pumpAndSettle();
       await tester.tap(agregar);
       await tester.pumpAndSettle();
       await tester.tap(find.textContaining('Caja prueba').last);
       await tester.pumpAndSettle();
       expect(cajas, findsNWidgets(2));
       await tester.enterText(cajas.last, '5');
+      final ocCampo = find.widgetWithText(
+        TextFormField,
+        'OC para este despacho (opcional)',
+      );
+      await tester.ensureVisible(ocCampo);
+      await tester.pumpAndSettle();
+      await tester.enterText(ocCampo, '  OC-ESPECIAL  ');
 
       await tester.pumpAndSettle();
+      await llenarPesos(tester);
       await tester.tap(find.text('Revisar empaque'));
       await tester.pumpAndSettle();
       expect(find.textContaining('4 desde A'), findsOneWidget);
@@ -615,6 +911,7 @@ void main() {
       await tester.tap(find.text('Atrás'));
       await tester.pumpAndSettle();
       expect(despachos.solicitudes, isEmpty);
+      await llenarPesos(tester);
       await tester.tap(find.text('Revisar empaque'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirmar empaque'));
@@ -627,6 +924,8 @@ void main() {
       expect(find.text('Empaque confirmado'), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(despachos.solicitudes.length, 2);
+      expect(despachos.ocs, ['OC1', 'OC1']);
+      expect(despachos.ocsDocumento, ['OC-ESPECIAL', 'OC-ESPECIAL']);
       expect(despachos.solicitudes.toSet().length, 1);
       expect(despachos.planes[0], despachos.planes[1]);
       expect(despachos.empaquesEnviados[0], despachos.empaquesEnviados[1]);
@@ -647,6 +946,7 @@ void main() {
       await tester.tap(find.text('Elegir prendas'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(CheckboxListTile));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Armar empaques'));
@@ -660,6 +960,7 @@ void main() {
       await tester.ensureVisible(cajas);
       await tester.enterText(cajas, '10');
       await tester.ensureVisible(find.text('Revisar empaque'));
+      await llenarPesos(tester);
       await tester.tap(find.text('Revisar empaque'));
       await tester.pumpAndSettle();
       expect(find.text('10 prendas'), findsOneWidget);
@@ -667,6 +968,7 @@ void main() {
       await tester.tap(find.text('Confirmar empaque'));
       await tester.pumpAndSettle();
       expect(despachos.solicitudes.length, 3);
+      expect(despachos.ocsDocumento.last, '');
       expect(despachos.solicitudes.last, isNot(despachos.solicitudes.first));
       await tester.tap(find.text('Historial'));
       await tester.pumpAndSettle();
@@ -786,6 +1088,7 @@ void main() {
       find.widgetWithText(TextFormField, 'Prendas').first,
       '2',
     );
+    await tester.pumpAndSettle();
     await tester.ensureVisible(agregar.last);
     await tester.pumpAndSettle();
     await tester.tap(agregar.last);
@@ -798,11 +1101,16 @@ void main() {
     );
 
     await tester.pumpAndSettle();
+    await llenarPesos(tester);
     await tester.tap(find.text('Revisar empaque'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Confirmar empaque'));
     await tester.pumpAndSettle();
     expect(despachos.empaquesEnviados.single.map((e) => e['numero']), [1, 1]);
+    expect(despachos.empaquesEnviados.single.map((e) => e['peso_bruto_kg']), [
+      10,
+      10,
+    ]);
     expect(despachos.empaquesEnviados.single.map((e) => e['item_id']), [
       'i',
       'j',

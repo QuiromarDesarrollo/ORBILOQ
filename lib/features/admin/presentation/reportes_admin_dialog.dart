@@ -1,3 +1,4 @@
+import '../../../shared/widgets/wms_expandable_sheet.dart';
 import '../../../data/trazabilidad_op_exportador.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
@@ -634,7 +635,7 @@ class _ReportesState extends ConsumerState<ReportesAdminDialog> {
     ],
   );
   Future<void> _abrirFiltros() async {
-    await showModalBottomSheet<void>(
+    await showWmsExpandableSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -1141,7 +1142,7 @@ class _ReportesState extends ConsumerState<ReportesAdminDialog> {
   Future<void> _original(FilaReporte f) async {
     final crudo = f['datos_crudos'];
     final json = const JsonEncoder.withIndent('  ').convert(crudo);
-    await showModalBottomSheet<void>(
+    await showWmsExpandableSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,

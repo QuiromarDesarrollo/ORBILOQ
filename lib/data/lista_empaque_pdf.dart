@@ -1,3 +1,5 @@
+import '../domain/destinatario_internacional.dart';
+import 'lista_empaque_internacional_pdf.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
@@ -10,6 +12,14 @@ Future<Uint8List> crearListaEmpaquePdf(
   required ByteData fuenteRegular,
   required ByteData fuenteNegrita,
 }) async {
+  if (esDestinatarioInternacional(d['destinatario'] as Map)) {
+    return crearListaEmpaqueInternacionalPdf(
+      d,
+      logo: logo,
+      fuenteRegular: fuenteRegular,
+      fuenteNegrita: fuenteNegrita,
+    );
+  }
   final pdf = pw.Document();
   final font = PdfTtfFont(pdf.document, fuenteRegular);
   const azul = PdfColor(0, .243, .314);
@@ -40,15 +50,17 @@ Future<Uint8List> crearListaEmpaquePdf(
   final unicos = numeros.map((i) => grupos[i]!.first).toList();
   String tipoEmpaque(Map<String, dynamic> e) {
     final categoria = s(e['categoria']).trim().toUpperCase();
-    return categoria == 'BOLSA' || categoria == 'EMPAQUE'
-        ? 'Empaque'
+    return categoria == 'BOLSA' ||
+            categoria == 'EMPAQUE' ||
+            categoria == 'PAQUETE'
+        ? 'Paquete'
         : categoria == 'CAJA'
         ? 'Caja'
         : s(e['categoria']);
   }
 
   final cajas = unicos.where((e) => tipoEmpaque(e) == 'Caja').length;
-  final empaques = unicos.where((e) => tipoEmpaque(e) == 'Empaque').length;
+  final empaques = unicos.where((e) => tipoEmpaque(e) == 'Paquete').length;
   final total = grupos.values
       .expand((e) => e)
       .fold<double>(0, (a, e) => a + n(e['cantidad']));
@@ -270,16 +282,13 @@ Future<Uint8List> crearListaEmpaquePdf(
     cell(299, 30, 255, 6, 'DESTINATARIO', size: 4.4, bold: true, bg: azulDest);
     // Altura adaptable para nombres y direcciones largos sin cortar información.
     final nombre = envolver(s(destino['nombre']), 214, 5.2);
-    final sede = s(destino['sede']).trim();
-    final direccion = envolver(
-      [s(destino['direccion']), if (sede.isNotEmpty) 'Sede: $sede'].join('\n'),
-      214,
-      5.2,
-    );
+    final sede = envolver(s(destino['sede']).trim(), 214, 5.2);
+    final direccion = envolver(s(destino['direccion']), 214, 5.2);
     final contacto = envolver(s(destino['contacto']), 214, 5.2);
     final hn = math.max(12.0, nombre.split('\n').length * 6.2 + 2);
     final hc = math.max(8.0, contacto.split('\n').length * 6.2 + 2);
-    final hd = math.max(21.0, direccion.split('\n').length * 6.2 + 2);
+    final hs = math.max(8.0, sede.split('\n').length * 6.2 + 2);
+    final hd = math.max(13.0, direccion.split('\n').length * 6.2 + 2);
     var y = 36.0;
     void pareja(
       double x,
@@ -301,7 +310,9 @@ Future<Uint8List> crearListaEmpaquePdf(
     pareja(0, 31, 268, y, hc, 'NIT:', '830.055.605-3');
     pareja(299, 39, 216, y, hc, 'Sr/Sra:', contacto);
     y += hc;
-    pareja(0, 31, 268, y, hd, 'Dirección:', 'AV CRA 50 N° 29B - 19 SUR');
+    pareja(0, 31, 268, y, hs + hd, 'Dirección:', 'AV CRA 50 N° 29B - 19 SUR');
+    pareja(299, 39, 216, y, hs, 'Sede:', sede);
+    y += hs;
     pareja(299, 39, 216, y, hd, 'Dirección:', direccion);
     y += hd;
     for (final row in [
@@ -509,7 +520,7 @@ Future<Uint8List> crearListaEmpaquePdf(
       [
         'Volumen Total (m³)',
         ultima ? f(unicos.fold<double>(0, (v, e) => v + volumen(e))) : '',
-        'N° de empaques',
+        'N° de paquetes',
         ultima ? '$empaques' : '',
       ],
     ];

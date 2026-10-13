@@ -350,3 +350,33 @@ Aplicar `081_empaque_seguimiento.sql` completo exclusivamente en ORBILOQ-DEV, de
 El rol **Seguimiento** comparte las funciones de Despacho y abre inicialmente la pestaña Seguimiento. Las reservas también impiden ajustes o retiros que consuman stock comprometido. Las tarjetas se actualizan con el snapshot del inventario y los eventos de reservas.
 
 Validación local: `tools/ensayar_lista_empaque.ps1` instala 081 dos veces y ejecuta `tools/test_seguimiento.sql`: reserva sin salida, doble reserva rechazada, corrección antes/después de la salida, rollback de errores, mismo consecutivo, revisión obsoleta, reintentos, protección del stock y permisos. No conecta con Supabase ni modifica producción.
+
+
+### 090 — OC opcional del despacho
+
+Aplicar `090_oc_documento_despacho.sql` completo **solo en ORBILOQ-DEV**, después de 089 y antes de usar el formulario actualizado. No repetir migraciones anteriores. No se ha aplicado a ninguna base remota desde esta entrega.
+
+El campo «OC para este despacho (opcional)» del paso Empaques acepta hasta 150 caracteres. Vacío conserva la OC del kardex. Una OC ajustada se guarda en `despachos_oc.oc_documento`, aparece en rótulos, revisión, LE e historial y se exporta en una columna separada «OC del despacho». No cambia `items_orden.oc` ni los cálculos por OC original. Las correcciones precargan este campo, conservan auditoría y exigen regenerar los rótulos modificados. Los documentos emitidos previamente no se reescriben.
+
+La aplicación usa `guardar_empaque_destinatario_v90`: requiere instalar 090 para guardar. La RPC anterior se conserva para clientes anteriores. La nueva solicitud incluye la OC ajustada en su control de reintentos, validaciones y transacción.
+
+Validación: `tools/ensayar_trazabilidad_op.ps1` instala 090 dos veces en PostgreSQL local desechable y ejecuta `tools/test_oc_documento_despacho.sql`. Comprueba OC original intacta, OC documental en historial/Excel/LE, corrección y retorno al valor original, reintentos, fecha de salida y permisos. No conecta a DEV ni producción.
+
+
+### 091 — Fecha de recibido elegida por el usuario
+
+Aplicar `091_fecha_recibido_libre.sql` completo solo en ORBILOQ-DEV después de 089 (y 090 si se usa la OC documental). Pendiente de aplicación remota. Retira exclusivamente la restricción que exigía que la recepción estuviera entre el despacho y hoy; conserva permisos Admin/Seguimiento, control de versiones, validación de fechas reales y de evidencias. No cambia fechas existentes ni la fecha de despacho.
+
+El calendario y el filtro de recibido permiten los años 1 a 9999. El ensayo local instala 091 dos veces y comprueba guardar 2000-01-01 y 2099-12-31, borrar la fecha y rechazar una fecha imposible o una versión obsoleta. No ejecutar en producción.
+
+
+### 092 — Peso real por caja o paquete
+
+Aplicar `092_peso_por_empaque.sql` completo **solo en ORBILOQ-DEV**, después de 090, antes de usar esta versión. Pendiente de aplicación remota. No borra datos ni reescribe LE históricas. Instalar también 091 para la fecha de recibido libre.
+
+El catálogo conserva únicamente la tara. La aplicación muestra Paquete y conserva BOLSA como código histórico compatible. Cada pieza física exige peso bruto positivo, mayor o igual a la tara; las tallas compartidas llevan el mismo peso. La LE guarda tara, bruto y neto (bruto menos tara) como una copia independiente del catálogo. Los totales se suman una sola vez por número de empaque.
+
+Las nuevas RPC `admin_empaque_guardar_v92` y `guardar_empaque_destinatario_v92` sustituyen las anteriores. Se retiran permisos a las RPC antiguas para evitar confirmar sin peso; recargar los clientes después de instalar. El ensayo local instala 092 dos veces y prueba pesos inválidos, tallas compartidas, reintentos y conservación de documentos históricos.
+
+### 093 — Destinatarios internacionales
+Aplicar únicamente en ORBILOQ-DEV después de 082. Añade el RPC de alta internacional, valida CLIENTES I:Q y separa sus claves de los nacionales. Conserva las instantáneas de despachos y LE. El formato se elige con `tipo_destinatario=internacional`; ausencia de la marca conserva el nacional. No importa automáticamente los clientes del Excel. Ensayo: `tools/ensayar_trazabilidad_op.ps1`.

@@ -23,9 +23,13 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
       'ancho_cm',
       'alto_cm',
       'peso_neto_kg',
-      'peso_bruto_kg',
     ])
-      k: TextEditingController(text: widget.fila?[k]?.toString() ?? ''),
+      k: TextEditingController(
+        text:
+            k == 'nombre'
+                ? textoEmpaque(widget.fila?[k])
+                : widget.fila?[k]?.toString() ?? '',
+      ),
   };
   late String _categoria = widget.fila?['categoria'] ?? 'CAJA';
   late bool _activo = widget.fila?['activo'] ?? true;
@@ -73,11 +77,6 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
     for (final k in _campos.keys.where((k) => k != 'nombre')) {
       datos[k] = _numero(_campos[k]!.text);
     }
-    if ((datos['peso_bruto_kg'] as double) <
-        (datos['peso_neto_kg'] as double)) {
-      setState(() => _error = 'El peso bruto no puede ser menor que la tara.');
-      return;
-    }
     setState(() {
       _ocupado = true;
       _error = null;
@@ -118,7 +117,7 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
         mobileCatalog: true,
         title: widget.fila == null ? 'Agregar empaque' : 'Editar empaque',
         subtitle:
-            'Catálogo de empaques${widget.fila == null ? '' : ' · ${widget.fila!['nombre']}'}',
+            'Catálogo de empaques${widget.fila == null ? '' : ' · ${textoEmpaque(widget.fila!['nombre'])}'}',
         icon: Icons.inventory_2_outlined,
         iconColor: Theme.of(context).colorScheme.primary,
         maxWidth: 600,
@@ -140,7 +139,7 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
                     decoration: const InputDecoration(labelText: 'Categoría *'),
                     items: const [
                       DropdownMenuItem(value: 'CAJA', child: Text('Caja')),
-                      DropdownMenuItem(value: 'BOLSA', child: Text('Empaque')),
+                      DropdownMenuItem(value: 'BOLSA', child: Text('Paquete')),
                     ],
                     onChanged:
                         _ocupado
@@ -177,15 +176,10 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
               const SizedBox(height: 24),
               const Text('Peso', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
-              CatalogoCampos(
-                children: [
-                  _campo('peso_neto_kg', 'Tara (kg) *'),
-                  _campo('peso_bruto_kg', 'Peso bruto aproximado (kg) *'),
-                ],
-              ),
+              CatalogoCampos(children: [_campo('peso_neto_kg', 'Tara (kg) *')]),
               const SizedBox(height: 8),
               const Text(
-                'El peso bruto es el típico ya lleno; no puede ser menor que la tara.',
+                'El peso bruto se asigna a cada caja o paquete al preparar el despacho.',
                 style: TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 24),

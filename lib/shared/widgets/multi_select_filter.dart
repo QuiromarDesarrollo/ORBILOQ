@@ -1,3 +1,4 @@
+import 'wms_expandable_alert_dialog.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -13,14 +14,15 @@ Future<Set<T>?> showMultiSelectFilter<T>(
 }) {
   return showDialog<Set<T>>(
     context: context,
-    builder: (_) => dialogoClaro(
-      _MultiSelectDialog<T>(
-        title: title,
-        options: options,
-        selected: selected,
-        labelOf: labelOf,
-      ),
-    ),
+    builder:
+        (_) => dialogoClaro(
+          _MultiSelectDialog<T>(
+            title: title,
+            options: options,
+            selected: selected,
+            labelOf: labelOf,
+          ),
+        ),
   );
 }
 
@@ -80,7 +82,11 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
   DateTime? _fechaDesdeEtiqueta(String etiqueta) {
     final m = _formatoFecha.firstMatch(etiqueta);
     if (m == null) return null;
-    return DateTime(int.parse(m.group(3)!), int.parse(m.group(2)!), int.parse(m.group(1)!));
+    return DateTime(
+      int.parse(m.group(3)!),
+      int.parse(m.group(2)!),
+      int.parse(m.group(1)!),
+    );
   }
 
   void _alternarOrden(_Orden tocado) {
@@ -93,8 +99,11 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
     // Una selección previa sin coincidencias sigue visible para poder quitarla;
     // no se presenta como una opción disponible ni se borra silenciosamente.
     final disponibles = widget.options.toSet();
-    final visibles = {...widget.options, ...widget.selected}
-        .where((o) => widget.labelOf(o).toLowerCase().contains(q)).toList();
+    final visibles =
+        {
+          ...widget.options,
+          ...widget.selected,
+        }.where((o) => widget.labelOf(o).toLowerCase().contains(q)).toList();
     if (_orden != _Orden.ninguno) {
       visibles.sort(_comparar);
       if (_orden == _Orden.descendente) {
@@ -104,11 +113,13 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
           ..addAll(invertidos);
       }
     }
-    final todos = disponibles.isNotEmpty &&
-        _sel.length == disponibles.length && _sel.containsAll(disponibles);
+    final todos =
+        disponibles.isNotEmpty &&
+        _sel.length == disponibles.length &&
+        _sel.containsAll(disponibles);
     final ninguno = _sel.isEmpty;
 
-    return AlertDialog(
+    return WmsExpandableAlertDialog(
       // Fijo en blanco: el título usa texto navy fijo, pensado para fondo
       // claro (no debe oscurecerse con el tema oscuro del Kardex).
       backgroundColor: Colors.white,
@@ -120,7 +131,11 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
           Expanded(
             child: Text(
               widget.title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryNavy),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColors.primaryNavy,
+              ),
             ),
           ),
         ],
@@ -136,14 +151,19 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
                 hintText: 'Buscar en lista...',
                 prefixIcon: const Icon(Icons.search, size: 18),
                 isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
               onChanged: (v) => setState(() => _query = v),
             ),
             const SizedBox(height: 8),
             Row(
               children: [
-                const Text('Ordenar:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const Text(
+                  'Ordenar:',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
                 const SizedBox(width: 8),
                 _BotonOrden(
                   icono: Icons.arrow_upward,
@@ -165,37 +185,53 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
               dense: true,
               tristate: true,
               activeColor: AppColors.primaryNavy,
-              title: const Text('SELECCIONAR TODOS', style: TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text(
+                'SELECCIONAR TODOS',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               value: todos ? true : (ninguno ? false : null),
-              onChanged: (_) => setState(() {
-                _sel = todos ? <T>{} : <T>{...widget.options};
-              }),
+              onChanged:
+                  (_) => setState(() {
+                    _sel = todos ? <T>{} : <T>{...widget.options};
+                  }),
             ),
             const Divider(height: 1),
             SizedBox(
               height: 240,
-              child: visibles.isEmpty
-                  ? const Center(child: Text('Sin coincidencias', style: TextStyle(color: Colors.grey)))
-                  : ListView.builder(
-                      itemCount: visibles.length,
-                      itemBuilder: (_, i) {
-                        final opt = visibles[i];
-                        return CheckboxListTile(
-                          subtitle: disponibles.contains(opt) ? null : const Text('Sin coincidencias con los otros filtros'),
-                          dense: true,
-                          activeColor: AppColors.actionGreen,
-                          title: Text(widget.labelOf(opt)),
-                          value: _sel.contains(opt),
-                          onChanged: (v) => setState(() {
-                            if (v == true) {
-                              _sel.add(opt);
-                            } else {
-                              _sel.remove(opt);
-                            }
-                          }),
-                        );
-                      },
-                    ),
+              child:
+                  visibles.isEmpty
+                      ? const Center(
+                        child: Text(
+                          'Sin coincidencias',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                      : ListView.builder(
+                        itemCount: visibles.length,
+                        itemBuilder: (_, i) {
+                          final opt = visibles[i];
+                          return CheckboxListTile(
+                            subtitle:
+                                disponibles.contains(opt)
+                                    ? null
+                                    : const Text(
+                                      'Sin coincidencias con los otros filtros',
+                                    ),
+                            dense: true,
+                            activeColor: AppColors.actionGreen,
+                            title: Text(widget.labelOf(opt)),
+                            value: _sel.contains(opt),
+                            onChanged:
+                                (v) => setState(() {
+                                  if (v == true) {
+                                    _sel.add(opt);
+                                  } else {
+                                    _sel.remove(opt);
+                                  }
+                                }),
+                          );
+                        },
+                      ),
             ),
           ],
         ),
@@ -211,7 +247,10 @@ class _MultiSelectDialogState<T> extends State<_MultiSelectDialog<T>> {
             backgroundColor: AppColors.primaryNavy,
             foregroundColor: Colors.white,
           ),
-          child: const Text('APLICAR FILTRO', style: TextStyle(fontWeight: FontWeight.bold)),
+          child: const Text(
+            'APLICAR FILTRO',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     );
@@ -244,9 +283,15 @@ class _BotonOrden extends StatelessWidget {
           decoration: BoxDecoration(
             color: activo ? AppColors.primaryNavy : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: activo ? AppColors.primaryNavy : Colors.grey.shade400),
+            border: Border.all(
+              color: activo ? AppColors.primaryNavy : Colors.grey.shade400,
+            ),
           ),
-          child: Icon(icono, size: 16, color: activo ? Colors.white : Colors.grey.shade700),
+          child: Icon(
+            icono,
+            size: 16,
+            color: activo ? Colors.white : Colors.grey.shade700,
+          ),
         ),
       ),
     );

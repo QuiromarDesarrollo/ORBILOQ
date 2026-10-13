@@ -1,3 +1,4 @@
+import '../../../data/empaques_repository.dart';
 import 'package:flutter/material.dart';
 import 'catalogo_tarjetas.dart';
 
@@ -82,7 +83,6 @@ class CatalogoTabla extends StatelessWidget {
                                 'MEDIDAS (CM)',
                                 'VOLUMEN',
                                 'TARA',
-                                'PESO BRUTO APROX.',
                               ])
                                 DataColumn(label: Text(title)),
                             ],
@@ -145,7 +145,9 @@ class CatalogoTabla extends StatelessWidget {
                                                 CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                '${f['nombre'] ?? f['codigo'] ?? ''}',
+                                                empaque
+                                                    ? textoEmpaque(f['nombre'])
+                                                    : '${f['nombre'] ?? f['codigo'] ?? ''}',
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -153,7 +155,7 @@ class CatalogoTabla extends StatelessWidget {
                                                 Text(
                                                   f['categoria'] == 'CAJA'
                                                       ? 'Caja'
-                                                      : 'Empaque',
+                                                      : 'Paquete',
                                                   style: const TextStyle(
                                                     fontSize: 11,
                                                     color: Color(0xFF57707C),
@@ -178,9 +180,6 @@ class CatalogoTabla extends StatelessWidget {
                                     ),
                                     DataCell(
                                       Text('${n(f['peso_neto_kg'])} kg'),
-                                    ),
-                                    DataCell(
-                                      Text('${n(f['peso_bruto_kg'])} kg'),
                                     ),
                                   ],
                                   DataCell(

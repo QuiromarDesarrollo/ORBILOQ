@@ -6,6 +6,8 @@ void main() {
     final f = <String, dynamic>{
       'item_id': 'i1',
       'op': '001',
+      'oc': 'ORIGINAL',
+      'oc_documento': 'DOCUMENTO',
       'codigo': '0003',
       'cantidad': 20,
       'produccion_completa': true,
@@ -26,7 +28,15 @@ void main() {
       {...f, 'despacho_id': 'd2', 'fase': 'empacado', 'fecha_despachado': null},
     ]);
     final a = h['Trazabilidad OP']![1];
+    expect(h['Trazabilidad OP']![0][9], 'Empacado (reserva)');
+    expect(
+      h['Trazabilidad OP']![0][10],
+      'Despachado / liberado (salida física)',
+    );
     expect(a[0], '001');
+    expect(a[5], 'ORIGINAL');
+    expect(a[20], 'DOCUMENTO');
+    expect(h['Resumen sin duplicados']![1][5], 'ORIGINAL');
     expect(a[6], 20);
     expect(a[7], '08/10/2026 22:00');
     expect(a[8], 'Parcial');

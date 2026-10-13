@@ -23,7 +23,7 @@ Future<T?> showWmsDialog<T>(BuildContext context, WidgetBuilder builder) =>
 
 /// Marco común de los diálogos: título, cierre y tamaño responsive.
 /// Con [expand] el contenido ocupa toda la altura disponible (p. ej. pestañas).
-class WmsDialogShell extends StatelessWidget {
+class WmsDialogShell extends StatefulWidget {
   const WmsDialogShell({
     super.key,
     required this.title,
@@ -33,10 +33,13 @@ class WmsDialogShell extends StatelessWidget {
     this.maxWidth = 900,
     this.expand = false,
     this.canClose = true,
+    this.closeTooltip = 'Cerrar',
     this.subtitle,
     this.footer,
     this.mobileCatalog = false,
     this.showHeaderIcon = true,
+    this.fullscreen = false,
+    this.onToggleFullscreen,
   });
 
   final String title;
@@ -46,34 +49,78 @@ class WmsDialogShell extends StatelessWidget {
   final double maxWidth;
   final bool expand;
   final bool canClose;
+  final String closeTooltip;
   final String? subtitle;
   final Widget? footer;
   final bool mobileCatalog;
   final bool showHeaderIcon;
+  final bool fullscreen;
+  final VoidCallback? onToggleFullscreen;
+
+  @override
+  State<WmsDialogShell> createState() => _WmsDialogShellState();
+}
+
+class _WmsDialogShellState extends State<WmsDialogShell> {
+  bool _fullscreen = false;
 
   @override
   Widget build(BuildContext context) {
-    final compact = mobileCatalog && MediaQuery.sizeOf(context).width < 600;
+    final title = widget.title;
+    final icon = widget.icon;
+    final child = widget.child;
+    final maxWidth = widget.maxWidth;
+    final expand = widget.expand;
+    final canClose = widget.canClose;
+    final subtitle = widget.subtitle;
+    final footer = widget.footer;
+    final showHeaderIcon = widget.showHeaderIcon;
+    final fullscreen =
+        widget.onToggleFullscreen == null ? _fullscreen : widget.fullscreen;
+    final onToggleFullscreen =
+        widget.onToggleFullscreen ??
+        () => setState(() => _fullscreen = !_fullscreen);
+
+    final compact =
+        MediaQuery.sizeOf(context).width < 600 ||
+        MediaQuery.sizeOf(context).height -
+                MediaQuery.viewInsetsOf(context).bottom <
+            600;
     final maxHeight = (MediaQuery.sizeOf(context).height -
             MediaQuery.viewInsetsOf(context).bottom -
-            (compact ? 16 : 32))
-        .clamp(100.0, compact ? 10000.0 : 720.0);
+            (fullscreen
+                ? 0
+                : compact
+                ? 16
+                : 32))
+        .clamp(100.0, fullscreen || compact ? 10000.0 : 720.0);
     final dialog = Dialog(
       // Fijo en blanco a propósito: estos diálogos usan texto navy fijo
       // (título, iconos) diseñado para fondo claro, y no deben oscurecerse
       // con el tema oscuro del Kardex o el texto queda ilegible.
       backgroundColor: Colors.white,
-      insetPadding: EdgeInsets.all(compact ? 8 : 16),
+      insetPadding: EdgeInsets.all(
+        fullscreen
+            ? 0
+            : compact
+            ? 8
+            : 16,
+      ),
       elevation: 16,
       shadowColor: Colors.black.withValues(alpha: .12),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(fullscreen ? 0 : 18),
         side: const BorderSide(color: AppColors.cardBorder),
       ),
       child: WmsDialogLoadingHost(
         child: ConstrainedBox(
+          key: const ValueKey('wms-dialog-surface'),
           constraints: BoxConstraints(
-            maxWidth: maxWidth.clamp(320.0, 1080.0),
+            minWidth: fullscreen ? MediaQuery.sizeOf(context).width : 0,
+            maxWidth:
+                fullscreen
+                    ? MediaQuery.sizeOf(context).width
+                    : maxWidth.clamp(320.0, 1080.0),
             maxHeight: maxHeight,
           ),
           child: Padding(
@@ -82,7 +129,9 @@ class WmsDialogShell extends StatelessWidget {
             ),
             child: Column(
               mainAxisSize:
-                  expand || compact ? MainAxisSize.max : MainAxisSize.min,
+                  expand || compact || fullscreen
+                      ? MainAxisSize.max
+                      : MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
@@ -119,7 +168,7 @@ class WmsDialogShell extends StatelessWidget {
                           if (subtitle != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              subtitle!,
+                              subtitle,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: palOf(context).textMuted,
@@ -130,7 +179,15 @@ class WmsDialogShell extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Cerrar',
+                      tooltip:
+                          fullscreen ? 'Restaurar tamaño' : 'Ampliar pantalla',
+                      icon: Icon(
+                        fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                      ),
+                      onPressed: onToggleFullscreen,
+                    ),
+                    IconButton(
+                      tooltip: widget.closeTooltip,
                       style: IconButton.styleFrom(
                         backgroundColor: AppColors.slate50,
                       ),
@@ -168,7 +225,7 @@ class WmsDialogShell extends StatelessWidget {
                   const SizedBox(height: 16),
                   const Divider(height: 1),
                   const SizedBox(height: 12),
-                  footer!,
+                  footer,
                 ],
               ],
             ),

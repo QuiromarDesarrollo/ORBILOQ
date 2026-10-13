@@ -90,6 +90,7 @@ abstract class DespachosOcRepository {
     List<Map<String, dynamic>> empaques, {
     String? destinatarioId,
     String? destinatarioVersion,
+    String? ocDocumento,
   }) => throw UnsupportedError('Corrección no disponible');
   Future<void> confirmar(
     String solicitud,
@@ -99,6 +100,7 @@ abstract class DespachosOcRepository {
     List<Map<String, dynamic>> empaques = const [],
     String? destinatarioId,
     String? destinatarioVersion,
+    String? ocDocumento,
   });
   Future<List<Map<String, dynamic>>> historial();
 }
@@ -123,9 +125,10 @@ class SupabaseDespachosOcRepository extends DespachosOcRepository {
     List<Map<String, dynamic>> empaques, {
     String? destinatarioId,
     String? destinatarioVersion,
+    String? ocDocumento,
   }) async {
     await client.rpc(
-      'guardar_empaque_destinatario',
+      'guardar_empaque_destinatario_v92',
       params: {
         'p_id': id,
         'p_version': version,
@@ -135,6 +138,7 @@ class SupabaseDespachosOcRepository extends DespachosOcRepository {
         'p_motivo': motivo,
         'p_cliente': cliente,
         'p_oc': oc,
+        'p_oc_documento': ocDocumento,
         'p_lineas': [
           for (final l in lineas)
             {
@@ -157,9 +161,10 @@ class SupabaseDespachosOcRepository extends DespachosOcRepository {
     List<Map<String, dynamic>> empaques = const [],
     String? destinatarioId,
     String? destinatarioVersion,
+    String? ocDocumento,
   }) async {
     await client.rpc(
-      'guardar_empaque_destinatario',
+      'guardar_empaque_destinatario_v92',
       params: {
         'p_empaques': empaques,
         'p_solicitud': solicitud,
@@ -167,6 +172,7 @@ class SupabaseDespachosOcRepository extends DespachosOcRepository {
         'p_destinatario_version': destinatarioVersion,
         'p_cliente': cliente,
         'p_oc': oc,
+        'p_oc_documento': ocDocumento,
         'p_lineas': [
           for (final l in lineas)
             {

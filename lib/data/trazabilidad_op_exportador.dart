@@ -22,8 +22,8 @@ Map<String, List<List<Object?>>> hojasTrazabilidadOp(List<FilaReporte> filas) {
         'Cantidad OP por talla',
         'Entregado producción',
         'Recibido en bodega',
-        'Despachado (empaque)',
-        'Liberado (salida física)',
+        'Empacado (reserva)',
+        'Despachado / liberado (salida física)',
         'LE',
         'N° GUÍA',
         'PLACA',
@@ -33,6 +33,7 @@ Map<String, List<List<Object?>>> hojasTrazabilidadOp(List<FilaReporte> filas) {
         'Recibido por cliente',
         'Placa o guía histórica',
         'Estado',
+        'OC del despacho',
       ],
       for (final f in filas)
         [
@@ -62,6 +63,7 @@ Map<String, List<List<Object?>>> hojasTrazabilidadOp(List<FilaReporte> filas) {
               : f['fase'] == 'empacado'
               ? 'Reservado'
               : 'Liberado',
+          f['oc_documento'] ?? (f['despacho_id'] == null ? null : f['oc']),
         ],
     ],
     'Resumen sin duplicados': [
@@ -97,7 +99,7 @@ Map<String, List<List<Object?>>> hojasTrazabilidadOp(List<FilaReporte> filas) {
       ],
       [
         'Fechas',
-        'Zona America/Bogota (UTC-5). Despachado = confirmación del empaque; liberado = salida física.',
+        'Zona America/Bogota (UTC-5). Empacado = reserva de las prendas. Despachado / liberado = confirmación de la salida física en Seguimiento; antes de liberar permanece Pendiente.',
       ],
       [
         'Entrega y recepción',

@@ -64,6 +64,25 @@ void main() {
     await tester.tap(find.text('LE 2971'));
     await tester.pumpAndSettle();
     expect(find.text('Seguimiento · LE 2971'), findsOneWidget);
+    for (final fecha in [DateTime(2000, 1, 1), DateTime(2099, 12, 31)]) {
+      final botonFecha = find.text('Sin fecha');
+      final fechaAnterior = find.text('01/01/2000');
+      final abrir =
+          botonFecha.evaluate().isNotEmpty ? botonFecha : fechaAnterior;
+      await tester.ensureVisible(abrir);
+      await tester.tap(abrir);
+      await tester.pumpAndSettle();
+      final calendario = tester.widget<CalendarDatePicker>(
+        find.byType(CalendarDatePicker),
+      );
+      expect(calendario.firstDate.isBefore(DateTime(2000)), isTrue);
+      expect(calendario.lastDate.isAfter(DateTime(2099, 12, 31)), isTrue);
+      calendario.onDateChanged(fecha);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('31/12/2099'), findsOneWidget);
     expect(find.text('N° de guía'), findsOneWidget);
     expect(find.text('Placa'), findsOneWidget);
     expect(find.text('001234'), findsOneWidget);
@@ -79,6 +98,13 @@ void main() {
     await tester.pumpAndSettle();
     final campos = find.byType(TextField);
     await tester.enterText(campos.at(1), 'QUIROMAR');
+    await tester.tap(find.byTooltip('Ampliar pantalla'));
+    await tester.pumpAndSettle();
+    expect(find.text('QUIROMAR'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('Restaurar tamaño'));
+    await tester.pumpAndSettle();
+    expect(find.text('QUIROMAR'), findsOneWidget);
     await tester.tap(find.text('En tránsito').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Devuelto por el cliente').last);

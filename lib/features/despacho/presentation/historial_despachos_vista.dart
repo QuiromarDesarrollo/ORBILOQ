@@ -1,3 +1,4 @@
+import '../../../data/empaques_repository.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../core/utils/fecha.dart';
@@ -114,7 +115,7 @@ class _VistaState extends State<HistorialDespachosVista> {
             .where(
               (g) => g.value.any((f) {
                 final fecha = DateTime.tryParse('${f['fecha']}')?.toLocal();
-                return '${f['le_numero'] ?? ''} ${f['oc']} ${f['op']} ${f['cliente']}'
+                return '${f['le_numero'] ?? ''} ${f['oc_documento'] ?? ''} ${f['oc']} ${f['op']} ${f['cliente']}'
                         .toLowerCase()
                         .contains(buscar) &&
                     (rango == null ||
@@ -312,7 +313,7 @@ class _VistaState extends State<HistorialDespachosVista> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${f['cliente']} · ${f['oc']}',
+                      '${f['cliente']} · ${f['oc_documento'] ?? f['oc']}',
                       style: const TextStyle(fontSize: 12),
                     ),
                     const SizedBox(height: 6),
@@ -396,7 +397,7 @@ class _VistaState extends State<HistorialDespachosVista> {
                                                   ),
                                                 ),
                                                 Text(
-                                                  '${e['nombre'] ?? e['categoria'] ?? ''} · ${e['largo_cm'] ?? '–'} × ${e['ancho_cm'] ?? '–'} × ${e['alto_cm'] ?? '–'} cm',
+                                                  '${textoEmpaque(e['nombre'] ?? e['categoria'])} · ${e['largo_cm'] ?? '–'} × ${e['ancho_cm'] ?? '–'} × ${e['alto_cm'] ?? '–'} cm',
                                                   style: const TextStyle(
                                                     fontSize: 12,
                                                   ),
@@ -424,7 +425,7 @@ class _VistaState extends State<HistorialDespachosVista> {
                                                 ),
                                                 Expanded(
                                                   child: Text(
-                                                    '${e['nombre'] ?? ''} · ${e['largo_cm'] ?? '–'} × ${e['ancho_cm'] ?? '–'} × ${e['alto_cm'] ?? '–'} cm',
+                                                    '${textoEmpaque(e['nombre'])} · ${e['largo_cm'] ?? '–'} × ${e['ancho_cm'] ?? '–'} × ${e['alto_cm'] ?? '–'} cm',
                                                     style: const TextStyle(
                                                       fontSize: 12,
                                                     ),
