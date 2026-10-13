@@ -32,15 +32,17 @@ class _Repo implements CatalogosRepository {
     Map<String, dynamic>? anterior,
     String nombre,
     bool activo,
-    String rol,
-  ) async {}
+    String rol, {
+    List<String>? roles,
+  }) async {}
   @override
   Future<bool> crearUsuario(
     String numero,
     String nombre,
     String rol,
-    String contrasena,
-  ) async => false;
+    String contrasena, {
+    List<String>? roles,
+  }) async => false;
 }
 
 void main() {

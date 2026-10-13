@@ -85,7 +85,9 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
         (v) =>
             (k == 'nombre' || camposDestinatarioInternacional.containsKey(k)) &&
                     (v?.trim().isEmpty ?? true)
-                ? 'Completa este campo.'
+                ? (k == 'nombre'
+                    ? 'Ingresa el nombre del destinatario.'
+                    : 'Completa este campo.')
                 : null,
   );
 

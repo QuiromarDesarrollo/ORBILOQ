@@ -2,7 +2,8 @@ param(
  [Parameter(Mandatory=$true)][string]$Backup,
  [string]$DiagnosticoSql = '',
  [string]$MigracionSql = '',
- [string]$PruebaSql = ''
+ [string]$PruebaSql = '',
+ [switch]$PermitirBucketSeguimiento
 )
 $ErrorActionPreference = 'Stop'
 $bin = 'C:\Users\analistadatos\Downloads\postgresql-17.11-5-windows-x64-binaries\pgsql\bin'
@@ -30,8 +31,11 @@ try {
     & "$bin\initdb.exe" -D $data -U postgres --auth=scram-sha-256 --encoding=UTF8 --locale=C -c timezone=UTC "--pwfile=$pw" *> (Join-Path $dest 'initdb.log')
     if ($LASTEXITCODE -ne 0) { throw 'Falló initdb; revisar initdb.log.' }
     Remove-Item -LiteralPath $pw
-    & "$bin\pg_ctl.exe" -D $data -l (Join-Path $dest 'servidor.log') -o '-h 127.0.0.1 -p 55432' -w start
-    if ($LASTEXITCODE -ne 0) { throw 'No se pudo iniciar el servidor local.' }
+    # Esperar al lanzador, no al árbol de procesos (incluye el servidor persistente).
+    $pgArgs=@('-D', ('"'+$data+'"'), '-l', ('"'+(Join-Path $dest 'servidor.log')+'"'), '-o', '"-h 127.0.0.1 -p 55432"', '-w', 'start')
+    $pgStart=Start-Process -FilePath "$bin\pg_ctl.exe" -ArgumentList $pgArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $dest 'arranque.log') -RedirectStandardError (Join-Path $dest 'arranque-error.log')
+    $pgStart.WaitForExit()
+    if($pgStart.ExitCode -ne 0){throw 'No se pudo iniciar el servidor local.'}
     $started = $true
     $conn = 'host=127.0.0.1 port=55432 dbname=postgres user=postgres sslmode=disable connect_timeout=10'
     $roleStatements = @('CREATE DATABASE ensayo;')
@@ -128,7 +132,7 @@ try {
         $after = Join-Path $dest 'datos-despues.sql'
         & "$bin\pg_dump.exe" --dbname=$conn --no-password --data-only --no-owner --no-privileges --file=$after 2> (Join-Path $dest 'exportacion-despues.log')
         if ($LASTEXITCODE -ne 0) { throw 'Falló la exportación posterior.' }
-        & (Join-Path $PSScriptRoot 'comparar_datos_migracion.ps1') -Antes $localData -Despues $after -Informe (Join-Path $dest 'comparacion-migracion.csv') -PermitirBucketSeguimiento
+        & (Join-Path $PSScriptRoot 'comparar_datos_migracion.ps1') -Antes $localData -Despues $after -Informe (Join-Path $dest 'comparacion-migracion.csv') -PermitirBucketSeguimiento:$PermitirBucketSeguimiento
         if ($PruebaSql -ne '') {
             & "$bin\psql.exe" -X -w --dbname=$conn -v ON_ERROR_STOP=1 -f (Resolve-Path -LiteralPath $PruebaSql).Path *> (Join-Path $dest 'pruebas.log')
             if ($LASTEXITCODE -ne 0) { throw 'Fallaron las pruebas funcionales locales; revisar pruebas.log.' }

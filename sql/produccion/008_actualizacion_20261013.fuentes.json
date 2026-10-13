@@ -1,0 +1,26 @@
+{
+  "baseline_fecha": "2026-10-13T21:01:37.219605+00:00",
+  "fuentes": [
+    {
+      "fuente": "sql/pruebas/090_oc_documento_despacho.sql",
+      "sha256": "5c718c6db21845667b26691a2eccd5d485e69e7aebda11ff4d85085db2b1c8e8"
+    },
+    {
+      "fuente": "sql/pruebas/091_fecha_recibido_libre.sql",
+      "sha256": "1a3dda2f9a7cc8756b1aed5feff743a42acdb09de64feeb60ae2db3773270f25"
+    },
+    {
+      "fuente": "sql/pruebas/092_peso_por_empaque.sql",
+      "sha256": "9c857a740fcd17ca33ab368d4403360606ba9fdb86b01a62c87d2bfeb023fa1b"
+    },
+    {
+      "fuente": "sql/pruebas/093_destinatarios_internacionales.sql",
+      "sha256": "fc2fbe96ce1d88d4db7ce7208ce0f30c5aeed33c2481f5fd0497d2738c3db774"
+    },
+    {
+      "fuente": "sql/pruebas/094_usuarios_multiperfil.sql",
+      "sha256": "8386bcf962fe8918699f8671de18aa271ca6883b60eb2e23ecc793af438f5d79"
+    }
+  ],
+  "sql_sha256": "ffd348aeaf3a938b65a7552865710a3cc31d4e740e33da28d1d6b65071767fac"
+}

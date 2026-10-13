@@ -47,10 +47,7 @@ class _EmpaqueAsignado {
 class _DespachoState extends ConsumerState<DespachoDialog> {
   bool get _puedeSeguimiento =>
       !ref.read(usarSupabaseProvider) ||
-      const {
-        RolCuenta.admin,
-        RolCuenta.seguimiento,
-      }.contains(ref.read(usuarioSesionProvider).valueOrNull?.rolCuenta);
+      (ref.read(usuarioSesionProvider).valueOrNull?.puedeSeguimiento ?? false);
   int _paso = 0;
   bool _exito = false;
   bool _pantallaCompleta = false;
@@ -1472,42 +1469,46 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                     color: n <= _paso ? _green : const Color(0xffe2ebef),
                   ),
                 ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 11,
-                    backgroundColor:
-                        n < _paso
-                            ? _green
-                            : n == _paso
-                            ? _navy
-                            : const Color(0xffe2ebef),
-                    child:
-                        n < _paso
-                            ? const Icon(
-                              Icons.check,
-                              size: 14,
-                              color: Colors.white,
-                            )
-                            : Text(
-                              '${n + 1}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: n == _paso ? Colors.white : _navy,
+              Expanded(
+                flex: 4,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 11,
+                      backgroundColor:
+                          n < _paso
+                              ? _green
+                              : n == _paso
+                              ? _navy
+                              : const Color(0xffe2ebef),
+                      child:
+                          n < _paso
+                              ? const Icon(
+                                Icons.check,
+                                size: 14,
+                                color: Colors.white,
+                              )
+                              : Text(
+                                '${n + 1}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: n == _paso ? Colors.white : _navy,
+                                ),
                               ),
-                            ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    nombres[n],
-                    style: TextStyle(
-                      fontSize: c.maxWidth < 400 ? 10 : 12,
-                      fontWeight:
-                          n == _paso ? FontWeight.bold : FontWeight.normal,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      nombres[n],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: c.maxWidth < 400 ? 10 : 12,
+                        fontWeight:
+                            n == _paso ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ],
@@ -2209,9 +2210,9 @@ class _HistorialState extends ConsumerState<_Historial> {
   @override
   Widget build(BuildContext context) {
     final conectado = ref.watch(usarSupabaseProvider);
-    final rol = ref.watch(usuarioSesionProvider).valueOrNull?.rolCuenta;
-    final puedeVerEntregas =
-        !conectado || rol == RolCuenta.seguimiento || rol == RolCuenta.admin;
+    final puedeSeguimiento =
+        ref.watch(usuarioSesionProvider).valueOrNull?.puedeSeguimiento ?? false;
+    final puedeVerEntregas = !conectado || puedeSeguimiento;
     // Despacho conserva el historial sin consultar una RPC restringida.
     final entregas =
         puedeVerEntregas ? ref.watch(entregasProvider).valueOrNull : null;

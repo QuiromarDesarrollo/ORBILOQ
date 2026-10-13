@@ -1,4 +1,3 @@
-import 'domain/sesion.dart';
 import 'features/ciclos/presentation/dashboard_catalogo.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
@@ -29,8 +28,8 @@ class OrbiloqWmsApp extends ConsumerWidget {
   }
 }
 
-/// Decide entre la pantalla de login y el kardex según si hay una sesión
-/// válida. Reacciona sola a inicios y cierres de sesión.
+/// Decide entre la pantalla de login y el kardex segÃºn si hay una sesiÃ³n
+/// vÃ¡lida. Reacciona sola a inicios y cierres de sesiÃ³n.
 class _PuertaDeEntrada extends ConsumerWidget {
   const _PuertaDeEntrada();
 
@@ -39,12 +38,16 @@ class _PuertaDeEntrada extends ConsumerWidget {
     final sesion = ref.watch(usuarioSesionProvider);
     final pal = palOf(context);
     return sesion.when(
-      loading: () => Scaffold(
-        backgroundColor: pal.bg,
-        body: WmsLoadingPanel(),
-      ),
-      error: (e, _) => LoginPage(errorInicial: 'Error verificando la sesión: $e'),
-      data: (usuario) => usuario == null ? const LoginPage() : usuario.rolCuenta == RolCuenta.gerencia ? const DashboardCatalogoPage() : const KardexPage(),
+      loading: () => Scaffold(backgroundColor: pal.bg, body: WmsLoadingPanel()),
+      error:
+          (e, _) => LoginPage(errorInicial: 'Error verificando la sesiÃ³n: $e'),
+      data:
+          (usuario) =>
+              usuario == null
+                  ? const LoginPage()
+                  : usuario.soloGerencia
+                  ? const DashboardCatalogoPage()
+                  : const KardexPage(),
     );
   }
 }

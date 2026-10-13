@@ -10,7 +10,6 @@ import '../core/theme/app_theme.dart';
 import '../data/supabase_importador_fechas.dart';
 import '../data/supabase_importador_ordenes.dart';
 import '../domain/models.dart';
-import '../domain/sesion.dart';
 import '../domain/wms_repository.dart';
 import 'auth_providers.dart';
 import 'kardex_columnas.dart';
@@ -155,30 +154,21 @@ class RolNotifier extends Notifier<Rol> {
 
     final sesion = ref.watch(usuarioSesionProvider).value;
     if (sesion == null) return Rol.produccion; // aún cargando / sin sesión
-    if (sesion.rolCuenta == RolCuenta.admin) {
-      if (_numeroAdmin != sesion.numeroUsuario) {
-        _numeroAdmin = sesion.numeroUsuario;
-        _vistaAdmin = Rol.produccion;
-      }
-      return _vistaAdmin;
+    final permitidas = sesion.areas;
+    if (_numeroAdmin != sesion.numeroUsuario ||
+        !permitidas.contains(_vistaAdmin)) {
+      _numeroAdmin = sesion.numeroUsuario;
+      _vistaAdmin = permitidas.firstOrNull ?? Rol.produccion;
     }
-    _numeroAdmin = null;
-    return switch (sesion.rolCuenta) {
-      RolCuenta.produccion => Rol.produccion,
-      RolCuenta.logistica => Rol.logistica,
-      RolCuenta.despacho || RolCuenta.seguimiento => Rol.despacho,
-      RolCuenta.admin || RolCuenta.gerencia =>
-        Rol.produccion, // el admin arranca en Producción y puede cambiar
-    };
+    return _vistaAdmin;
   }
 
   void cambiar(Rol rol) {
     if (rol == state) return;
     if (ref.read(usarSupabaseProvider)) {
-      final esAdmin =
-          ref.read(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
-      if (!esAdmin) {
-        return; // Producción/Logística no pueden cambiarse su propio rol
+      if (!(ref.read(usuarioSesionProvider).value?.areas.contains(rol) ??
+          false)) {
+        return;
       }
     }
     _vistaAdmin = rol;

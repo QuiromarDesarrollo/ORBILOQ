@@ -29,15 +29,16 @@ final usuarioSesionProvider = FutureProvider<UsuarioSesion?>((ref) async {
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) return null;
   // Un JWT puede seguir vigente tras desactivar la cuenta: revalidar el perfil.
-  final timer=Timer(const Duration(seconds:30),()=>ref.invalidateSelf());
+  final timer = Timer(const Duration(seconds: 30), () => ref.invalidateSelf());
   ref.onDispose(timer.cancel);
 
-  final fila = await Supabase.instance.client
-      .from('usuarios')
-      .select('numero_usuario, nombre, rol')
-      .eq('activo', true)
-      .eq('auth_id', user.id)
-      .maybeSingle();
+  final fila =
+      await Supabase.instance.client
+          .from('usuarios')
+          .select('numero_usuario, nombre, rol, roles')
+          .eq('activo', true)
+          .eq('auth_id', user.id)
+          .maybeSingle();
 
   if (fila == null) return null;
   final rol = RolCuenta.desde(fila['rol'] as String);
@@ -47,6 +48,7 @@ final usuarioSesionProvider = FutureProvider<UsuarioSesion?>((ref) async {
     numeroUsuario: (fila['numero_usuario'] as String?) ?? '',
     nombre: fila['nombre'] as String,
     rolCuenta: rol,
+    roles: RolCuenta.deFila(fila).toSet(),
   );
 });
 

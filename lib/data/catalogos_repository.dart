@@ -12,10 +12,21 @@ const catalogosAdministrables = {
 
 abstract class CatalogosRepository {
   Future<List<Map<String, dynamic>>> listar(String tipo);
-  Future<void> guardar(String tipo, Map<String, dynamic>? anterior,
-      String nombre, bool activo, String rol);
+  Future<void> guardar(
+    String tipo,
+    Map<String, dynamic>? anterior,
+    String nombre,
+    bool activo,
+    String rol, {
+    List<String>? roles,
+  });
   Future<bool> crearUsuario(
-      String numero, String nombre, String rol, String contrasena);
+    String numero,
+    String nombre,
+    String rol,
+    String contrasena, {
+    List<String>? roles,
+  });
 }
 
 class SupabaseCatalogosRepository implements CatalogosRepository {
@@ -28,35 +39,54 @@ class SupabaseCatalogosRepository implements CatalogosRepository {
           .map((v) => Map<String, dynamic>.from(v as Map))
           .toList();
   @override
-  Future<void> guardar(String tipo, Map<String, dynamic>? anterior,
-      String nombre, bool activo, String rol) async {
+  Future<void> guardar(
+    String tipo,
+    Map<String, dynamic>? anterior,
+    String nombre,
+    bool activo,
+    String rol, {
+    List<String>? roles,
+  }) async {
     await client.rpc(
-        tipo == 'usuarios'
-            ? 'admin_usuario_guardar'
-            : 'admin_catalogos_guardar',
-        params: {
-          if (tipo != 'usuarios') 'p_tipo': tipo,
-          'p_id': anterior?['id'],
-          'p_nombre': nombre,
-          'p_activo': activo,
-          'p_version': anterior?['version'],
-          if (tipo == 'usuarios') 'p_rol': rol,
-        });
+      tipo == 'usuarios'
+          ? 'admin_usuario_guardar_roles'
+          : 'admin_catalogos_guardar',
+      params: {
+        if (tipo != 'usuarios') 'p_tipo': tipo,
+        'p_id': anterior?['id'],
+        'p_nombre': nombre,
+        'p_activo': activo,
+        'p_version': anterior?['version'],
+        if (tipo == 'usuarios')
+          'p_roles': roles ?? (anterior?['roles'] as List?) ?? [rol],
+      },
+    );
   }
 
   @override
   Future<bool> crearUsuario(
-      String numero, String nombre, String rol, String contrasena) async {
-    final res = await client.functions.invoke('admin-crear-usuario', body: {
-      'numero': numero,
-      'nombre': nombre,
-      'rol': rol,
-      'contrasena': contrasena
-    });
+    String numero,
+    String nombre,
+    String rol,
+    String contrasena, {
+    List<String>? roles,
+  }) async {
+    final res = await client.functions.invoke(
+      'admin-crear-usuario',
+      body: {
+        'numero': numero,
+        'nombre': nombre,
+        'rol': rol,
+        'roles': roles ?? [rol],
+        'contrasena': contrasena,
+      },
+    );
     if (res.status != 200 || res.data is! Map || res.data['usuario'] == null) {
-      throw FormatException(res.data is Map
-          ? res.data['error']?.toString() ?? 'No se pudo crear la cuenta.'
-          : 'No se pudo crear la cuenta.');
+      throw FormatException(
+        res.data is Map
+            ? res.data['error']?.toString() ?? 'No se pudo crear la cuenta.'
+            : 'No se pudo crear la cuenta.',
+      );
     }
     return res.data['recuperada'] == true;
   }

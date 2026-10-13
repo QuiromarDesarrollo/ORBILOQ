@@ -187,7 +187,7 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
         _filas.where((f) {
           final activo = f['activo'] ?? f['activa'] ?? false;
           return (_estado == 'Todos' || activo == (_estado == 'Activos')) &&
-              '${_tipo == 'empaques' ? textoEmpaque(f['nombre']) : f['nombre'] ?? f['codigo']} ${f['numero_usuario'] ?? ''} ${f['rol'] ?? ''} ${textoEmpaque(f['categoria'])}'
+              '${_tipo == 'empaques' ? textoEmpaque(f['nombre']) : f['nombre'] ?? f['codigo']} ${f['numero_usuario'] ?? ''} ${RolCuenta.etiquetas(f)} ${f['roles'] ?? f['rol'] ?? ''} ${textoEmpaque(f['categoria'])}'
                   .toLowerCase()
                   .contains(_busqueda.toLowerCase());
         }).toList();
@@ -405,7 +405,13 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
   );
   final _clave = TextEditingController();
   late bool _activo = widget.fila?['activo'] ?? widget.fila?['activa'] ?? true;
-  late String _rol = widget.fila?['rol'] ?? 'produccion';
+  late final Set<RolCuenta> _roles =
+      widget.fila == null
+          ? {RolCuenta.produccion}
+          : RolCuenta.deFila(widget.fila!).toSet();
+  List<String> get _valoresRoles =>
+      RolCuenta.prioridad.where(_roles.contains).map((r) => r.valorBd).toList();
+  String get _rol => _valoresRoles.firstOrNull ?? 'produccion';
   bool _ocupado = false;
   String? _error;
   bool get _usuario => widget.tipo == 'usuarios';
@@ -435,6 +441,10 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
       );
       return;
     }
+    if (_usuario && _roles.isEmpty) {
+      setState(() => _error = 'Selecciona al menos un perfil.');
+      return;
+    }
     final confirmado = await showDialog<bool>(
       context: context,
       builder:
@@ -445,7 +455,7 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
                   ? 'Crear'
                   : _activo
                   ? 'Guardar'
-                  : 'Desactivar'} «${_nombre.text.trim()}»${_usuario ? ' con rol $_rol' : ''}. ${!_activo ? 'Dejará de estar disponible para operaciones nuevas. Se conserva el historial.' : ''}',
+                  : 'Desactivar'} «${_nombre.text.trim()}»${_usuario ? ' con perfiles ${RolCuenta.prioridad.where(_roles.contains).map((r) => r.etiqueta).join(', ')}' : ''}. ${!_activo ? 'Dejará de estar disponible para operaciones nuevas. Se conserva el historial.' : ''}',
             ),
             actions: [
               TextButton(
@@ -473,6 +483,7 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
           _nombre.text.trim(),
           _rol,
           _clave.text,
+          roles: _valoresRoles,
         );
       } else {
         await repo.guardar(
@@ -481,6 +492,7 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
           _nombre.text.trim(),
           _activo,
           _rol,
+          roles: _usuario ? _valoresRoles : null,
         );
       }
       if (!mounted) return;
@@ -518,18 +530,36 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
                 : 'Identificador de acceso. No editable.',
       ),
     );
-    final perfil = DropdownButtonFormField<String>(
-      initialValue: _rol,
-      isExpanded: true,
-      decoration: const InputDecoration(
-        labelText: 'Perfil *',
-        helperText: 'Define los módulos a los que accede.',
-      ),
-      items: [
-        for (final r in RolCuenta.values)
-          DropdownMenuItem(value: r.valorBd, child: Text(r.etiqueta)),
+    final perfil = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Perfiles *', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        const Text('Selecciona uno o varios. Sus permisos se combinan.'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final r in RolCuenta.values)
+              FilterChip(
+                label: Text(r.etiqueta),
+                selected: _roles.contains(r),
+                onSelected:
+                    _ocupado
+                        ? null
+                        : (v) => setState(() {
+                          v ? _roles.add(r) : _roles.remove(r);
+                        }),
+              ),
+          ],
+        ),
+        if (_roles.contains(RolCuenta.admin))
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text('Administrador incluye acceso a todos los módulos.'),
+          ),
       ],
-      onChanged: _ocupado ? null : (v) => setState(() => _rol = v!),
     );
     return WmsDialogShell(
       mobileCatalog: true,
@@ -557,26 +587,9 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
             ),
           ),
           const SizedBox(height: 20),
-          LayoutBuilder(
-            builder:
-                (context, c) =>
-                    c.maxWidth < 440
-                        ? Column(
-                          children: [
-                            numero,
-                            const SizedBox(height: 20),
-                            perfil,
-                          ],
-                        )
-                        : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: numero),
-                            const SizedBox(width: 16),
-                            Expanded(child: perfil),
-                          ],
-                        ),
-          ),
+          numero,
+          const SizedBox(height: 20),
+          perfil,
           if (nuevo) ...[
             const SizedBox(height: 20),
             TextField(
@@ -858,10 +871,6 @@ class UsuariosCatalogoTabla extends StatelessWidget {
                                             .map((p) => p.characters.first)
                                             .join()
                                             .toUpperCase();
-                                    final rol =
-                                        RolCuenta.values
-                                            .where((r) => r.valorBd == f['rol'])
-                                            .firstOrNull;
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 16,
@@ -905,10 +914,7 @@ class UsuariosCatalogoTabla extends StatelessWidget {
                                           ),
                                           Expanded(
                                             flex: 2,
-                                            child: Text(
-                                              rol?.etiqueta ??
-                                                  '${f['rol'] ?? '—'}',
-                                            ),
+                                            child: Text(RolCuenta.etiquetas(f)),
                                           ),
                                           Expanded(
                                             flex: 2,

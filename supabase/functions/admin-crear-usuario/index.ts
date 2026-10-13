@@ -26,8 +26,8 @@ Deno.serve(crearHandler({
     if (!data?.user?.id) throw new Error('Alta no completada');
     return data.user.id;
   },
-  async registrar({ actor, authId, numero, nombre, rol }: { actor: string; authId: string; numero: string; nombre: string; rol: string }) {
-    return comprobar(await admin.rpc('admin_usuario_registrar', { p_actor: actor, p_auth_id: authId,
-      p_numero: numero, p_nombre: nombre, p_rol: rol }));
+  async registrar({ actor, authId, numero, nombre, roles }: { actor: string; authId: string; numero: string; nombre: string; roles: string[] }) {
+    return comprobar(await admin.rpc('admin_usuario_registrar_roles', { p_actor: actor, p_auth_id: authId,
+      p_numero: numero, p_nombre: nombre, p_roles: roles }));
   },
 }));

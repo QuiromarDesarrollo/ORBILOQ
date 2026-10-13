@@ -37,8 +37,6 @@ class CatalogoTarjetas extends StatelessWidget {
               empaque
                   ? textoEmpaque(f['nombre'])
                   : '${f['nombre'] ?? f['codigo'] ?? ''}';
-          final rol =
-              RolCuenta.values.where((r) => r.valorBd == f['rol']).firstOrNull;
           final acceso = activo && f['auth_id'] != null;
           final editar = ocupado ? null : () => onEditar(f);
           final desactivar = ocupado || !activo ? null : () => onDesactivar(f);
@@ -151,7 +149,7 @@ class CatalogoTarjetas extends StatelessWidget {
                           ),
                           if (usuario)
                             Text(
-                              'N° ${f['numero_usuario'] ?? '—'} · ${rol?.etiqueta ?? f['rol'] ?? '—'}',
+                              'N° ${f['numero_usuario'] ?? '—'} · ${RolCuenta.etiquetas(f)}',
                               style: const TextStyle(
                                 fontSize: 10,
                                 color: Colors.blueGrey,

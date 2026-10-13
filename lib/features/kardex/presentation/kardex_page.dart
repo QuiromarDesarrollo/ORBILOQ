@@ -60,11 +60,18 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                   (Rol.logistica, 'Bodega', Icons.warehouse_outlined),
                   (Rol.despacho, 'Despacho', Icons.local_shipping_outlined),
                 ])
-                  ListTile(
-                    leading: Icon(opcion.$3),
-                    title: Text(opcion.$2),
-                    onTap: () => Navigator.pop(context, opcion.$1),
-                  ),
+                  if (!ref.read(usarSupabaseProvider) ||
+                      (ref
+                              .read(usuarioSesionProvider)
+                              .value
+                              ?.areas
+                              .contains(opcion.$1) ??
+                          false))
+                    ListTile(
+                      leading: Icon(opcion.$3),
+                      title: Text(opcion.$2),
+                      onTap: () => Navigator.pop(context, opcion.$1),
+                    ),
               ],
             ),
           ),
@@ -117,7 +124,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    sesion?.rolCuenta.etiqueta ?? 'Administrador',
+                    sesion?.etiquetas ?? 'Administrador',
                     style: const TextStyle(fontSize: 12),
                   ),
                 ],
@@ -194,7 +201,9 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                     ),
                   ),
                   Text(
-                    sesion?.rolCuenta.etiqueta ?? 'Administrador',
+                    sesion?.etiquetas ?? 'Administrador',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 10, color: nav.textSecondary),
                   ),
                 ],
@@ -213,7 +222,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
     final nav = palNavegacion(context);
     final usarSupabase = ref.watch(usarSupabaseProvider);
     final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
-    if (sesion?.rolCuenta == RolCuenta.gerencia) {
+    if (sesion?.soloGerencia == true) {
       return const DashboardCatalogoPage();
     }
     final rol = ref.watch(rolProvider);
@@ -238,6 +247,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
             ? 'Sincronizado'
             : 'Cargando datos';
     final esAdmin = !usarSupabase || sesion?.rolCuenta == RolCuenta.admin;
+    final puedeCambiarArea = !usarSupabase || (sesion?.areas.length ?? 0) > 1;
 
     final compacto = MediaQuery.sizeOf(context).width < 1200;
     return Scaffold(
@@ -326,7 +336,10 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: InkWell(
-                        onTap: esAdmin && !_sincronizando ? _cambiarArea : null,
+                        onTap:
+                            puedeCambiarArea && !_sincronizando
+                                ? _cambiarArea
+                                : null,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
@@ -358,7 +371,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                                     ),
                                   ),
                                 ),
-                                if (esAdmin && !_sincronizando)
+                                if (puedeCambiarArea && !_sincronizando)
                                   Icon(
                                     Icons.keyboard_arrow_down,
                                     size: 15,
@@ -486,7 +499,15 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                               TemaModo.values.byName(v.substring(5)),
                             );
                       }
-                      if (v == 'area' && esAdmin) _cambiarArea();
+                      if (v == 'area' && puedeCambiarArea) _cambiarArea();
+                      if (v == 'indicadores' &&
+                          sesion?.puedeVerDashboards == true) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const DashboardCatalogoPage(),
+                          ),
+                        );
+                      }
                       if (v == 'ordenes') showImportarOrdenesDialog(context);
                       if (v == 'salir') {
                         ref.read(authRepositoryProvider)?.cerrarSesion();
@@ -533,7 +554,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                               ],
                             ),
                           ),
-                          if (esAdmin)
+                          if (puedeCambiarArea)
                             const PopupMenuItem(
                               value: 'area',
                               child: Row(
@@ -543,6 +564,11 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                                   Text('Cambiar área'),
                                 ],
                               ),
+                            ),
+                          if (!esAdmin && sesion?.puedeVerDashboards == true)
+                            const PopupMenuItem(
+                              value: 'indicadores',
+                              child: Text('Indicadores de gestión'),
                             ),
                           const PopupMenuDivider(),
                           for (final tema in TemaModo.values)
@@ -612,6 +638,17 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                   const SelectorTema(),
                   const SizedBox(width: 8),
                   Container(height: 28, width: 1, color: nav.cardBorder),
+                  if (!esAdmin && sesion?.puedeVerDashboards == true)
+                    IconButton(
+                      tooltip: 'Indicadores de gestión',
+                      icon: const Icon(Icons.insights),
+                      onPressed:
+                          () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const DashboardCatalogoPage(),
+                            ),
+                          ),
+                    ),
                   _menuUsuario(sesion, usarSupabase, esAdmin),
                 ],
       ),
@@ -798,10 +835,10 @@ class _SelectorPerfil extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final usarSupabase = ref.watch(usarSupabaseProvider);
     final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
-    final esAdmin = !usarSupabase || sesion?.rolCuenta == RolCuenta.admin;
+
     final pal = palNavegacion(context);
 
-    return esAdmin
+    return (!usarSupabase || (sesion?.areas.length ?? 0) > 1)
         ? _pastillaDesplegable(context, ref, pal)
         : _pastillaFija(_etiqueta(rol), pal);
   }
@@ -863,31 +900,34 @@ class _SelectorPerfil extends ConsumerWidget {
               ),
             ),
             for (final r in Rol.values)
-              PopupMenuItem<Rol>(
-                value: r,
-                child: Row(
-                  children: [
-                    Icon(
-                      _icono(r),
-                      size: 18,
-                      color: r == rol ? pal.accent : pal.textSecondary,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      _etiqueta(r),
-                      style: TextStyle(
-                        color: r == rol ? pal.accent : pal.textPrimary,
-                        fontWeight:
-                            r == rol ? FontWeight.bold : FontWeight.normal,
+              if (!ref.read(usarSupabaseProvider) ||
+                  (ref.read(usuarioSesionProvider).value?.areas.contains(r) ??
+                      false))
+                PopupMenuItem<Rol>(
+                  value: r,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _icono(r),
+                        size: 18,
+                        color: r == rol ? pal.accent : pal.textSecondary,
                       ),
-                    ),
-                    if (r == rol) ...[
-                      const Spacer(),
-                      Icon(Icons.check, size: 16, color: pal.accent),
+                      const SizedBox(width: 10),
+                      Text(
+                        _etiqueta(r),
+                        style: TextStyle(
+                          color: r == rol ? pal.accent : pal.textPrimary,
+                          fontWeight:
+                              r == rol ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      if (r == rol) ...[
+                        const Spacer(),
+                        Icon(Icons.check, size: 16, color: pal.accent),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
           ],
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -944,7 +984,11 @@ class _AdminDrawer extends ConsumerWidget {
       final service = ref.read(importadorKardexProvider);
       if (service != null) {
         final archivo = await service.exportar(rol);
-        await descargarExcel(ExcelKardex.generar(archivo), 'orbiloq_${rol.name}.xlsx', titulo: 'Guardar tabla completa');
+        await descargarExcel(
+          ExcelKardex.generar(archivo),
+          'orbiloq_${rol.name}.xlsx',
+          titulo: 'Guardar tabla completa',
+        );
         return;
       }
       if (rol == Rol.produccion) {

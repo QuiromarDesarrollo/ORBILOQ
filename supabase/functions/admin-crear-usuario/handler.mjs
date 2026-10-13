@@ -19,7 +19,14 @@ export function crearHandler(api) {
       let datos;
       try { datos = JSON.parse(raw); } catch { return respuesta(400, { error: 'Solicitud invalida.' }); }
       if (!datos || typeof datos !== 'object') return respuesta(400, { error: 'Solicitud invalida.' });
-      const { numero, nombre, rol, contrasena } = datos;
+      const { numero, nombre, contrasena } = datos;
+      const prioridad = ['admin', 'seguimiento', 'produccion', 'logistica', 'despacho', 'gerencia'];
+      const solicitados = datos.roles === undefined ? [datos.rol] : datos.roles;
+      if (!Array.isArray(solicitados) || solicitados.length < 1 || solicitados.length > 6 || solicitados.some(r => !prioridad.includes(r))) {
+        return respuesta(400, { error: 'Selecciona al menos un perfil valido.' });
+      }
+      const roles = prioridad.filter(r => solicitados.includes(r));
+      const rol = roles[0];
       if (typeof numero !== 'string' || !/^\d{1,30}$/.test(numero) || typeof nombre !== 'string' || !nombre.trim() || nombre.trim().length > 150 ||
           !['admin', 'produccion', 'logistica', 'despacho', 'seguimiento', 'gerencia'].includes(rol) || typeof contrasena !== 'string' || contrasena.length < 12 || contrasena.length > 128) {
         return respuesta(400, { error: 'Completa numero, nombre, rol y una contraseña de 12 a 128 caracteres.' });
@@ -30,7 +37,7 @@ export function crearHandler(api) {
       const recuperada = Boolean(authId);
       if (!authId) authId = await api.crearAuth({ email: `${numero}@orbiloq.local`, password: contrasena });
       // El RPC vuelve a comprobar el rol dentro de la transaccion.
-      const usuario = await api.registrar({ actor, authId, numero, nombre: nombre.trim(), rol });
+      const usuario = await api.registrar({ actor, authId, numero, nombre: nombre.trim(), rol, roles });
       return respuesta(200, { usuario, recuperada });
     } catch {
       // Nunca registrar cuerpos, contraseñas ni tokens. Nunca borrar cuentas para compensar un timeout.

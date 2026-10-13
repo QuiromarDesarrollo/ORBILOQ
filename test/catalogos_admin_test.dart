@@ -30,6 +30,7 @@ class _Catalogos extends CatalogosRepository {
       'version': 'v1',
     },
   ];
+  List<String>? perfilesCreacion;
   int lecturas = 0, guardados = 0, altas = 0;
   @override
   Future<List<Map<String, dynamic>>> listar(String tipo) async {
@@ -43,10 +44,17 @@ class _Catalogos extends CatalogosRepository {
     Map<String, dynamic>? anterior,
     String nombre,
     bool activo,
-    String rol,
-  ) async {
+    String rol, {
+    List<String>? roles,
+  }) async {
     guardados++;
-    filas[0] = {...filas[0], 'nombre': nombre, 'activo': activo, 'rol': rol};
+    filas[0] = {
+      ...filas[0],
+      'nombre': nombre,
+      'activo': activo,
+      'rol': rol,
+      'roles': roles ?? filas[0]['roles'] ?? [rol],
+    };
   }
 
   @override
@@ -54,9 +62,11 @@ class _Catalogos extends CatalogosRepository {
     String numero,
     String nombre,
     String rol,
-    String contrasena,
-  ) async {
+    String contrasena, {
+    List<String>? roles,
+  }) async {
     altas++;
+    perfilesCreacion = roles;
     return false;
   }
 }
@@ -234,6 +244,7 @@ void main() {
     await tester.tap(find.byTooltip('Editar Ana'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'Ana corregida');
+    await tester.ensureVisible(find.text('Inactivo'));
     await tester.tap(find.text('Inactivo'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Guardar cambios'));
@@ -274,12 +285,15 @@ void main() {
     await tester.enterText(campo('Nombre *'), 'Nueva persona');
     await tester.enterText(campo('Número de usuario *'), '003');
     await tester.enterText(campo('Contraseña inicial *'), 'Clave-segura-2026');
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Seguimiento'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Seguimiento'));
     await tester.tap(find.text('Crear usuario'));
     await tester.pumpAndSettle();
     expect(cat.altas, 0);
     await tester.tap(find.text('Confirmar'));
     await tester.pumpAndSettle();
     expect(cat.altas, 1);
+    expect(cat.perfilesCreacion, ['seguimiento', 'produccion']);
   });
   testWidgets('Un operario no puede cargar catálogos de administración', (
     tester,

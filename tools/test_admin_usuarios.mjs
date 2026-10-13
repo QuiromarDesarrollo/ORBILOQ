@@ -35,4 +35,14 @@ assert.equal(body.recuperada,true);assert.equal(calls.length,1);assert.equal(cal
 await probar({registrar:async()=>{throw Error('timeout');}},request(),409);
 assert.deepEqual(calls,[['auth','0007@orbiloq.local']]);checks++;
 const opts=await crearHandler(base)(new Request('http://localhost',{method:'OPTIONS'}));assert.equal(opts.status,200);checks++;
+await probar({},request({...datos, roles:['despacho','seguimiento']}),200);
+assert.deepEqual(calls[1][1].roles,['seguimiento','despacho']);
+assert.equal(calls[1][1].rol,'seguimiento');
+await probar({},request({...datos, roles:['gerencia','produccion','admin']}),200);
+assert.deepEqual(calls[1][1].roles,['admin','produccion','gerencia']);
+for (const roles of [[], null, 'admin', ['root'], ['despacho',null]]) {
+  await probar({},request({...datos,roles}),400);assert.deepEqual(calls,[]);
+}
+await probar({esAdmin:async()=>false},request({...datos,roles:['admin','despacho']}),403);
+assert.deepEqual(calls,[]);
 console.log(`Usuarios: ${checks} comprobaciones correctas. Auth simulado, sin conexiones remotas.`);

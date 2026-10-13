@@ -10,7 +10,12 @@ final dashboardAccesoProvider = Provider<(String?, RolCuenta?)>((ref) {
     usuarioSesionProvider.select((sesion) {
       if (sesion.hasError) return (null, null);
       final usuario = sesion.value;
-      return (usuario?.numeroUsuario, usuario?.rolCuenta);
+      return (
+        usuario?.numeroUsuario,
+        usuario?.puedeVerDashboards == true
+            ? RolCuenta.gerencia
+            : usuario?.rolCuenta,
+      );
     }),
   );
 });
