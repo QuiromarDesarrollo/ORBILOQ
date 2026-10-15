@@ -29,6 +29,8 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
   bool _cargando = false;
   FeedbackMessage? _msg;
   ResumenImportacion? _resumen;
+  String _progreso = '';
+  String? _avisoRecarga;
 
   Future<void> _elegirArchivo() async {
     final resultado = await FilePicker.platform.pickFiles(
@@ -37,14 +39,17 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
       withData: true,
     );
     if (resultado == null || resultado.files.isEmpty) return;
+    if (!mounted) return;
     setState(() {
       _archivo = resultado.files.single;
       _msg = null;
       _resumen = null;
+      _avisoRecarga = null;
     });
   }
 
   Future<void> _importar() async {
+    if (_cargando || _resumen != null) return;
     final archivo = _archivo;
     final bytes = archivo?.bytes;
     if (archivo == null || bytes == null) return;
@@ -64,6 +69,8 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
       _cargando = true;
       _msg = null;
       _resumen = null;
+      _avisoRecarga = null;
+      _progreso = 'Preparando lectura…';
     });
 
     Result<ResumenImportacion> res;
@@ -72,6 +79,9 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
         bytes: bytes,
         nombreArchivo: archivo.name,
         usuarioNombre: ref.read(nombreOperarioProvider),
+        onProgreso: (etapa) {
+          if (mounted) setState(() => _progreso = etapa);
+        },
       );
     } catch (e) {
       // Red de seguridad final: cualquier error no previsto (de red, del
@@ -82,7 +92,7 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
 
     if (!mounted) return;
     setState(() {
-      _cargando = false;
+      _cargando = res is Ok<ResumenImportacion>;
       switch (res) {
         case Ok(:final value):
           _resumen = value;
@@ -97,10 +107,22 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
     });
 
     if (res is Ok<ResumenImportacion>) {
-      // Refresca el kardex para que las OP recién creadas aparezcan de una vez.
-      await ref.read(wmsRepositoryProvider).refrescar().catchError((Object _) {
-        /* El stream informa el fallo de recarga; no repetir lo ya guardado. */
-      });
+      setState(
+        () => _progreso = 'Importación guardada. Actualizando el Kardex…',
+      );
+      try {
+        await ref.read(wmsRepositoryProvider).refrescar();
+      } catch (_) {
+        if (mounted) {
+          setState(
+            () =>
+                _avisoRecarga =
+                    'Los datos ya se guardaron, pero no se pudo actualizar el Kardex. Usa Actualizar; no vuelvas a importar el archivo.',
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _cargando = false);
+      }
     }
   }
 
@@ -109,6 +131,7 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
     final disponible = ref.watch(importadorOrdenesProvider) != null;
 
     return WmsDialogShell(
+      canClose: !_cargando,
       title: 'IMPORTAR ÓRDENES DE PRODUCCIÓN',
       icon: Icons.upload_file,
       iconColor: AppColors.primaryNavy,
@@ -150,10 +173,18 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
                   label: 'IMPORTAR',
                   color: AppColors.actionGreen,
                   busy: _cargando,
-                  onPressed: _archivo == null ? null : _importar,
+                  onPressed:
+                      _archivo == null || _resumen != null ? null : _importar,
                 ),
               ],
             ),
+            if (_cargando) ...[
+              const SizedBox(height: 12),
+              const LinearProgressIndicator(),
+              const SizedBox(height: 6),
+              Text(_progreso),
+            ],
+            if (_avisoRecarga != null) Text(_avisoRecarga!),
             if (_msg != null) ...[
               const SizedBox(height: 16),
               FeedbackBanner(message: _msg!),

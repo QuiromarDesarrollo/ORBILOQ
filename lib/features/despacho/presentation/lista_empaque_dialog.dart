@@ -42,6 +42,7 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
       idOc = TextEditingController(),
       factura = TextEditingController(),
       siguiente = TextEditingController(),
+      numeroPersonalizado = TextEditingController(),
       busqueda = TextEditingController();
   SupabaseClient get api => ref.read(listaEmpaqueApiProvider);
   List<Map<String, dynamic>> clientes = [];
@@ -49,6 +50,8 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
   Map<String, dynamic>? documento;
   dynamic numeroLe;
   bool ocupado = false;
+  bool editarNumero = false;
+  DateTime? fechaSalida;
   int revision = 0;
   bool enSeguimiento = false;
   Map<String, dynamic>? destinatarioEmpacado;
@@ -60,7 +63,14 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
 
   @override
   void dispose() {
-    for (final c in [remision, idOc, factura, siguiente, busqueda]) {
+    for (final c in [
+      remision,
+      idOc,
+      factura,
+      siguiente,
+      busqueda,
+      numeroPersonalizado,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -146,20 +156,104 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
     }
   }
 
+  Future<void> editarDestinatario(Map<String, dynamic> registro) async {
+    final original = Map<String, dynamic>.from(registro['datos'] as Map);
+    final ok = await showWmsDialog<bool>(
+      context,
+      (_) => DestinatarioEditor(
+        inicial: original,
+        guardar: (datos) async {
+          await api.rpc(
+            'admin_destinatario_editar',
+            params: {
+              'p_id': registro['id'],
+              'p_original': original,
+              'p_datos': datos,
+            },
+          );
+        },
+      ),
+    );
+    if (ok == true && mounted) await cargar();
+  }
+
+  Future<void> eliminarDestinatario(Map<String, dynamic> registro) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder:
+          (c) => WmsExpandableAlertDialog(
+            title: const Text('Eliminar destinatario'),
+            content: Text(
+              '¿Eliminar a ${registro['datos']['nombre']} del catálogo? '
+              'Esta acción no se puede deshacer. Si tiene despachos vinculados, '
+              'se conservará para proteger el historial.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+    );
+    if (ok != true || !mounted) return;
+    var eliminado = false;
+    await tarea(() async {
+      await api.rpc(
+        'admin_destinatario_eliminar',
+        params: {'p_id': registro['id'], 'p_original': registro['datos']},
+      );
+      eliminado = true;
+      if (mounted) {
+        setState(() {
+          clientes.removeWhere((e) => e['id'] == registro['id']);
+          if (destino == registro['id']) destino = null;
+        });
+      }
+    });
+    if (eliminado && mounted) {
+      mostrarAvisoSnack(
+        context,
+        const SnackBar(content: Text('Destinatario eliminado.')),
+        tipo: TipoAviso.exito,
+      );
+    }
+  }
+
   Future<void> generar() => tarea(() async {
     if (documento == null) {
       if (destino == null) {
         throw const FormatException('Selecciona un destinatario');
       }
+      final personalizado =
+          enSeguimiento && (editarNumero || fechaSalida != null);
+      final numero =
+          editarNumero ? int.tryParse(numeroPersonalizado.text.trim()) : null;
+      if (editarNumero &&
+          (numero == null || numero < 1 || numero > 9007199254740991)) {
+        throw const FormatException('Indica un numero LE positivo valido.');
+      }
       final d = Map<String, dynamic>.from(
         await api.rpc(
-              enSeguimiento ? 'seguimiento_confirmar' : 'le_documento',
+              personalizado
+                  ? 'admin_confirmar_le'
+                  : enSeguimiento
+                  ? 'seguimiento_confirmar'
+                  : 'le_documento',
               params: {
                 if (enSeguimiento) ...{
                   'p_id': widget.solicitud,
                   'p_revision': revision,
                 } else
                   'p_solicitud': widget.solicitud,
+                if (personalizado) ...{
+                  'p_numero': numero,
+                  'p_fecha': fechaSalida?.toIso8601String().substring(0, 10),
+                },
                 'p_destinatario': destino,
                 'p_datos': {
                   'remision': remision.text.trim(),
@@ -197,7 +291,8 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
   @override
   Widget build(BuildContext context) {
     final admin =
-        ref.watch(usuarioSesionProvider).value?.rolCuenta == RolCuenta.admin;
+        ref.watch(usuarioSesionProvider).value?.tieneRol(RolCuenta.admin) ==
+        true;
     final opciones = [
       ...clientes.where((e) => e['id'] == destino),
       ...clientes
@@ -396,6 +491,29 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
                                   ],
                                 ),
                               ),
+                              if (admin && widget.solicitud.isEmpty)
+                                PopupMenuButton<String>(
+                                  tooltip: 'Acciones del destinatario',
+                                  enabled: !ocupado,
+                                  onSelected: (accion) {
+                                    if (accion == 'editar') {
+                                      editarDestinatario(e);
+                                    } else {
+                                      eliminarDestinatario(e);
+                                    }
+                                  },
+                                  itemBuilder:
+                                      (_) => const [
+                                        PopupMenuItem(
+                                          value: 'editar',
+                                          child: Text('Editar destinatario'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'eliminar',
+                                          child: Text('Eliminar destinatario'),
+                                        ),
+                                      ],
+                                ),
                             ],
                           ),
                         ),
@@ -441,6 +559,71 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
                       ),
                 ),
                 const SizedBox(height: 12),
+                if (enSeguimiento && admin) ...[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Editar consecutivo solo para esta LE'),
+                    subtitle: const Text('No cambia el consecutivo general.'),
+                    value: editarNumero,
+                    onChanged:
+                        ocupado
+                            ? null
+                            : (v) => setState(() => editarNumero = v),
+                  ),
+                  if (editarNumero)
+                    TextField(
+                      controller: numeroPersonalizado,
+                      enabled: !ocupado,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: 'Número LE exclusivo de este despacho',
+                      ),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.event),
+                        label: Text(
+                          fechaSalida == null
+                              ? 'Fecha de salida: automática (hoy)'
+                              : 'Salida: ${fechaSalida!.day}/${fechaSalida!.month}/${fechaSalida!.year}',
+                        ),
+                        onPressed:
+                            ocupado
+                                ? null
+                                : () async {
+                                  final hoy = DateTime.now().toUtc().subtract(
+                                    const Duration(hours: 5),
+                                  );
+                                  final fecha = await showDatePicker(
+                                    context: context,
+                                    initialDate: fechaSalida ?? hoy,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(
+                                      hoy.year,
+                                      hoy.month,
+                                      hoy.day,
+                                    ),
+                                  );
+                                  if (fecha != null && mounted) {
+                                    setState(() => fechaSalida = fecha);
+                                  }
+                                },
+                      ),
+                      if (fechaSalida != null)
+                        TextButton(
+                          onPressed:
+                              ocupado
+                                  ? null
+                                  : () => setState(() => fechaSalida = null),
+                          child: const Text('Usar hoy'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (enSeguimiento)
                   Container(
                     padding: const EdgeInsets.all(12),

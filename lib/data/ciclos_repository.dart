@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/ciclos.dart';
 
@@ -44,15 +45,40 @@ class CiclosRepository {
     bool confirmar,
     String archivo,
   ) async => Map<String, dynamic>.from(
-    await client.rpc(
-          'ciclos_importar',
-          params: {
-            'p_filas': filas,
-            'p_revision': revision,
-            'p_confirmar': confirmar,
-            'p_archivo': archivo,
-          },
-        )
+    await client
+            .rpc(
+              'ciclos_importar',
+              params: {
+                // Las columnas de referencia son de previsualización. La RPC
+                // mantiene su contrato y solo persiste los campos operativos.
+                'p_filas': [
+                  for (final fila in filas)
+                    {
+                      for (final clave in [
+                        'op',
+                        'cliente',
+                        'cantidad',
+                        'inicio',
+                        'fines',
+                      ])
+                        clave: fila[clave],
+                    },
+                ],
+                'p_revision': revision,
+                'p_confirmar': confirmar,
+                'p_archivo': archivo,
+              },
+            )
+            .timeout(
+              const Duration(minutes: 2),
+              onTimeout: () {
+                throw TimeoutException(
+                  confirmar
+                      ? 'El servidor no confirmó el guardado a tiempo. El resultado es incierto: actualiza los datos antes de volver a importar.'
+                      : 'El servidor tardó demasiado en revisar el archivo. No se confirmó ninguna importación.',
+                );
+              },
+            )
         as Map,
   );
   Future<void> configurar(

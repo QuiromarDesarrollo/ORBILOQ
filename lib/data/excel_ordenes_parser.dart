@@ -40,44 +40,46 @@ String _normalizarEncabezado(String s) {
 }
 
 final _columnasOrden = <String, String>{
-  for (final e in {
-    'Identificador': 'identificador',
-    'Tipo de orden': 'tipo_orden',
-    'Estado': 'estado',
-    'Fecha solicitud': 'fecha_solicitud',
-    'Fecha inicio': 'fecha_inicio',
-    'Fecha comprometida': 'fecha_comprometida',
-    'Fecha acordada': 'fecha_acordada',
-    'Fecha entrega': 'fecha_entrega',
-    'Fecha planeación': 'fecha_planeacion',
-    'Nombre ficha técnica': 'nombre_ficha_tecnica',
-    'Cliente': 'cliente',
-    'No. OC': 'oc_cabecera',
-    'Nombre prenda': 'nombre_prenda_resumen',
-    'Cantidad': 'cantidad_total_erp',
-    'Observaciones': 'observaciones',
-    'Movimiento': 'etapa_movimiento',
-    'Fecha inicio movimiento': 'fecha_inicio_movimiento',
-    'Fecha planeada': 'fecha_planeada_movimiento',
-    'Estado movimientos': 'estado_movimiento_erp',
-    'Id. OC': 'oc_id_erp',
-  }.entries)
+  for (final e
+      in {
+        'Identificador': 'identificador',
+        'Tipo de orden': 'tipo_orden',
+        'Estado': 'estado',
+        'Fecha solicitud': 'fecha_solicitud',
+        'Fecha inicio': 'fecha_inicio',
+        'Fecha comprometida': 'fecha_comprometida',
+        'Fecha acordada': 'fecha_acordada',
+        'Fecha entrega': 'fecha_entrega',
+        'Fecha planeación': 'fecha_planeacion',
+        'Nombre ficha técnica': 'nombre_ficha_tecnica',
+        'Cliente': 'cliente',
+        'No. OC': 'oc_cabecera',
+        'Nombre prenda': 'nombre_prenda_resumen',
+        'Cantidad': 'cantidad_total_erp',
+        'Observaciones': 'observaciones',
+        'Movimiento': 'etapa_movimiento',
+        'Fecha inicio movimiento': 'fecha_inicio_movimiento',
+        'Fecha planeada': 'fecha_planeada_movimiento',
+        'Estado movimientos': 'estado_movimiento_erp',
+        'Id. OC': 'oc_id_erp',
+      }.entries)
     _normalizarEncabezado(e.key): e.value,
 };
 
 final _columnasTallas = <String, String>{
-  for (final e in {
-    'Identificador orden': 'identificador_orden',
-    'CLIENTE': 'cliente',
-    'Código': 'codigo',
-    'Descripción': 'descripcion',
-    'Tallas nombre': 'talla',
-    'Cantidad': 'cantidad',
-    'NO. OC': 'oc',
-    'OC ID': 'oc_id_erp',
-    'OBSERVACION': 'observacion',
-    'Observación': 'observacion',
-  }.entries)
+  for (final e
+      in {
+        'Identificador orden': 'identificador_orden',
+        'CLIENTE': 'cliente',
+        'Código': 'codigo',
+        'Descripción': 'descripcion',
+        'Tallas nombre': 'talla',
+        'Cantidad': 'cantidad',
+        'NO. OC': 'oc',
+        'OC ID': 'oc_id_erp',
+        'OBSERVACION': 'observacion',
+        'Observación': 'observacion',
+      }.entries)
     _normalizarEncabezado(e.key): e.value,
 };
 
@@ -122,7 +124,8 @@ class ExcelOrdenesParser {
 
     if (ordenes.isEmpty) {
       throw ExcelOrdenesParseException(
-          'La hoja "Orden" no tiene filas de datos.');
+        'La hoja "Orden" no tiene filas de datos.',
+      );
     }
 
     final porOp = <String, Map<String, String?>>{};
@@ -131,7 +134,8 @@ class ExcelOrdenesParser {
       if (porOp.containsKey(id) &&
           porOp[id]!['oc_cabecera'] != orden['oc_cabecera']) {
         throw ExcelOrdenesParseException(
-            'La OP $id tiene más de una OC en Orden.');
+          'La OP $id tiene más de una OC en Orden.',
+        );
       }
       porOp[id] = orden;
     }
@@ -160,7 +164,10 @@ class ExcelOrdenesParser {
   }) {
     if (hoja.maxRows == 0) return const [];
 
-    final encabezados = hoja.rows.first;
+    // Sheet.rows materializa la hoja completa en cada acceso (excel 4.x).
+    // Guardarla una vez evita reconstruir N filas por cada fila importada.
+    final filasHoja = hoja.rows;
+    final encabezados = filasHoja.first;
     final indicePorClave = <String, int>{};
     final encabezadosLeidos = <String>[];
     for (var i = 0; i < encabezados.length; i++) {
@@ -181,8 +188,8 @@ class ExcelOrdenesParser {
     }
 
     final filas = <Map<String, String?>>[];
-    for (var f = 1; f < hoja.rows.length; f++) {
-      final fila = hoja.rows[f];
+    for (var f = 1; f < filasHoja.length; f++) {
+      final fila = filasHoja[f];
       // Saltar filas completamente vacías.
       final vacia = fila.every((c) => _texto(c?.value)?.trim().isEmpty ?? true);
       if (vacia) continue;
@@ -238,8 +245,14 @@ class ExcelOrdenesParser {
       if (valor is DateCellValue) {
         dt = DateTime(valor.year, valor.month, valor.day);
       } else if (valor is DateTimeCellValue) {
-        dt = DateTime(valor.year, valor.month, valor.day, valor.hour,
-            valor.minute, valor.second);
+        dt = DateTime(
+          valor.year,
+          valor.month,
+          valor.day,
+          valor.hour,
+          valor.minute,
+          valor.second,
+        );
       }
       if (dt != null) {
         final y = dt.year.toString().padLeft(4, '0');

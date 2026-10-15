@@ -1,0 +1,306 @@
+﻿tabla,columna,definicion,fuente
+ciclos_ordenes,op,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_ordenes,cliente,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_ordenes,cantidad,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_ordenes,inicio,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_ordenes,fines,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_ordenes,versiones,jsonb DEFAULT '{}'::jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_ordenes,actualizado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_catalogos_historial,id,uuid DEFAULT extensions.gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_catalogos_historial,actor_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_catalogos_historial,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_catalogos_historial,catalogo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_catalogos_historial,registro_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_catalogos_historial,antes,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_catalogos_historial,despues,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,id,uuid DEFAULT extensions.gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,item_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,actor_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,actor,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,campo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,anterior,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,nuevo,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,motivo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,antes,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,despues,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,lote_item_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,ubicacion_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,lote_antes,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_correcciones,lote_despues,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_importaciones,id,uuid DEFAULT extensions.gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_importaciones,actor_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_importaciones,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_importaciones,vista,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_importaciones,motivo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_importaciones,version_origen,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_importaciones,archivo,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+admin_importaciones,resumen,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+causales_devolucion,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+causales_devolucion,nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+causales_devolucion,activa,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,item_orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,causal_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,cantidad,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,operario_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,operario_nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,nota,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,estado,text DEFAULT 'pendiente_reproceso'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_produccion,recibido_de_produccion,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,nombre_archivo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,tipo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,usuario_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,storage_path,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,ops_creadas,integer DEFAULT 0 NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,ops_actualizadas,integer DEFAULT 0 NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,ops_omitidas,integer DEFAULT 0 NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,filas_con_advertencia,integer DEFAULT 0 NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,filas_con_error,integer DEFAULT 0 NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,detalle_errores,jsonb DEFAULT '[]'::jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+importaciones,estado,text DEFAULT 'procesando'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,codigo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,descripcion,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,talla,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,cantidad_pedida,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,oc,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,oc_id_erp,bigint,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,observacion,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,admin_fecha_entrega,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,admin_fecha_entrega_activa,boolean DEFAULT false NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+items_orden,admin_eliminado_en,timestamp with time zone,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_aliados,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_aliados,solicitud_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_aliados,cantidad,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_aliados,usuario_produccion_nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_aliados,persona_aliado_libera,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_aliados,nota,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_aliados,es_entrega_completa,boolean NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_aliados,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_no_conforme,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_no_conforme,item_orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_no_conforme,cantidad,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_no_conforme,operario_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_no_conforme,operario_nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_no_conforme,nota,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_no_conforme,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+liberaciones_no_conforme,recibido_por_logistica,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,lote_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,item_orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,cantidad_enviada,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,cantidad_recibida,integer,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,ubicacion_destino_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,novedad,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,estado,text DEFAULT 'en_transito'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,fecha_recepcion,timestamp with time zone,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,origen,text DEFAULT 'entrega'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lote_items,recibido_por,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lotes,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lotes,numero,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lotes,operario_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lotes,operario_nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lotes,fecha_envio,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lotes,estado,text DEFAULT 'en_transito'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lotes,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,tipo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,item_orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,cantidad,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,ubicacion_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,lote_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,usuario_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,nota,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,lote_item_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,admin_correccion_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,despacho_oc_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+movimientos,despacho_revision_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,item_orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,causal_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,cantidad_solicitada,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,estado,text DEFAULT 'pendiente'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,usuario_produccion_solicitud_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,usuario_produccion_solicitud_nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,persona_aliado_entrega,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,fecha_solicitud,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+no_conformes_aliados,nota_solicitud,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,numero_op,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,tipo_orden,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,estado,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,cliente,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,oc_cabecera,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,oc_id_erp,bigint,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,nombre_ficha_tecnica,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,nombre_prenda_resumen,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,cantidad_total_erp,integer,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_solicitud,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_inicio,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_comprometida,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_acordada,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_entrega,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_planeacion,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_esperada_logistica,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,observaciones,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,etapa_movimiento,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,estado_movimiento_erp,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_inicio_movimiento,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_planeada_movimiento,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,importacion_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ordenes_produccion,fecha_esperada_produccion,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,item_orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,lote_item_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,cantidad,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,estado,text DEFAULT 'pendiente'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,operario_nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,nota,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,resolucion,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+sobrantes_bodega,fecha_resolucion,timestamp with time zone,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,rol,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,email,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,auth_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,activo,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,numero_usuario,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_importaciones,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_importaciones,archivo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_importaciones,actor,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_importaciones,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_importaciones,antes,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_importaciones,despues,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,proceso,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,vigente_desde,date NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,dias,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,capacidad_diaria,integer,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,capacidad_semanal,integer,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,umbral_cola,integer,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_parametros,actor,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_revision,id,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ciclos_revision,revision,bigint DEFAULT 0 NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+clientes,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+clientes,nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+clientes,nit,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+clientes,activo,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+clientes,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,despacho_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,solicitud,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,edicion,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,actor,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,motivo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,pedido,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,anterior,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,documento_anterior,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despacho_revisiones,resultado,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,id,uuid DEFAULT extensions.gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,solicitud,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,fecha,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,actor_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,actor,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,cliente,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,oc,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,pedido,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,detalle,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,empaques,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,empaques_pedido,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,ediciones,integer DEFAULT 0 NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,fase,text DEFAULT 'despachado'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,destinatario_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,destinatario_empaque,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,empacado_por,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+despachos_oc,fecha_empacado,timestamp with time zone,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+destinatarios_empaque,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+destinatarios_empaque,clave,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+destinatarios_empaque,datos,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,movimiento_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,item_orden_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,remision_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,causal_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,destino,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,nota,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,fecha_registro,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+devoluciones_cliente,usuario_id,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,entidad_tipo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,entidad_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,tipo_documento,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,storage_path,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,nombre_archivo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,mime_type,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,tamano_bytes,bigint,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,subido_por,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,fecha_carga,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+documentos,hash_sha256,text,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaque_solicitudes,solicitud,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaque_solicitudes,actor,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaque_solicitudes,pedido,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaque_solicitudes,resultado,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaque_solicitudes,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,categoria,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,largo_cm,numeric NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,ancho_cm,numeric NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,alto_cm,numeric NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,peso_neto_kg,numeric NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,peso_bruto_kg,"numeric nullable; DROP NOT NULL por 008; dato histórico del catálogo, no peso de cada pieza",sql/produccion/008_actualizacion_20261013.sql
+empaques,activo,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+empaques,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lista_empaque_config,id,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+lista_empaque_config,siguiente,bigint,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+listas_empaque,despacho_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+listas_empaque,numero,bigint,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+listas_empaque,datos,jsonb NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+listas_empaque,creado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_aliados,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_aliados,nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_aliados,activo,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_logistica,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_logistica,nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_logistica,activo,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_produccion,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_produccion,nombre,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+personal_produccion,activo,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+reservas_despacho,despacho_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+reservas_despacho,item_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+reservas_despacho,ubicacion_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+reservas_despacho,cantidad,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,despacho_id,uuid NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,revision,integer NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,transportadora,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,placa_guia,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,recibido,date,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,evidencia_le,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,evidencia_guia,jsonb,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,observaciones,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,version,integer DEFAULT 1 NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,actualizado_en,timestamp with time zone DEFAULT now() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,actualizado_por,uuid,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,estado,text DEFAULT 'en_transito'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,numero_guia,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+seguimiento_entregas,placa,text DEFAULT ''::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ubicaciones,id,uuid DEFAULT gen_random_uuid() NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ubicaciones,codigo,text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ubicaciones,tipo,text DEFAULT 'almacenamiento'::text NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+ubicaciones,activa,boolean DEFAULT true NOT NULL,Respaldo previo al despliegue 20261013; columna roles añadida por 008
+usuarios,roles,text[] nullable; NULL usa ARRAY[rol]; normalizado por usuario_roles_normalizar,sql/produccion/008_actualizacion_20261013.sql
+despachos_oc,oc_documento,text nullable; CHECK: 1 a 150 caracteres sin espacios exteriores cuando no es NULL,sql/produccion/008_actualizacion_20261013.sql

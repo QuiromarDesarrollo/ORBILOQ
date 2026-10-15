@@ -18,6 +18,7 @@ import 'grafica_intercambiable.dart';
 import 'ciclos_editores.dart';
 import 'ciclos_resumen_compacto.dart';
 import 'ciclos_carga_global.dart';
+import 'ciclos_detalle_op.dart';
 
 class CiclosPage extends ConsumerStatefulWidget {
   const CiclosPage({super.key});
@@ -29,16 +30,20 @@ class _CiclosState extends ConsumerState<CiclosPage> {
   DateTimeRange? _periodo;
   DateTime? _diaCarga;
   String? _cliente;
-  String _busqueda = '';
   bool _semanal = false, _ocupado = false;
+  String? _progresoImportacion;
   ProcesoCiclo _tendencia = ProcesoCiclo.compras;
-  int _pagina = 0, _vista = 0;
+  int _vista = 0;
+  IndicadoresCiclos? _indicadores;
   Future<void> _accion(Future<void> Function() accion) async {
     setState(() => _ocupado = true);
     try {
       await accion();
     } catch (e) {
       if (mounted) {
+        if (_progresoImportacion != null) {
+          setState(() => _progresoImportacion = '$e');
+        }
         mostrarAvisoSnack(
           context,
           SnackBar(content: Text('$e')),
@@ -48,6 +53,47 @@ class _CiclosState extends ConsumerState<CiclosPage> {
     } finally {
       if (mounted) setState(() => _ocupado = false);
     }
+  }
+
+  Future<void> _importar(DatosCiclos datos) async {
+    final repo = ref.read(ciclosRepositoryProvider);
+    if (repo == null) return;
+    var cantidad = 0;
+    final guardado = await importarCiclos(
+      context,
+      repo,
+      datos,
+      onProgress: (mensaje) {
+        if (mounted) setState(() => _progresoImportacion = mensaje);
+      },
+      onGuardado: (n) => cantidad = n,
+    );
+    if (!mounted) return;
+    if (!guardado) {
+      setState(() => _progresoImportacion = null);
+      return;
+    }
+    setState(
+      () =>
+          _progresoImportacion =
+              '$cantidad OP guardadas. Actualizando el dashboard…',
+    );
+    try {
+      await ref
+          .refresh(ciclosProvider.future)
+          .timeout(const Duration(minutes: 2));
+    } catch (e) {
+      throw StateError(
+        '$cantidad OP se guardaron, pero no se pudo recargar el dashboard. Usa Actualizar; no es necesario importar de nuevo. Detalle: $e',
+      );
+    }
+    if (!mounted) return;
+    setState(
+      () =>
+          _progresoImportacion =
+              'Importación completada: $cantidad OP procesadas y dashboard actualizado.',
+    );
+    mostrarAvisoSnack(context, SnackBar(content: Text(_progresoImportacion!)));
   }
 
   @override
@@ -61,11 +107,36 @@ class _CiclosState extends ConsumerState<CiclosPage> {
     final estado = ref.watch(ciclosProvider), datos = estado.value;
     final repo = ref.watch(ciclosRepositoryProvider);
     return Scaffold(
+      bottomNavigationBar:
+          _progresoImportacion == null
+              ? null
+              : SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_ocupado) const LinearProgressIndicator(),
+                      const SizedBox(height: 8),
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(_progresoImportacion!),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
       backgroundColor:
-          CiclosColores.oscuro(context) ? CiclosColores.fondo : null,
+          CiclosColores.oscuro(context)
+              ? CiclosColores.fondo
+              : const Color(0xffe8eff5),
       appBar: AppBar(
+        foregroundColor: Colors.white,
+        toolbarHeight: 48,
         backgroundColor:
-            CiclosColores.oscuro(context) ? const Color(0xff101e32) : null,
+            CiclosColores.oscuro(context)
+                ? const Color(0xff101e32)
+                : const Color(0xff0b3e50),
         surfaceTintColor: Colors.transparent,
         shape:
             CiclosColores.oscuro(context)
@@ -149,7 +220,6 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                               onChanged:
                                   (v) => setState(() {
                                     _cliente = v;
-                                    _pagina = 0;
                                   }),
                             ),
                           ),
@@ -173,7 +243,6 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                                     start: diaCiclo(p.start),
                                     end: diaCiclo(p.end),
                                   );
-                                  _pagina = 0;
                                 });
                               }
                             },
@@ -192,13 +261,8 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                                         'plantilla_ciclos.xlsx',
                                         titulo: 'Descargar plantilla Excel',
                                       );
-                                    } else if (repo != null &&
-                                        await importarCiclos(
-                                          context,
-                                          repo,
-                                          d,
-                                        )) {
-                                      ref.invalidate(ciclosProvider);
+                                    } else if (repo != null) {
+                                      await _importar(d);
                                     }
                                   }),
                               itemBuilder:
@@ -271,7 +335,6 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                                   () => setState(() {
                                     _cliente = null;
                                     _periodo = null;
-                                    _pagina = 0;
                                   }),
                             ),
                         ],
@@ -457,53 +520,57 @@ class _CiclosState extends ConsumerState<CiclosPage> {
     ),
   );
   List<Widget> _contenido(DatosCiclos d) {
-    final i = IndicadoresCiclos(
-      d,
-      desde: _periodo?.start,
-      hasta: _periodo?.end,
-      cliente: _cliente,
-    );
+    if (!identical(_indicadores?.datos, d) ||
+        _indicadores?.desde != _periodo?.start ||
+        _indicadores?.hasta != _periodo?.end ||
+        _indicadores?.cliente != _cliente) {
+      _indicadores = IndicadoresCiclos(
+        d,
+        desde: _periodo?.start,
+        hasta: _periodo?.end,
+        cliente: _cliente,
+      );
+    }
+    final i = _indicadores!;
     final completas = i.completas, duraciones = completas.map(i.duracionTotal);
-    final detalles =
-        i.ordenes
-            .where(
-              (o) =>
-                  (_busqueda.isEmpty ||
-                      o.op.toLowerCase().contains(_busqueda.toLowerCase())) &&
-                  (_periodo == null || [o.inicio, ...o.fines].any(i.enPeriodo)),
-            )
-            .toList()
-          ..sort((a, b) => a.op.compareTo(b.op));
-    final pagina = _pagina.clamp(
-      0,
-      detalles.isEmpty ? 0 : (detalles.length - 1) ~/ 20,
-    );
     return [
       if (_vista == 0)
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _metrica('OP completas', '${completas.length}'),
-            _metrica(
-              'Tiempo típico · P50',
-              _numero(percentil(duraciones, .5), ' días'),
+        Container(
+          decoration: BoxDecoration(
+            color:
+                CiclosColores.oscuro(context)
+                    ? Theme.of(context).colorScheme.surface
+                    : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: .18),
             ),
-            _metrica(
-              'Casi todas terminan · P80',
-              _numero(percentil(duraciones, .8), ' días'),
-            ),
-            _metrica(
-              'Cumplimiento histórico',
-              _numero(i.cumplimientoTotal, '%'),
-            ),
-            _metrica(
-              'Promesa actual',
-              i.objetivoActual == null
-                  ? 'Sin configurar'
-                  : '${i.objetivoActual} días',
-            ),
-          ],
+          ),
+          child: Wrap(
+            spacing: 0,
+            runSpacing: 0,
+            children: [
+              _metrica('OP completas', '${completas.length}'),
+              _metrica(
+                'La mitad de las OP termina en',
+                _numero(percentil(duraciones, .5), ' días'),
+              ),
+              _metrica(
+                '8 de cada 10 OP terminan en',
+                _numero(percentil(duraciones, .8), ' días'),
+              ),
+              _metrica(
+                'Cumplimiento histórico',
+                _numero(i.cumplimientoTotal, '%'),
+              ),
+              _metrica(
+                'Objetivo de ciclo configurado',
+                i.objetivoActual == null
+                    ? 'Sin configurar'
+                    : '${i.objetivoActual} días',
+              ),
+            ],
+          ),
         ),
       const SizedBox(height: 8),
       if (d.ordenes.isEmpty)
@@ -520,59 +587,17 @@ class _CiclosState extends ConsumerState<CiclosPage> {
         ),
       if (_vista == 1) _carga(d, i),
       if (_vista == 2)
-        _panel(
-          'Trazabilidad por OP',
-          'Las fechas vacías siguen vacías. Solo se calcula un vencimiento cuando existe el inicio real y una versión de parámetros. Las OP sin trazabilidad completa no participan del ciclo total. El filtro de fechas conserva OP con algún hito dentro del período.',
-          Column(
-            children: [
-              TextField(
-                decoration: const InputDecoration(labelText: 'Buscar OP'),
-                onChanged:
-                    (v) => setState(() {
-                      _busqueda = v;
-                      _pagina = 0;
-                    }),
-              ),
-              for (final o in detalles.skip(pagina * 20).take(20))
-                ExpansionTile(
-                  title: Text('OP ${o.op} · ${o.cliente}'),
-                  subtitle: Text(
-                    '${o.cantidad} unidades · ${o.completa ? 'Trazabilidad completa' : 'Trazabilidad incompleta'}',
-                  ),
-                  children: [
-                    for (final p in ProcesoCiclo.values)
-                      _detalle(d.medir(o, p)),
-                  ],
-                ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: 'Anterior',
-                    onPressed:
-                        pagina == 0
-                            ? null
-                            : () => setState(() => _pagina = pagina - 1),
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Flexible(
-                    child: Text(
-                      '${detalles.length} OP · Página ${pagina + 1}',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Siguiente',
-                    onPressed:
-                        (pagina + 1) * 20 >= detalles.length
-                            ? null
-                            : () => setState(() => _pagina = pagina + 1),
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        CiclosDetalleOp(
+          key: ValueKey('detalle/$_cliente/$_periodo'),
+          datos: d,
+          ordenes:
+              i.ordenes
+                  .where(
+                    (o) =>
+                        _periodo == null ||
+                        [o.inicio, ...o.fines].any(i.enPeriodo),
+                  )
+                  .toList(),
         ),
     ];
   }
@@ -580,31 +605,29 @@ class _CiclosState extends ConsumerState<CiclosPage> {
   Widget _metrica(String titulo, String valor) => SizedBox(
     width:
         MediaQuery.sizeOf(context).width >= 1100
-            ? (MediaQuery.sizeOf(context).width - 72) / 5
+            ? (MediaQuery.sizeOf(context).width - 28) / 5
             : MediaQuery.sizeOf(context).width < 500
-            ? (MediaQuery.sizeOf(context).width - 36) / 2
+            ? (MediaQuery.sizeOf(context).width - 28) / 2
             : 205,
     child: Card(
       margin: EdgeInsets.zero,
       surfaceTintColor: Colors.transparent,
-      elevation: CiclosColores.oscuro(context) ? 4 : 1,
+      elevation: 0,
       shadowColor: Colors.black.withValues(alpha: .2),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(
-          color: CiclosColores.bien(context).withValues(alpha: .25),
-        ),
+        borderRadius: BorderRadius.zero,
+        side: BorderSide(color: Colors.transparent),
       ),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.zero,
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors:
                 CiclosColores.oscuro(context)
                     ? CiclosColores.superficie(context)
-                    : const [Colors.white, Color(0xffedf3f8)],
+                    : const [Colors.white, Colors.white],
           ),
         ),
         padding: const EdgeInsets.all(10),
@@ -630,24 +653,6 @@ class _CiclosState extends ConsumerState<CiclosPage> {
       v == null ? 'Sin datos' : '${v.toStringAsFixed(1)}$unidad';
   DateTime _minFecha(DateTime a, DateTime? b) =>
       b != null && b.isBefore(a) ? b : a;
-  Widget _detalle(MedicionCiclo m) {
-    String f(DateTime? d) => d == null ? '—' : fechaCiclo(d);
-    final pendiente = m.inicio != null && m.fin == null && m.esperada != null;
-    final dias =
-        pendiente
-            ? m.calendario.transcurridos(
-              m.hoy.isAfter(m.esperada!) ? m.esperada! : m.hoy,
-              m.hoy.isAfter(m.esperada!) ? m.hoy : m.esperada!,
-            )
-            : null;
-    return ListTile(
-      title: Text('${m.proceso.titulo} · ${m.estado}'),
-      subtitle: Text(
-        'Inicio: ${f(m.inicio)} · Fin: ${f(m.fin)} · Esperada: ${f(m.esperada)}\n${m.duracion == null ? 'Duración real: —' : 'Duración real: ${m.duracion} días hábiles'}${dias == null ? '' : ' · ${m.hoy.isAfter(m.esperada!) ? 'Retraso' : 'Restantes'}: $dias días'} · Objetivo: ${m.parametro?.dias ?? '—'}',
-      ),
-    );
-  }
-
   Widget _carga(DatosCiclos d, IndicadoresCiclos i) {
     final dia = _diaCarga ?? d.hoy;
     final desde =

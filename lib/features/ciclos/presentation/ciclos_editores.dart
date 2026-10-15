@@ -3,14 +3,16 @@ import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../../data/ciclos_repository.dart';
-import '../../../data/excel_ciclos.dart';
+import '../../../data/excel_ciclos_async.dart';
 import '../../../domain/ciclos.dart';
 
 Future<bool> importarCiclos(
   BuildContext context,
   CiclosRepository repo,
-  DatosCiclos datos,
-) async {
+  DatosCiclos datos, {
+  void Function(String)? onProgress,
+  void Function(int)? onGuardado,
+}) async {
   final archivo = await FilePicker.platform.pickFiles(
     type: FileType.custom,
     allowedExtensions: ['xlsx'],
@@ -21,9 +23,15 @@ Future<bool> importarCiclos(
   if (file.bytes == null) {
     throw const FormatException('No se pudo leer el archivo.');
   }
-  final filas = ExcelCiclos.leer(file.bytes!);
+  if (!context.mounted) return false;
+  onProgress?.call('Leyendo y validando ${file.name}…');
+  final filas = await leerCiclosAsync(file.bytes!);
+  onProgress?.call('Revisando ${filas.length} OP con el servidor…');
   final resumen = await repo.importar(filas, datos.revision, false, file.name);
   if (!context.mounted) return false;
+  onProgress?.call(
+    'Archivo validado: ${filas.length} OP. Revisa y confirma la importación.',
+  );
   final confirmar = await showDialog<bool>(
     context: context,
     builder:
@@ -47,10 +55,18 @@ Future<bool> importarCiclos(
                   const Text(
                     'Las filas incluidas reemplazan los datos anteriores, incluso las fechas vacías. Las OP ausentes se conservan. Cada importación queda auditada.',
                   ),
+                  if (filas.any(
+                    (f) =>
+                        f.containsKey('fila_original') ||
+                        f.containsKey('fecha_comprometida_entrega'),
+                  ))
+                    const Text(
+                      'Plantilla de 13 columnas reconocida. Fecha comprometida y fila original son referencias de esta revisión; no se guardan ni cambian las metas del dashboard.',
+                    ),
                   const Divider(),
                   for (final f in filas.take(15))
                     Text(
-                      '${f['op']} · ${f['cliente']} · ${f['cantidad']} unidades · Inicio: ${f['inicio'] ?? 'Sin fecha'}',
+                      '${f['op']} · ${f['cliente']} · ${f['cantidad']} unidades · Inicio: ${f['inicio'] ?? 'Sin fecha'}${f['fecha_comprometida_entrega'] == null ? '' : ' · Comprometida: ${f['fecha_comprometida_entrega']}'}${f['fila_original'] == null ? '' : ' · Fila original: ${f['fila_original']}'}',
                     ),
                   if (filas.length > 15)
                     Text('… y ${filas.length - 15} OP más.'),
@@ -71,7 +87,11 @@ Future<bool> importarCiclos(
         ),
   );
   if (confirmar != true) return false;
+  onProgress?.call(
+    'Guardando ${filas.length} OP. Espera la confirmación del servidor…',
+  );
   await repo.importar(filas, datos.revision, true, file.name);
+  onGuardado?.call(filas.length);
   return true;
 }
 

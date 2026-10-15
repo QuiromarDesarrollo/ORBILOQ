@@ -4,6 +4,7 @@ import '../../../shared/widgets/status_chip.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../../data/facturacion_le.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -86,6 +87,7 @@ class SeguimientoPanel extends ConsumerWidget {
 const estadosEntrega = {
   'en_transito': 'En tránsito',
   'entregado': 'Entregado',
+  'entregado_con_novedad': 'Entregado con novedad',
   'devuelto_cliente': 'Devuelto por el cliente',
   'devolucion_parcial': 'Devolución parcial',
 };
@@ -94,7 +96,7 @@ Color colorEstadoEntrega(BuildContext context, String estado) {
   final oscuro = Theme.of(context).brightness == Brightness.dark;
   return switch (estado) {
     'entregado' => oscuro ? Colors.green.shade300 : AppColors.actionGreen,
-    'devolucion_parcial' =>
+    'devolucion_parcial' || 'entregado_con_novedad' =>
       oscuro ? Colors.orange.shade300 : Colors.orange.shade800,
     'devuelto_cliente' => oscuro ? Colors.red.shade300 : AppColors.alertRed,
     _ => oscuro ? Colors.amber.shade300 : Colors.amber.shade800,
@@ -260,6 +262,7 @@ class _TablaState extends ConsumerState<TablaEntregas> {
     f.d['version'] = version;
     f.cambiado = false;
     ref.invalidate(entregasProvider);
+    ref.invalidate(facturacionProvider);
     if (mounted) {
       await mostrarAviso(
         context,

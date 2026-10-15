@@ -1,3 +1,4 @@
+import '../../../application/dashboard_despachos_mensuales.dart';
 import '../../../shared/widgets/selector_tema.dart';
 import '../../../application/dashboard_periodo.dart';
 import 'dashboard_calendario.dart';
@@ -76,6 +77,9 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
     ref.invalidate(dashboardRecepcionProvider);
     ref.invalidate(dashboardEnfoqueProvider);
     ref.invalidate(dashboardSnapshotProvider);
+    ref.invalidate(despachosMensualesProvider);
+    ref.invalidate(facturacionSemanalProvider);
+    ref.invalidate(puntualidadMensualProvider);
   }
 
   void _cambiarTiempoReal(bool activo) {
@@ -121,7 +125,10 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
         enfoque.isLoading ||
         snapshot.isLoading;
     return Scaffold(
-      backgroundColor: pal.bg,
+      backgroundColor:
+          Theme.of(context).brightness == Brightness.dark
+              ? pal.bg
+              : const Color(0xffe8eff5),
       appBar: AppBar(
         backgroundColor: palNavegacion(context).header,
         foregroundColor: palNavegacion(context).textPrimary,

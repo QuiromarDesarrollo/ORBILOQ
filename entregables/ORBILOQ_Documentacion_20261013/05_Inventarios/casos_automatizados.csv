@@ -1,0 +1,193 @@
+﻿archivo,linea,tipo,caso,estado
+test/avance_despacho_test.dart,23,test,OC con una OP parcialmente despachada refleja 5 de 20 = 25%,Inventariado; no implica ejecución en esta tarea
+test/avance_despacho_test.dart,28,test,"Promedia OP, sin ponderar por unidades ni contar tallas como OP",Inventariado; no implica ejecución en esta tarea
+test/avance_despacho_test.dart,38,test,La OC cuenta OP completas sin ponderarlas por sus unidades,Inventariado; no implica ejecución en esta tarea
+test/avance_despacho_test.dart,47,test,Una OP con varias tallas requiere completar cada una,Inventariado; no implica ejecución en esta tarea
+test/avance_despacho_test.dart,53,test,El exceso de una talla no completa otra ni supera 100 por ciento,Inventariado; no implica ejecución en esta tarea
+test/camera_formularios_test.dart,23,testWidgets,${dialog.runtimeType}: acumula tarjetas y rechaza QR sin guardar movimientos,Inventariado; no implica ejecución en esta tarea
+test/camera_formularios_test.dart,73,testWidgets,Despacho no reemplaza la selección por una lectura de otra OC,Inventariado; no implica ejecución en esta tarea
+test/catalogos_admin_test.dart,76,testWidgets,Destinatarios dentro del catálogo sin segunda ventana $ancho,Inventariado; no implica ejecución en esta tarea
+test/catalogos_admin_test.dart,165,testWidgets,Eliminar exige confirmacion y conserva la fila inactiva,Inventariado; no implica ejecución en esta tarea
+test/catalogos_admin_test.dart,200,test,Revalidar la sesión conserva la vista elegida por el administrador,Inventariado; no implica ejecución en esta tarea
+test/catalogos_admin_test.dart,223,testWidgets,"Editar y desactivar exige confirmación, pantalla móvil",Inventariado; no implica ejecución en esta tarea
+test/catalogos_admin_test.dart,264,testWidgets,Crear una cuenta requiere datos válidos y confirmación,Inventariado; no implica ejecución en esta tarea
+test/catalogos_admin_test.dart,298,testWidgets,Un operario no puede cargar catálogos de administración,Inventariado; no implica ejecución en esta tarea
+test/catalogos_admin_test.dart,322,testWidgets,Estantes vienen del catálogo; una selección retirada se reemplaza,Inventariado; no implica ejecución en esta tarea
+test/catalogos_admin_test.dart,347,testWidgets,Un nombre retirado limpia la selección sin romper el formulario,Inventariado; no implica ejecución en esta tarea
+test/catalogos_multiperfil_repository_test.dart,9,test,"Editar, desactivar y crear envían todos los perfiles al servidor",Inventariado; no implica ejecución en esta tarea
+test/catalogos_pdf_vistas_test.dart,29,testWidgets,Empaque: volumen y acciones visibles $size,Inventariado; no implica ejecución en esta tarea
+test/catalogos_pdf_vistas_test.dart,74,testWidgets,Tablas de catálogos y destinatario $size,Inventariado; no implica ejecución en esta tarea
+test/catalogos_usuarios_vista_test.dart,54,testWidgets,"Usuarios: filtros, edición y desactivación $size",Inventariado; no implica ejecución en esta tarea
+test/ciclos_carga_global_test.dart,9,testWidgets,"Dona suma unidades, separa OP y aplica cliente",Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,58,testWidgets,Barra compacta de administrador $ancho,Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,84,test,"Calendario colombiano: Emiliani, Semana Santa, fin de año y mismo día",Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,96,test,Sin inicio no inventa fechas; conserva parámetro asociado histórico,Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,124,test,Carga semanal no suma las colas diarias ni libera sin fecha anterior,Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,162,test,Percentiles y capacidad semanal independiente y sin prorrata,Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,195,test,Cumplimiento histórico no se convierte en comparación actual,Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,231,test,"Excel respeta OP alfanumérica, guiones, fechas y celdas combinadas reales",Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,247,test,"Excel rechaza duplicados, fechas imposibles, texto, fórmulas y orden incoherente",Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,267,testWidgets,"Cada selector conserva datos, metas y admite cinco tipos",Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,309,testWidgets,Alterna tema del dashboard y conserva la pestaña seleccionada,Inventariado; no implica ejecución en esta tarea
+test/ciclos_test.dart,356,testWidgets,Gerencia solo lectura y dashboard adaptable a $ancho,Inventariado; no implica ejecución en esta tarea
+test/clientes_empaque_test.dart,36,test,Clientes conserva NIT con ceros y deja campos vacíos,Inventariado; no implica ejecución en esta tarea
+test/clientes_empaque_test.dart,43,test,Rechaza columnas ajenas a la plantilla,Inventariado; no implica ejecución en esta tarea
+test/clientes_empaque_test.dart,49,test,No evalúa fórmulas,Inventariado; no implica ejecución en esta tarea
+test/cumplimiento_test.dart,9,test,Entrega completa no sigue venciendo con el paso del tiempo,Inventariado; no implica ejecución en esta tarea
+test/cumplimiento_test.dart,22,test,Pendientes y parciales usan hoy aunque haya entrega previa,Inventariado; no implica ejecución en esta tarea
+test/cumplimiento_test.dart,34,test,Sin fechas no inventa cumplimiento ni días,Inventariado; no implica ejecución en esta tarea
+test/cumplimiento_test.dart,42,test,Cada rol usa su cantidad y fecha; filtros coinciden con el detalle,Inventariado; no implica ejecución en esta tarea
+test/dashboard_atencion_test.dart,50,test,Cada OP cuenta una vez en primera etapa; NC impide completo y borradas no cuentan,Inventariado; no implica ejecución en esta tarea
+test/dashboard_atencion_test.dart,76,test,"Alertas respetan días, pendientes, deduplicación, corte y liberaciones recientes",Inventariado; no implica ejecución en esta tarea
+test/dashboard_atencion_test.dart,131,testWidgets,Panel read-only responsive $modo $ancho y umbrales locales,Inventariado; no implica ejecución en esta tarea
+test/dashboard_catalogo_test.dart,13,testWidgets,Indicadores responsive y acceso a tiempos $ancho,Inventariado; no implica ejecución en esta tarea
+test/dashboard_ejecutivo_test.dart,110,test,"Agrupa con límites de lunes en Bogotá y excluye correcciones, negativos y fechas posteriores al corte",Inventariado; no implica ejecución en esta tarea
+test/dashboard_ejecutivo_test.dart,157,testWidgets,"Dashboard $modo en $ancho: período, datos y gráfico sin desbordamientos",Inventariado; no implica ejecución en esta tarea
+test/dashboard_ejecutivo_test.dart,204,testWidgets,Un usuario operativo no puede consultar el dashboard,Inventariado; no implica ejecución en esta tarea
+test/dashboard_enfoque_test.dart,10,test,"Fechas por etapa, OP distintas y líneas eliminadas al corte Bogotá",Inventariado; no implica ejecución en esta tarea
+test/dashboard_enfoque_test.dart,79,test,"Volumen respeta período, correcciones y cantidad operativa",Inventariado; no implica ejecución en esta tarea
+test/dashboard_enfoque_test.dart,120,test,Causales deduplica y compara últimas cuatro semanas con todo el histórico,Inventariado; no implica ejecución en esta tarea
+test/dashboard_enfoque_test.dart,143,test,Salud incluye todos los clientes y distingue ausencia de base,Inventariado; no implica ejecución en esta tarea
+test/dashboard_enfoque_test.dart,173,testWidgets,Todos los clientes buscables y gráficos sin overflow $modo $ancho,Inventariado; no implica ejecución en esta tarea
+test/dashboard_manual_test.dart,37,testWidgets,Revalidar sesión cada 30 segundos no recarga; cambiar permisos sí revoca acceso,Inventariado; no implica ejecución en esta tarea
+test/dashboard_manual_test.dart,121,testWidgets,"Eventos, filtros y cambio de vista no recargan; botón sí consulta todo",Inventariado; no implica ejecución en esta tarea
+test/dashboard_periodo_test.dart,42,test,"Calendario inclusivo, viernes y lunes separados, Bogotá y sin fines de semana",Inventariado; no implica ejecución en esta tarea
+test/dashboard_periodo_test.dart,57,test,Rango sin días laborables no produce errores ni totales,Inventariado; no implica ejecución en esta tarea
+test/dashboard_periodo_test.dart,80,testWidgets,Gráfica admite un solo día y un período vacío,Inventariado; no implica ejecución en esta tarea
+test/dashboard_recepcion_test.dart,32,test,"Dona por líneas, tasa por unidades y resolución por registro, sin duplicar auditoría",Inventariado; no implica ejecución en esta tarea
+test/dashboard_recepcion_test.dart,77,test,Sin base no se convierte en cero y las fechas inválidas no producen días negativos,Inventariado; no implica ejecución en esta tarea
+test/dashboard_recepcion_test.dart,98,testWidgets,"Recepción $ancho $modo sin datos, sin desbordamientos",Inventariado; no implica ejecución en esta tarea
+test/dashboard_resumen_test.dart,22,testWidgets,"Cuadrícula, ayuda y filtros $modo $size",Inventariado; no implica ejecución en esta tarea
+test/descargar_excel_web_test.dart,11,test,"El reporte descarga un XLSX legible con nombre, hojas y cantidades",Inventariado; no implica ejecución en esta tarea
+test/descargar_pdf_web_test.dart,11,test,Descarga el PDF con su nombre y bytes sin plugin de impresión,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,136,testWidgets,Buscar OP y ampliar conserva empaques en $size,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,317,testWidgets,Pestañas de despacho según rol ${rol.name},Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,371,testWidgets,Conserva destinatario al avanzar: habilita rótulos y revisión,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,563,test,Reservas conservan stock físico y excluyen ubicaciones al empacar,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,573,testWidgets,Empacados aparecen en Seguimiento y no en Historial,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,605,testWidgets,"Corrección precarga empaque, libera stock solo virtual y exige motivo",Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,737,testWidgets,"Clientes de despacho: stock y pendiente, con actualización",Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,818,testWidgets,"Selección, vista previa cancelable, reintento sin duplicar e historial plegado",Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,1013,testWidgets,Comparte un empaque entre dos tallas sin duplicar su número,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,1121,test,"Estado de OC considera todas las OP, aunque no tengan movimientos",Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,1149,test,Logística muestra fecha de despacho independiente de Producción,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,1168,test,Distribuye entre estantes y no supera la cantidad solicitada,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,1173,test,Rechaza stock insuficiente global o por estantes y exceder pendiente,Inventariado; no implica ejecución en esta tarea
+test/despachos_oc_test.dart,1208,test,Excel relaciona No. OC de Orden con todas sus tallas sin alterar cantidades,Inventariado; no implica ejecución en esta tarea
+test/destinatario_editor_test.dart,6,testWidgets,valida nombre y guarda datos opcionales sin Excel,Inventariado; no implica ejecución en esta tarea
+test/destinatario_editor_test.dart,63,testWidgets,conserva el formulario cuando falla el guardado,Inventariado; no implica ejecución en esta tarea
+test/destinatario_internacional_test.dart,8,testWidgets,Internacional condicional y guardado responsive $ancho,Inventariado; no implica ejecución en esta tarea
+test/destinatario_internacional_test.dart,56,testWidgets,Volver a nacional no envía campos internacionales ocultos,Inventariado; no implica ejecución en esta tarea
+test/dialog_loader_test.dart,7,testWidgets,Cargas simultáneas centradas en el diálogo y retirada al terminar,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,17,test,anular envío no recibido elimina el pendiente y la revisión no escribe,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,48,testWidgets,recepción edita saldo de bodega y muestra despachadas separadas,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,72,test,reparte recepción entre lotes y valida toda la suma antes de escribir,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,94,test,aumentar cantidad recalcula pendientes sin inventar movimientos,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,110,test,rechaza una confirmación obsoleta y no duplica correcciones,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,117,test,corrige el total y reduce pendientes sin cambiar recepciones ni stock,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,136,test,bloquea entrega inferior a recepcion en revisión y confirmación sin escribir,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,151,test,un cambio inválido no deja escritura parcial,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,161,test,rechaza fechas inexistentes sin normalizarlas silenciosamente,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,171,test,la corrección de recepción conserva su validación por lote,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,200,test,corregir PNC conserva el stock y las cantidades relacionadas,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,217,test,"cliente cambia en todas las filas de la OP, manteniendo identificadores",Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,236,testWidgets,edición visible solo para admin: ${cuenta.name} / ${vista.name},Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,279,testWidgets,edita el total entregado sin selector de lote y con confirmación,Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,326,test,"borrado conserva cantidades, lotes y otras filas; rechaza token obsoleto",Inventariado; no implica ejecución en esta tarea
+test/edicion_admin_test.dart,347,testWidgets,cancelar no borra; confirmar oculta en ambas vistas y conserva datos,Inventariado; no implica ejecución en esta tarea
+test/entrega_produccion_vista_test.dart,11,testWidgets,Entrega: cantidades y resumen fijo $size,Inventariado; no implica ejecución en esta tarea
+test/error_crear_usuario_test.dart,6,test,"Distingue despliegue, sesión y servidor aunque no llegue JSON",Inventariado; no implica ejecución en esta tarea
+test/error_crear_usuario_test.dart,12,test,Conserva mensajes de validación enviados como objeto o texto JSON,Inventariado; no implica ejecución en esta tarea
+test/estado_recepcion_entrega_test.dart,7,test,Completado exige recibir toda la entrega,Inventariado; no implica ejecución en esta tarea
+test/estado_recepcion_entrega_test.dart,14,testWidgets,"Estado visible al cerrar card, por entrega y según filtro de envío",Inventariado; no implica ejecución en esta tarea
+test/excel_kardex_test.dart,28,test,"Excel de ${vista.name} conserva identidades, cantidades y fechas",Inventariado; no implica ejecución en esta tarea
+test/excel_kardex_test.dart,42,test,"rechaza vista incorrecta, vacíos, duplicados y cantidades negativas",Inventariado; no implica ejecución en esta tarea
+test/excel_kardex_test.dart,61,test,rechaza fechas inexistentes y fórmulas en entradas,Inventariado; no implica ejecución en esta tarea
+test/excel_kardex_test.dart,83,test,acepta fecha nativa de Excel,Inventariado; no implica ejecución en esta tarea
+test/historial_despachos_vista_test.dart,6,testWidgets,Distingue entregas sin cargar de cero y de una entrega real,Inventariado; no implica ejecución en esta tarea
+test/historial_despachos_vista_test.dart,40,testWidgets,LE agrupa estantes y conserva acciones a $ancho px,Inventariado; no implica ejecución en esta tarea
+test/historial_filtros_test.dart,6,testWidgets,Contador común separa etapas y aplica fecha sin duplicarlas,Inventariado; no implica ejecución en esta tarea
+test/historial_filtros_test.dart,28,testWidgets,Historial vacío conserva un contador en cero,Inventariado; no implica ejecución en esta tarea
+test/historial_filtros_test.dart,34,test,OP y fecha son independientes y se combinan incluyendo ambos días,Inventariado; no implica ejecución en esta tarea
+test/historial_filtros_test.dart,50,testWidgets,Filtra eventos dentro de la tarjeta y permite limpiar cada filtro,Inventariado; no implica ejecución en esta tarea
+test/historial_liberaciones_test.dart,7,testWidgets,Agrupa entregas sin mezclar tallas y conserva su orden y responsables,Inventariado; no implica ejecución en esta tarea
+test/historial_produccion_vista_test.dart,12,testWidgets,Historial: detalle y filtro $width,Inventariado; no implica ejecución en esta tarea
+test/importar_kardex_dialog_test.dart,57,testWidgets,seleccionar y revisar no guarda; solo confirmar aplica,Inventariado; no implica ejecución en esta tarea
+test/kardex_calendario_test.dart,18,test,"Cada vista usa su fecha, incluye todo el día y filtra tarjetas y opciones",Inventariado; no implica ejecución en esta tarea
+test/kardex_calendario_test.dart,46,test,El rango conserva filtros de columna y se puede retirar por separado,Inventariado; no implica ejecución en esta tarea
+test/kardex_filtros_dependientes_test.dart,13,test,Filtrar por OC se combina con cliente: ${columnas.keys.last},Inventariado; no implica ejecución en esta tarea
+test/kardex_filtros_dependientes_test.dart,33,test,"Opciones dependen de cliente, OP y búsqueda, sin limitar su propia selección: ${columnas.keys.last}",Inventariado; no implica ejecución en esta tarea
+test/kardex_filtros_dependientes_test.dart,70,testWidgets,Una selección incompatible sigue visible y no rompe los desplegables,Inventariado; no implica ejecución en esta tarea
+test/kardex_filtros_dependientes_test.dart,93,testWidgets,Aplicar todas las opciones disponibles conserva la selección explícita,Inventariado; no implica ejecución en esta tarea
+test/kardex_op_completa_test.dart,10,testWidgets,OP completa en tabla de escritorio con observaciones,Inventariado; no implica ejecución en esta tarea
+test/kardex_resize_test.dart,10,testWidgets,Kardex cambia entre escritorio y móvil sin fallar,Inventariado; no implica ejecución en esta tarea
+test/kardex_resumen_test.dart,33,test,Bodega descuenta despachos sin alterar el acumulado recibido,Inventariado; no implica ejecución en esta tarea
+test/kardex_resumen_test.dart,41,test,"La tarjeta cuenta bodega pendiente, no lo pendiente de la orden",Inventariado; no implica ejecución en esta tarea
+test/kardex_resumen_test.dart,52,test,Sin recepción o con toda la bodega despachada el resumen es cero,Inventariado; no implica ejecución en esta tarea
+test/kardex_resumen_test.dart,68,test,Una corrección que deje saldo negativo no resta stock de otra fila,Inventariado; no implica ejecución en esta tarea
+test/kardex_resumen_test.dart,79,test,El resumen respeta filtros y excluye líneas eliminadas,Inventariado; no implica ejecución en esta tarea
+test/no_conforme_stock_test.dart,6,test,No conforme rechaza más que el stock y no altera el saldo,Inventariado; no implica ejecución en esta tarea
+test/no_conforme_vista_test.dart,14,testWidgets,"PNC: tarjeta, resumen e historial $width",Inventariado; no implica ejecución en esta tarea
+test/operario_sesion_test.dart,13,testWidgets,Producción y recepción usan el nombre de la cuenta sin selector,Inventariado; no implica ejecución en esta tarea
+test/pantalla_completa_global_test.dart,14,testWidgets,$tipo amplía y conserva texto en $size,Inventariado; no implica ejecución en esta tarea
+test/peso_empaque_test.dart,6,test,Cambiar peso o tipo invalida la firma del rótulo impreso,Inventariado; no implica ejecución en esta tarea
+test/peso_empaque_test.dart,20,test,Peso bruto obligatorio y compatible con decimales de usuario,Inventariado; no implica ejecución en esta tarea
+test/peso_empaque_test.dart,27,test,Nombres históricos se muestran como paquetes sin cambiar otras palabras,Inventariado; no implica ejecución en esta tarea
+test/plantillas_excel_test.dart,18,test,plantilla ${tipo.name} vacía con instrucciones y encabezados únicos,Inventariado; no implica ejecución en esta tarea
+test/plantillas_excel_test.dart,28,test,órdenes completa acepta ambas hojas y conserva identificadores,Inventariado; no implica ejecución en esta tarea
+test/plantillas_excel_test.dart,37,test,fechas acepta formato ISO,Inventariado; no implica ejecución en esta tarea
+test/plantillas_excel_test.dart,42,test,ciclos acepta fechas y procesos pendientes vacíos,Inventariado; no implica ejecución en esta tarea
+test/plantillas_excel_test.dart,49,test,clientes respeta B:H y conserva ceros del NIT y teléfono,Inventariado; no implica ejecución en esta tarea
+test/recepcion_agrupada_test.dart,77,test,Suma pendientes manteniendo referencias a los lotes,Inventariado; no implica ejecución en esta tarea
+test/recepcion_agrupada_test.dart,93,test,"No mezcla tallas, prendas, OC, clientes ni reprocesos",Inventariado; no implica ejecución en esta tarea
+test/recepcion_agrupada_test.dart,107,testWidgets,Recepción agrupada con error parcial: $falla,Inventariado; no implica ejecución en esta tarea
+test/reportes_admin_test.dart,53,test,Filtros combinados en Bogotá y tendencias no confunden reportes con unidades,Inventariado; no implica ejecución en esta tarea
+test/reportes_admin_test.dart,99,test,Excel conserva números y texto literal en hojas de detalle y resumen,Inventariado; no implica ejecución en esta tarea
+test/reportes_admin_test.dart,123,testWidgets,Cuatro reportes adaptables $size,Inventariado; no implica ejecución en esta tarea
+test/reportes_admin_test.dart,152,testWidgets,"Buscar código, paginar y consultar original en móvil",Inventariado; no implica ejecución en esta tarea
+test/reportes_admin_test.dart,194,testWidgets,Cuenta no administradora no consulta ni exporta reportes,Inventariado; no implica ejecución en esta tarea
+test/reproceso_vista_test.dart,13,testWidgets,Liberación responsive y validaciones $width,Inventariado; no implica ejecución en esta tarea
+test/responsive_test.dart,34,testWidgets,"Página en ${size.width}x${size.height}, ambas vistas",Inventariado; no implica ejecución en esta tarea
+test/responsive_test.dart,99,testWidgets,Login ${size.width},Inventariado; no implica ejecución en esta tarea
+test/responsive_test.dart,113,testWidgets,Edición y borrado con teclado y texto ampliado,Inventariado; no implica ejecución en esta tarea
+test/responsive_test.dart,160,testWidgets,"${dialog.runtimeType} en celular, pestañas",Inventariado; no implica ejecución en esta tarea
+test/roles_logistica_test.dart,14,testWidgets,Permisos y columnas de ${cuenta.etiqueta},Inventariado; no implica ejecución en esta tarea
+test/seguimiento_entregas_test.dart,8,test,Filtro recibido incluye extremos y excluye fechas vacías,Inventariado; no implica ejecución en esta tarea
+test/seguimiento_entregas_test.dart,20,testWidgets,Cards de LE abren formulario compacto y conservan edición,Inventariado; no implica ejecución en esta tarea
+test/supabase_sincronizacion_test.dart,9,test,El refresco propaga el fallo y permite recuperarse sin perder el stream,Inventariado; no implica ejecución en esta tarea
+test/tema_corporativo_test.dart,15,test,"Corporativo conserva contraste en superficies, navegación y acciones",Inventariado; no implica ejecución en esta tarea
+test/tema_corporativo_test.dart,35,testWidgets,Selector ofrece tres modos y los aplica también a diálogos,Inventariado; no implica ejecución en esta tarea
+test/trazabilidad_op_test.dart,5,test,"OP con varias LE conserva fechas, texto y resumen sin duplicados",Inventariado; no implica ejecución en esta tarea
+test/trazabilidad_op_test.dart,53,test,OP sin despacho y entrega incompleta,Inventariado; no implica ejecución en esta tarea
+test/usuarios_multiperfil_test.dart,54,test,Compatibilidad del perfil único y unión de accesos,Inventariado; no implica ejecución en esta tarea
+test/usuarios_multiperfil_test.dart,67,test,Cambiar área solo entre permisos asignados y revocar en sesión,Inventariado; no implica ejecución en esta tarea
+test/usuarios_multiperfil_test.dart,104,testWidgets,Editar Despacho + Seguimiento y exigir un perfil a $width,Inventariado; no implica ejecución en esta tarea
+test/wms_alert_test.dart,6,testWidgets,Aviso centrado se puede repetir y cerrar sin cerrar formulario,Inventariado; no implica ejecución en esta tarea
+test/wms_alert_test.dart,60,testWidgets,Avisos de todos los tipos admiten texto largo y acción en móvil,Inventariado; no implica ejecución en esta tarea
+test/wms_camera_scanner_test.dart,9,testWidgets,"Mantiene cámara abierta, evita duplicados y permite repetir explícitamente",Inventariado; no implica ejecución en esta tarea
+test/wms_camera_scanner_test.dart,53,testWidgets,No procesa dos lecturas simultáneas ni presenta errores como éxito,Inventariado; no implica ejecución en esta tarea
+test/wms_camera_scanner_test.dart,89,testWidgets,Cámara adaptable a $size y cierre con tarjetas conservadas,Inventariado; no implica ejecución en esta tarea
+test/wms_loader_test.dart,10,testWidgets,"Modos, porcentaje real, animación y liberación del ticker",Inventariado; no implica ejecución en esta tarea
+test/wms_loader_test.dart,20,testWidgets,"Movimiento reducido, progreso accesible y móvil",Inventariado; no implica ejecución en esta tarea
+test/wms_loader_test.dart,35,testWidgets,Vista de las variantes Orbiloq,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,18,test,parsea un QR válido con el formato real de la marquilla,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,29,test,"parsea un QR real donde la OP queda pegada a la URL, sin ; de por medio",Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,43,test,rechaza QR incompleto o con OP/Código vacíos,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,58,test,producción no puede superar la cantidad pedida,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,64,test,no se entrega un producto inexistente ni cantidades <= 0,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,69,test,no permite lotes duplicados,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,76,test,"crear_lote es todo o nada: si un producto falla, no se crea ninguna línea",Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,90,test,la numeración automática no colisiona,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,96,test,un lote con varias líneas queda parcial hasta que se reciben todas sus líneas,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,118,test,la recepción parcial actualiza stock y permite recibir el restante,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,140,test,una línea de lote no se puede recibir dos veces,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,151,test,recibir con cantidad 0 se rechaza y la línea sigue pendiente (regresión),Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,171,test,recibir sin indicar quién recibe se rechaza,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,185,test,el despacho valida el stock de la ubicación,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,196,test,stockDisponible siempre coincide con la suma de ubicaciones,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,250,test,reconoce encabezados aunque vengan con mayúsculas/tildes distintas,Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,263,test,"un código numérico no queda con "".0"" pegado al final",Inventariado; no implica ejecución en esta tarea
+test/wms_rules_test.dart,270,test,"avisa claramente si falta una columna requerida, en vez de fallar en silencio",Inventariado; no implica ejecución en esta tarea
+test/wms_scan_field_test.dart,7,testWidgets,Limpia la captura y recupera el foco tras procesar el lector,Inventariado; no implica ejecución en esta tarea
+test/wms_scan_field_test.dart,34,testWidgets,Oculta la captura parcial y envía una sola lectura completa al recibir Enter,Inventariado; no implica ejecución en esta tarea
+test/wms_scan_field_test.dart,68,testWidgets,Permite ingresar OP manual y muestra espera mientras termina la búsqueda,Inventariado; no implica ejecución en esta tarea

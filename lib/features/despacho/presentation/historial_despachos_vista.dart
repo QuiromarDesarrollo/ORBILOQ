@@ -40,6 +40,7 @@ class _VistaState extends State<HistorialDespachosVista> {
     final e = widget.entregas?.where((e) => '${e['id']}' == clave).firstOrNull;
     return switch (e?['estado']) {
       'entregado' => 'Entregado',
+      'entregado_con_novedad' => 'Entregado con novedad',
       'devuelto_cliente' => 'Devuelto por el cliente',
       'devolucion_parcial' => 'Devolución parcial',
       'en_transito' => 'En tránsito',

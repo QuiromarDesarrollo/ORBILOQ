@@ -380,3 +380,23 @@ Las nuevas RPC `admin_empaque_guardar_v92` y `guardar_empaque_destinatario_v92` 
 
 ### 093 — Destinatarios internacionales
 Aplicar únicamente en ORBILOQ-DEV después de 082. Añade el RPC de alta internacional, valida CLIENTES I:Q y separa sus claves de los nacionales. Conserva las instantáneas de despachos y LE. El formato se elige con `tipo_destinatario=internacional`; ausencia de la marca conserva el nacional. No importa automáticamente los clientes del Excel. Ensayo: `tools/ensayar_trazabilidad_op.ps1`.
+
+### 096 — Entregado con novedad y despachos mensuales
+
+Aplicar `096_entregado_con_novedad_dashboard.sql` completo en ORBILOQ-DEV. Amplía los estados permitidos sin modificar filas existentes. Añade `dashboard_despachos_mensuales`, de solo lectura y restringido con `puede_ver_dashboards()`. Agrupa por mes de salida en Bogotá, lunes a viernes, cliente y período; cuenta despachos confirmados y clasifica según estado actual de la revisión vigente. Tránsito/devoluciones solo cuentan en total. Probado localmente con `node tools/test_despachos_mensuales.mjs`; pendiente de ejecución remota.
+
+### 097 — Facturación de LE
+
+Aplicar `097_facturacion_le.sql` completo en ORBILOQ-DEV. Agrega tabla protegida por RLS y RPC con los mismos permisos de Seguimiento, sin modificar movimientos ni documentos históricos. Solo lista LE con fecha de recibido en la revisión vigente. Precarga ID OC desde Orden del ERP; remisión e ID OC son editables y la clasificación completa/incompleta se calcula a partir de los campos. Guarda versión, actor y fecha; rechaza conflictos de versión o revisión. Las correcciones posteriores de una LE requieren completar la nueva revisión. Ensayo: `node tools/test_facturacion_le.mjs`. Pendiente de aplicación remota.
+
+### 098 — Dona de facturación semanal
+
+Aplicar `098_dashboard_facturacion_semanal.sql` después de 097, solo en ORBILOQ-DEV. Consulta de lectura para Administración/Gerencia: agrupa despachos confirmados por semana de salida, lunes a viernes Bogotá, período y cliente; utiliza la misma condición de completada que Facturación. Pendientes incluye LE sin fecha de recibido. No cambia datos existentes. Probado por `tools/test_facturacion_le.mjs`; pendiente de aplicación remota.
+
+### 099 — Opciones administrativas por LE
+
+Aplicar `099_opciones_admin_le.sql` en DEV después de 092. Agrega confirmación con número/fecha opcionales, auditoría privada y control de rol para empaque masivo. Los números duplicados se rechazan y la secuencia automática omite los ocupados. No cambia datos históricos. Pendiente de ejecución remota; ensayo local en `tools/ensayar_trazabilidad_op.ps1`.
+
+### 100 — Puntualidad mensual de salida de bodega
+
+Aplicar `100_dashboard_puntualidad_mensual.sql` en DEV. RPC de solo lectura con `puede_ver_dashboards()`. Agrupa LE liberadas por mes de salida, compara con todas las fechas esperadas de Logística, informa datos incompletos y respeta cliente, período y lunes a viernes Bogotá. Ensayo: `tools/test_puntualidad_mensual.mjs`. Pendiente de ejecución remota.

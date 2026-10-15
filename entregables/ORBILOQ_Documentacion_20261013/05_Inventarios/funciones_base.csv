@@ -1,0 +1,77 @@
+﻿nombre,parametros,retorno,fuente
+admin_catalogos_guardar,"p_tipo text, p_id uuid, p_nombre text, p_activo boolean, p_version text DEFAULT NULL::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_catalogos_listar,p_tipo text,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_contexto_edicion,p_item_id uuid,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_editar_kardex,"p_item_id uuid, p_campo text, p_valor jsonb, p_motivo text, p_version text, p_lote_item_id uuid DEFAULT NULL::uuid, p_ubicacion_id uuid DEFAULT NULL::uuid, p_confirmar boolean DEFAULT false",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_editar_recepciones,"p_item_id uuid, p_campo text, p_valor jsonb, p_motivo text, p_version text, p_recepciones jsonb, p_ubicacion_id uuid, p_confirmar boolean",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_eliminar_linea,"p_item_id uuid, p_version text, p_motivo text",void,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_empaque_guardar,"p_id uuid, p_version text, p_datos jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_es_admin,,boolean,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_exportar_kardex,,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_importar_kardex,"p_vista text, p_version text, p_filas jsonb, p_motivo text, p_confirmar boolean DEFAULT false",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_reporte_pagina,"p_tipo text, p_despues text DEFAULT ''::text, p_corte timestamp with time zone DEFAULT now()",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_reporte_resumen,,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_sincronizar_envios_corregidos,,trigger,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_trazabilidad_op,p_op text DEFAULT ''::text,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_usuario_alta_pendiente,p_numero text,uuid,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_usuario_guardar,"p_id uuid, p_nombre text, p_rol text, p_activo boolean, p_version text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_usuario_registrar,"p_actor uuid, p_auth_id uuid, p_numero text, p_nombre text, p_rol text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+admin_version_kardex,,text,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+agregar_personal_aliado,p_nombre text,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+agregar_personal_logistica,p_nombre text,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+agregar_personal_produccion,p_nombre text,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+cerrar_lote_item_con_faltante,"p_lote_item_id uuid, p_nota text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+ciclos_configurar,"p_proceso text, p_desde date, p_dias integer, p_diaria integer, p_semanal integer, p_revision text, p_cola integer DEFAULT NULL::integer",void,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+ciclos_estado,,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+ciclos_importar,"p_filas jsonb, p_revision text, p_confirmar boolean, p_archivo text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+ciclos_pagina,"p_despues text, p_revision text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+ciclos_versiones,"p_inicio date, p_fines jsonb, p_anterior public.ciclos_ordenes",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+corregir_despacho_le,"p_id uuid, p_version text, p_solicitud text, p_motivo text, p_cliente text, p_oc text, p_lineas jsonb, p_empaques jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+corregir_despacho_le_base_v81,"p_id uuid, p_version text, p_solicitud text, p_motivo text, p_cliente text, p_oc text, p_lineas jsonb, p_empaques jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+crear_lote,"p_items jsonb, p_operario_nombre text, p_numero_lote text DEFAULT NULL::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+despachar,"p_item_orden_id uuid, p_cantidad integer, p_ubicacion_id uuid",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+despachar_oc,"p_solicitud text, p_cliente text, p_oc text, p_lineas jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+despachar_oc_bultos,"p_solicitud text, p_cliente text, p_oc text, p_lineas jsonb, p_empaques jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+despachar_oc_bultos_base_v81,"p_solicitud text, p_cliente text, p_oc text, p_lineas jsonb, p_empaques jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+despachar_oc_empaques,"p_solicitud text, p_cliente text, p_oc text, p_lineas jsonb, p_empaques jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+despachar_oc_prendas_empaques,"p_solicitud text, p_cliente text, p_oc text, p_lineas jsonb, p_empaques jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+despacho_para_corregir,p_id uuid,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+destinatarios_para_empaque,,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+empaques_listar,p_todos boolean DEFAULT false,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+enviar_no_conforme_aliado,"p_item_orden_id uuid, p_cantidad integer, p_causal_id uuid, p_operario_nombre text, p_persona_aliado_entrega text, p_nota text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+guardar_empaque_destinatario,"p_solicitud text, p_cliente text, p_oc text, p_lineas jsonb, p_empaques jsonb, p_destinatario uuid, p_destinatario_version text, p_id uuid DEFAULT NULL::uuid, p_version text DEFAULT NULL::text, p_motivo text DEFAULT NULL::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+historial_despachos_empaques,p_despues text DEFAULT ''::text,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+historial_despachos_oc,p_despues text DEFAULT ''::text,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+importar_fechas_esperadas,p_filas jsonb,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+importar_ordenes_produccion,"p_ordenes jsonb, p_tallas jsonb, p_nombre_archivo text, p_storage_path text, p_usuario_nombre text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+le_acceso,,boolean,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+le_clientes,,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+le_configurar,p_siguiente bigint,void,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+le_documento,"p_solicitud text, p_destinatario uuid DEFAULT NULL::uuid, p_datos jsonb DEFAULT '{}'::jsonb, p_emitir boolean DEFAULT false",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+le_importar_clientes,p_filas jsonb,integer,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+liberar_no_conforme,"p_item_orden_id uuid, p_cantidad integer, p_operario_nombre text, p_nota text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+liberar_no_conforme,"p_item_orden_id uuid, p_cantidad integer, p_operario_nombre text, p_nota text DEFAULT ''::text, p_recibido_por_logistica text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+liberar_no_conforme_aliado,"p_solicitud_id uuid, p_cantidad integer, p_operario_nombre text, p_persona_aliado_libera text, p_nota text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+proteger_reservas,,trigger,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+puede_ver_dashboards,,boolean,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+recibir_lote_item,"p_lote_item_id uuid, p_cantidad integer, p_ubicacion_id uuid, p_nota text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+recibir_lote_item,"p_lote_item_id uuid, p_cantidad integer, p_ubicacion_id uuid, p_nota text, p_recibido_por text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+registrar_no_conforme,"p_item_orden_id uuid, p_cantidad integer, p_causal_id uuid, p_operario_nombre text, p_nota text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+registrar_no_conforme,"p_item_orden_id uuid, p_cantidad integer, p_causal_id uuid, p_operario_nombre text, p_nota text DEFAULT ''::text, p_recibido_de_produccion text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+registrar_sobrante,"p_item_orden_id uuid, p_lote_item_id uuid, p_cantidad integer, p_operario_nombre text, p_nota text DEFAULT ''::text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+reservar_empaque_interno,"p_id uuid, p_nuevo boolean",void,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+resolver_sobrante,"p_id uuid, p_resolucion text",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+seguimiento_acceso,,boolean,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+seguimiento_archivo_permitido,"p_name text, p_escritura boolean",boolean,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+seguimiento_confirmar,"p_id uuid, p_revision integer, p_destinatario uuid, p_datos jsonb DEFAULT '{}'::jsonb",jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+seguimiento_entregas_guardar,"p_id uuid, p_revision integer, p_version integer, p_datos jsonb",integer,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+seguimiento_entregas_guardar_v87,"p_id uuid, p_revision integer, p_version integer, p_datos jsonb",integer,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+seguimiento_entregas_listar,p_antes bigint DEFAULT NULL::bigint,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+seguimiento_guardar_base_v87,"p_id uuid, p_revision integer, p_version integer, p_datos jsonb",integer,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+seguimiento_listar_base_v87,p_antes bigint DEFAULT NULL::bigint,jsonb,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+traza_fecha_empaque,,trigger,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+validar_reservas_item,p_item uuid,void,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+validar_stock_no_conforme,"p_item uuid, p_cantidad integer",void,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+wms_cuenta_activa,,boolean,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+wms_cuenta_operativa,,boolean,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario
+wms_nombre_actor,,text,Esquema previo al 13; cuerpos y permisos modificados por 008 no reconstruidos en este inventario

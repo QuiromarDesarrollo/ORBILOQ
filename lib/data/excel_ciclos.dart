@@ -3,6 +3,10 @@ import 'package:excel/excel.dart';
 import '../domain/ciclos.dart';
 
 class ExcelCiclos {
+  static const columnasReferencia = [
+    'FECHA COMPROMETIDA ENTREGA',
+    'FILA ORIGINAL',
+  ];
   static const columnas = [
     'N° DE ORDEN',
     'CLIENTE',
@@ -31,28 +35,25 @@ class ExcelCiclos {
       throw const FormatException('El archivo supera 20 MB.');
     }
     final libro = Excel.decodeBytes(bytes);
-    final hojas =
-        libro.tables.values
-            .where(
-              (h) =>
-                  h.rows.isNotEmpty &&
-                  columnas.every(
-                    (c) => h.rows.first.any(
-                      (d) => normalizar('${d?.value ?? ''}') == c,
-                    ),
-                  ),
-            )
-            .toList();
+    // Sheet.rows reconstruye toda la matriz. Materializar una vez por hoja
+    // evita hacerlo por encabezado, fila y celda (coste cuadrático).
+    final hojas = <(Sheet, List<List<Data?>>)>[];
+    for (final hoja in libro.tables.values) {
+      final filas = hoja.rows;
+      if (filas.isEmpty) continue;
+      final encabezados =
+          filas.first.map((d) => normalizar('${d?.value ?? ''}')).toSet();
+      if (columnas.every(encabezados.contains)) hojas.add((hoja, filas));
+    }
     if (hojas.length != 1) {
       throw const FormatException(
-        'Se requiere una sola hoja con los 11 encabezados: N° DE ORDEN, CLIENTE, CANTIDAD, FECHA DE INICIO y los siete procesos.',
+        'Se requiere una sola hoja con N° DE ORDEN, CLIENTE, CANTIDAD, FECHA DE INICIO y los siete procesos. También se admiten FECHA COMPROMETIDA ENTREGA y FILA ORIGINAL como referencias.',
       );
     }
-    final hoja = hojas.single,
+    final hoja = hojas.single.$1,
+        filas = hojas.single.$2,
         headers =
-            hoja.rows.first
-                .map((d) => normalizar('${d?.value ?? ''}'))
-                .toList();
+            filas.first.map((d) => normalizar('${d?.value ?? ''}')).toList();
     if (headers.where((h) => h.isNotEmpty).toSet().length !=
         headers.where((h) => h.isNotEmpty).length) {
       throw const FormatException('Hay encabezados duplicados.');
@@ -63,12 +64,12 @@ class ExcelCiclos {
     ];
     final result = <Map<String, dynamic>>[], ops = <String>{};
     CellValue? celda(int r, int c) {
-      final fila = hoja.rows[r];
+      final fila = filas[r];
       return c < fila.length ? fila[c]?.value : null;
     }
 
-    for (var r = 1; r < hoja.rows.length; r++) {
-      if (hoja.rows[r].every((v) => '${v?.value ?? ''}'.trim().isEmpty)) {
+    for (var r = 1; r < filas.length; r++) {
+      if (filas[r].every((v) => '${v?.value ?? ''}'.trim().isEmpty)) {
         continue;
       }
       CellValue? valor(String columna) {
@@ -167,6 +168,10 @@ class ExcelCiclos {
         'cantidad': cantidad.toInt(),
         'inicio': inicio,
         'fines': fines,
+        if (headers.contains('FECHA COMPROMETIDA ENTREGA'))
+          'fecha_comprometida_entrega': fecha('FECHA COMPROMETIDA ENTREGA'),
+        if (headers.contains('FILA ORIGINAL'))
+          'fila_original': '${valor('FILA ORIGINAL') ?? ''}'.trim(),
       });
       if (result.length > 10000) {
         throw const FormatException('Máximo 10.000 OP por archivo.');

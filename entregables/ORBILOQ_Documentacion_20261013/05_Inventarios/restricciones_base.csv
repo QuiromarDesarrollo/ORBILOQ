@@ -1,0 +1,102 @@
+﻿tabla,restriccion,definicion,fuente
+admin_catalogos_historial,admin_catalogos_historial_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+admin_correcciones,admin_correcciones_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+admin_importaciones,admin_importaciones_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+causales_devolucion,causales_devolucion_nombre_key,UNIQUE (nombre),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+causales_devolucion,causales_devolucion_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ciclos_importaciones,ciclos_importaciones_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ciclos_ordenes,ciclos_ordenes_pkey,PRIMARY KEY (op),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ciclos_parametros,ciclos_parametros_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ciclos_parametros,ciclos_parametros_proceso_vigente_desde_key,"UNIQUE (proceso, vigente_desde)",Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ciclos_revision,ciclos_revision_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+clientes,clientes_nombre_key,UNIQUE (nombre),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+clientes,clientes_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+despacho_revisiones,despacho_revisiones_despacho_id_edicion_key,"UNIQUE (despacho_id, edicion)",Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+despacho_revisiones,despacho_revisiones_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+despacho_revisiones,despacho_revisiones_solicitud_key,UNIQUE (solicitud),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+despachos_oc,despachos_oc_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+despachos_oc,despachos_oc_solicitud_key,UNIQUE (solicitud),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+destinatarios_empaque,destinatarios_empaque_clave_key,UNIQUE (clave),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+destinatarios_empaque,destinatarios_empaque_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_cliente,devoluciones_cliente_movimiento_id_key,UNIQUE (movimiento_id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_cliente,devoluciones_cliente_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_produccion,devoluciones_produccion_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+documentos,documentos_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+empaque_solicitudes,empaque_solicitudes_pkey,PRIMARY KEY (solicitud),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+empaques,empaques_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+importaciones,importaciones_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+items_orden,items_orden_orden_id_codigo_talla_key,"UNIQUE (orden_id, codigo, talla)",Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+items_orden,items_orden_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+liberaciones_aliados,liberaciones_aliados_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+liberaciones_no_conforme,liberaciones_no_conforme_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lista_empaque_config,lista_empaque_config_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+listas_empaque,listas_empaque_numero_key,UNIQUE (numero),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+listas_empaque,listas_empaque_pkey,PRIMARY KEY (despacho_id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lote_items,lote_items_lote_id_item_orden_id_key,"UNIQUE (lote_id, item_orden_id)",Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lote_items,lote_items_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lotes,lotes_numero_key,UNIQUE (numero),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lotes,lotes_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+no_conformes_aliados,no_conformes_aliados_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ordenes_produccion,ordenes_produccion_numero_op_key,UNIQUE (numero_op),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ordenes_produccion,ordenes_produccion_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+personal_aliados,personal_aliados_nombre_key,UNIQUE (nombre),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+personal_aliados,personal_aliados_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+personal_logistica,personal_logistica_nombre_key,UNIQUE (nombre),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+personal_logistica,personal_logistica_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+personal_produccion,personal_produccion_nombre_key,UNIQUE (nombre),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+personal_produccion,personal_produccion_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+reservas_despacho,reservas_despacho_pkey,"PRIMARY KEY (despacho_id, item_id, ubicacion_id)",Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+seguimiento_entregas,seguimiento_entregas_pkey,"PRIMARY KEY (despacho_id, revision)",Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+sobrantes_bodega,sobrantes_bodega_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ubicaciones,ubicaciones_codigo_key,UNIQUE (codigo),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ubicaciones,ubicaciones_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+usuarios,usuarios_auth_id_key,UNIQUE (auth_id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+usuarios,usuarios_email_key,UNIQUE (email),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+usuarios,usuarios_nombre_rol_unique,"UNIQUE (nombre, rol)",Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+usuarios,usuarios_numero_usuario_key,UNIQUE (numero_usuario),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+usuarios,usuarios_pkey,PRIMARY KEY (id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+admin_correcciones,admin_correcciones_item_id_fkey,FOREIGN KEY (item_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+admin_correcciones,admin_correcciones_lote_item_id_fkey,FOREIGN KEY (lote_item_id) REFERENCES public.lote_items(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+admin_correcciones,admin_correcciones_orden_id_fkey,FOREIGN KEY (orden_id) REFERENCES public.ordenes_produccion(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+admin_correcciones,admin_correcciones_ubicacion_id_fkey,FOREIGN KEY (ubicacion_id) REFERENCES public.ubicaciones(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+despacho_revisiones,despacho_revisiones_actor_fkey,FOREIGN KEY (actor) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+despacho_revisiones,despacho_revisiones_despacho_id_fkey,FOREIGN KEY (despacho_id) REFERENCES public.despachos_oc(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+despachos_oc,despachos_oc_destinatario_id_fkey,FOREIGN KEY (destinatario_id) REFERENCES public.destinatarios_empaque(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_cliente,devoluciones_cliente_causal_id_fkey,FOREIGN KEY (causal_id) REFERENCES public.causales_devolucion(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_cliente,devoluciones_cliente_item_orden_id_fkey,FOREIGN KEY (item_orden_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_cliente,devoluciones_cliente_movimiento_id_fkey,FOREIGN KEY (movimiento_id) REFERENCES public.movimientos(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_cliente,devoluciones_cliente_usuario_id_fkey,FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_produccion,devoluciones_produccion_causal_id_fkey,FOREIGN KEY (causal_id) REFERENCES public.causales_devolucion(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_produccion,devoluciones_produccion_item_orden_id_fkey,FOREIGN KEY (item_orden_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+devoluciones_produccion,devoluciones_produccion_operario_id_fkey,FOREIGN KEY (operario_id) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+documentos,documentos_subido_por_fkey,FOREIGN KEY (subido_por) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+importaciones,importaciones_usuario_id_fkey,FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+items_orden,items_orden_orden_id_fkey,FOREIGN KEY (orden_id) REFERENCES public.ordenes_produccion(id) ON DELETE RESTRICT,Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+liberaciones_aliados,liberaciones_aliados_solicitud_id_fkey,FOREIGN KEY (solicitud_id) REFERENCES public.no_conformes_aliados(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+liberaciones_no_conforme,liberaciones_no_conforme_item_orden_id_fkey,FOREIGN KEY (item_orden_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+liberaciones_no_conforme,liberaciones_no_conforme_operario_id_fkey,FOREIGN KEY (operario_id) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+listas_empaque,listas_empaque_despacho_id_fkey,FOREIGN KEY (despacho_id) REFERENCES public.despachos_oc(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lote_items,lote_items_item_orden_id_fkey,FOREIGN KEY (item_orden_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lote_items,lote_items_lote_id_fkey,FOREIGN KEY (lote_id) REFERENCES public.lotes(id) ON DELETE CASCADE,Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lote_items,lote_items_ubicacion_destino_id_fkey,FOREIGN KEY (ubicacion_destino_id) REFERENCES public.ubicaciones(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+lotes,lotes_operario_id_fkey,FOREIGN KEY (operario_id) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_admin_correccion_id_fkey,FOREIGN KEY (admin_correccion_id) REFERENCES public.admin_correcciones(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_despacho_oc_id_fkey,FOREIGN KEY (despacho_oc_id) REFERENCES public.despachos_oc(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_despacho_revision_id_fkey,FOREIGN KEY (despacho_revision_id) REFERENCES public.despacho_revisiones(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_item_orden_id_fkey,FOREIGN KEY (item_orden_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_lote_id_fkey,FOREIGN KEY (lote_id) REFERENCES public.lotes(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_lote_item_id_fkey,FOREIGN KEY (lote_item_id) REFERENCES public.lote_items(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_ubicacion_id_fkey,FOREIGN KEY (ubicacion_id) REFERENCES public.ubicaciones(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+movimientos,movimientos_usuario_id_fkey,FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+no_conformes_aliados,no_conformes_aliados_causal_id_fkey,FOREIGN KEY (causal_id) REFERENCES public.causales_devolucion(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+no_conformes_aliados,no_conformes_aliados_item_orden_id_fkey,FOREIGN KEY (item_orden_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+no_conformes_aliados,no_conformes_aliados_usuario_produccion_solicitud_id_fkey,FOREIGN KEY (usuario_produccion_solicitud_id) REFERENCES public.usuarios(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+ordenes_produccion,ordenes_produccion_importacion_id_fkey,FOREIGN KEY (importacion_id) REFERENCES public.importaciones(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+reservas_despacho,reservas_despacho_despacho_id_fkey,FOREIGN KEY (despacho_id) REFERENCES public.despachos_oc(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+reservas_despacho,reservas_despacho_item_id_fkey,FOREIGN KEY (item_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+reservas_despacho,reservas_despacho_ubicacion_id_fkey,FOREIGN KEY (ubicacion_id) REFERENCES public.ubicaciones(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+seguimiento_entregas,seguimiento_entregas_despacho_id_fkey,FOREIGN KEY (despacho_id) REFERENCES public.despachos_oc(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+sobrantes_bodega,sobrantes_bodega_item_orden_id_fkey,FOREIGN KEY (item_orden_id) REFERENCES public.items_orden(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+sobrantes_bodega,sobrantes_bodega_lote_item_id_fkey,FOREIGN KEY (lote_item_id) REFERENCES public.lote_items(id),Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones
+usuarios,usuarios_auth_id_fkey,FOREIGN KEY (auth_id) REFERENCES auth.users(id) ON DELETE SET NULL,Esquema del respaldo anterior a 008; consultar DATABASE para ampliaciones

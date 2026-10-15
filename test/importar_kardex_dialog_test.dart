@@ -16,21 +16,22 @@ class _Picker extends FilePicker {
   _Picker(this.bytes);
   final Uint8List bytes;
   @override
-  Future<FilePickerResult?> pickFiles(
-          {String? dialogTitle,
-          String? initialDirectory,
-          FileType type = FileType.any,
-          List<String>? allowedExtensions,
-          Function(FilePickerStatus)? onFileLoading,
-          bool allowCompression = true,
-          int compressionQuality = 30,
-          bool allowMultiple = false,
-          bool withData = false,
-          bool withReadStream = false,
-          bool lockParentWindow = false,
-          bool readSequential = false}) async =>
-      FilePickerResult(
-          [PlatformFile(name: 'tabla.xlsx', size: bytes.length, bytes: bytes)]);
+  Future<FilePickerResult?> pickFiles({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    bool allowCompression = true,
+    int compressionQuality = 30,
+    bool allowMultiple = false,
+    bool withData = false,
+    bool withReadStream = false,
+    bool lockParentWindow = false,
+    bool readSequential = false,
+  }) async => FilePickerResult([
+    PlatformFile(name: 'tabla.xlsx', size: bytes.length, bytes: bytes),
+  ]);
 }
 
 class _Servicio implements SupabaseImportadorKardex {
@@ -40,61 +41,87 @@ class _Servicio implements SupabaseImportadorKardex {
   Future<ArchivoKardex> exportar(Rol vista) => throw UnimplementedError();
   final llamadas = <bool>[];
   @override
-  Future<Map<String, dynamic>> importar(ArchivoKardex archivo, String motivo,
-      {required bool confirmar}) async {
+  Future<Map<String, dynamic>> importar(
+    ArchivoKardex archivo,
+    String motivo, {
+    required bool confirmar,
+  }) async {
     llamadas.add(confirmar);
     return {
       'nuevas': 0,
       'modificadas': 1,
       'total': 1,
       'guardado': confirmar,
-      'cambios': <dynamic>[]
+      'cambios': <dynamic>[],
     };
   }
 }
 
 void main() {
-  testWidgets('seleccionar y revisar no guarda; solo confirmar aplica',
-      (tester) async {
+  testWidgets('seleccionar y revisar no guarda; solo confirmar aplica', (
+    tester,
+  ) async {
     final service = _Servicio();
     final repo = InMemoryWmsRepository.seeded();
     addTearDown(repo.dispose);
-    FilePicker.platform =
-        _Picker(ExcelKardex.generar(ArchivoKardex(Rol.produccion, 'v', [
-      {
-        'item_orden_id': 'id',
-        'numero_op': '1',
-        'descripcion': 'Producto',
-        'codigo': '001',
-        'talla': 'M',
-        'cliente': 'Cliente',
-        'oc': '',
-        'observacion_op': '',
-        'cantidad_pedida': 10,
-        'producido': 2,
-        'pendiente_reproceso': 0,
-        'fecha_ultima_entrega': null,
-        'fecha_esperada_produccion': null,
-        'ubicacion_ajuste': ''
-      }
-    ])));
-    await tester.pumpWidget(ProviderScope(
+    FilePicker.platform = _Picker(
+      ExcelKardex.generar(
+        ArchivoKardex(Rol.produccion, 'v', [
+          {
+            'item_orden_id': 'id',
+            'numero_op': '1',
+            'descripcion': 'Producto',
+            'codigo': '001',
+            'talla': 'M',
+            'cliente': 'Cliente',
+            'oc': '',
+            'observacion_op': '',
+            'cantidad_pedida': 10,
+            'producido': 2,
+            'pendiente_reproceso': 0,
+            'fecha_ultima_entrega': null,
+            'fecha_esperada_produccion': null,
+            'ubicacion_ajuste': '',
+          },
+        ]),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
         overrides: [
           usarSupabaseProvider.overrideWithValue(false),
           wmsRepositoryProvider.overrideWithValue(repo),
           importadorKardexProvider.overrideWithValue(service),
         ],
         child: MaterialApp(
-            home: Builder(
-                builder: (context) => Scaffold(
-                    body: TextButton(
-                        onPressed: () =>
-                            showImportarKardexDialog(context, Rol.produccion),
-                        child: const Text('Abrir')))))));
+          home: Builder(
+            builder:
+                (context) => Scaffold(
+                  body: TextButton(
+                    onPressed:
+                        () => showImportarKardexDialog(context, Rol.produccion),
+                    child: const Text('Abrir'),
+                  ),
+                ),
+          ),
+        ),
+      ),
+    );
     await tester.tap(find.text('Abrir'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Seleccionar archivo .xlsx'));
+    // El lector ahora trabaja en un isolate real; avanzar solo el reloj
+    // simulado de pumpAndSettle no permite esperar su resultado.
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Seleccionar archivo .xlsx'));
+      final limite = DateTime.now().add(const Duration(seconds: 10));
+      while (find.text('tabla.xlsx').evaluate().isEmpty &&
+          DateTime.now().isBefore(limite)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await tester.pump();
+      }
+    });
     await tester.pumpAndSettle();
+    expect(find.text('tabla.xlsx'), findsOneWidget);
     expect(service.llamadas, isEmpty);
     await tester.enterText(find.byType(TextField), 'Corrección general');
     await tester.pumpAndSettle();
@@ -105,7 +132,6 @@ void main() {
     await tester.tap(find.text('Confirmar reemplazo de la tabla'));
     await tester.pumpAndSettle();
     expect(service.llamadas, [false, true]);
-    expect(find.text('Importación guardada correctamente.'),
-        findsOneWidget);
+    expect(find.text('Importación guardada correctamente.'), findsOneWidget);
   });
 }

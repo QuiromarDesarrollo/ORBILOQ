@@ -42,6 +42,7 @@ class _ImportarFechasDialogState extends ConsumerState<ImportarFechasDialog> {
   }
 
   Future<void> _importar() async {
+    if (_cargando || _resumen != null) return;
     final archivo = _archivo;
     final bytes = archivo?.bytes;
     if (archivo == null || bytes == null) return;
@@ -75,7 +76,7 @@ class _ImportarFechasDialogState extends ConsumerState<ImportarFechasDialog> {
 
     if (!mounted) return;
     setState(() {
-      _cargando = false;
+      _cargando = res is Ok<ResumenImportacionFechas>;
       switch (res) {
         case Ok(:final value):
           _resumen = value;
@@ -93,6 +94,7 @@ class _ImportarFechasDialogState extends ConsumerState<ImportarFechasDialog> {
       await ref.read(wmsRepositoryProvider).refrescar().catchError((Object _) {
         /* El stream informa el fallo de recarga; no repetir lo ya guardado. */
       });
+      if (mounted) setState(() => _cargando = false);
     }
   }
 
@@ -133,7 +135,10 @@ class _ImportarFechasDialogState extends ConsumerState<ImportarFechasDialog> {
                 ),
                 FilledButton.icon(
                   onPressed:
-                      _cargando || !disponible || _archivo?.bytes == null
+                      _cargando ||
+                              _resumen != null ||
+                              !disponible ||
+                              _archivo?.bytes == null
                           ? null
                           : _importar,
                   icon: const Icon(Icons.upload_outlined, size: 17),

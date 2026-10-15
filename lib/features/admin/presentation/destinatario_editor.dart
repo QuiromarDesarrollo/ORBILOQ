@@ -7,7 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
 class DestinatarioEditor extends StatefulWidget {
-  const DestinatarioEditor({super.key, required this.guardar});
+  const DestinatarioEditor({super.key, required this.guardar, this.inicial});
+  final Map<String, dynamic>? inicial;
   final Future<void> Function(Map<String, String>) guardar;
   @override
   State<DestinatarioEditor> createState() => _DestinatarioEditorState();
@@ -32,6 +33,18 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
   bool ocupado = false;
   bool internacional = false;
   String? error;
+  @override
+  void initState() {
+    super.initState();
+    final datos = widget.inicial;
+    if (datos != null) {
+      internacional = esDestinatarioInternacional(datos);
+      for (final entry in controles.entries) {
+        entry.value.text = '${datos[entry.key] ?? ''}';
+      }
+    }
+  }
+
   @override
   void dispose() {
     for (final c in controles.values) {
@@ -96,12 +109,14 @@ class _DestinatarioEditorState extends State<DestinatarioEditor> {
     canPop: !ocupado,
     child: WmsDialogShell(
       mobileCatalog: true,
-      title: 'Nuevo destinatario',
+      title:
+          widget.inicial == null ? 'Nuevo destinatario' : 'Editar destinatario',
       subtitle: 'Datos del cliente y sede para la lista de empaque.',
       footer: CatalogoActions(
         onSave: ocupado ? null : guardar,
         onCancel: ocupado ? null : () => Navigator.pop(context),
-        label: 'Guardar destinatario',
+        label:
+            widget.inicial == null ? 'Guardar destinatario' : 'Guardar cambios',
       ),
       iconColor: Colors.teal,
       icon: Icons.person_add_alt_1,

@@ -29,6 +29,19 @@ DateTime? leerFechaCiclo(dynamic s) =>
 /// Festivos nacionales de Colombia, Ley 51 de 1983. Fechas civiles sin zona horaria.
 class CalendarioColombia {
   final _cache = <int, Set<DateTime>>{};
+  final _acumulados = <int, List<int>>{};
+  // Un prefijo anual (366 posiciones) permite contar intervalos sin recorrer
+  // sus días por cada OP, gráfica y ordenamiento.
+  List<int> _prefijo(int year) => _acumulados.putIfAbsent(year, () {
+    final inicio = DateTime.utc(year);
+    final dias = DateTime.utc(year + 1).difference(inicio).inDays;
+    final valores = List<int>.filled(dias + 1, 0);
+    for (var n = 0; n < dias; n++) {
+      valores[n + 1] =
+          valores[n] + (habil(inicio.add(Duration(days: n))) ? 1 : 0);
+    }
+    return valores;
+  });
   Set<DateTime> festivos(int y) => _cache.putIfAbsent(y, () {
     DateTime lunes(DateTime d) => d.add(Duration(days: (8 - d.weekday) % 7));
     // Computus gregoriano (Meeus/Jones/Butcher).
@@ -73,23 +86,34 @@ class CalendarioColombia {
   bool habil(DateTime d) =>
       d.weekday <= 5 && !festivos(d.year).contains(diaCiclo(d));
   DateTime sumar(DateTime inicio, int dias) {
-    var d = diaCiclo(inicio);
-    for (var n = 0; n < dias;) {
-      d = d.add(const Duration(days: 1));
-      if (habil(d)) n++;
+    final d = diaCiclo(inicio);
+    if (dias <= 0) return d;
+    var bajo = 1, alto = dias * 2 + 14;
+    while (transcurridos(d, d.add(Duration(days: alto))) < dias) {
+      alto *= 2;
     }
-    return d;
+    while (bajo < alto) {
+      final medio = (bajo + alto) ~/ 2;
+      if (transcurridos(d, d.add(Duration(days: medio))) >= dias) {
+        alto = medio;
+      } else {
+        bajo = medio + 1;
+      }
+    }
+    return d.add(Duration(days: bajo));
   }
 
   /// Excluye el día inicial e incluye el final. Una entrega el mismo día dura 0.
   int transcurridos(DateTime inicio, DateTime fin) {
+    final a = diaCiclo(inicio), b = diaCiclo(fin);
+    if (!b.isAfter(a)) return 0;
     var n = 0;
-    for (
-      var d = diaCiclo(inicio).add(const Duration(days: 1));
-      !d.isAfter(diaCiclo(fin));
-      d = d.add(const Duration(days: 1))
-    ) {
-      if (habil(d)) n++;
+    for (var year = a.year; year <= b.year; year++) {
+      final prefijo = _prefijo(year), base = DateTime.utc(year);
+      final desde = year == a.year ? a.difference(base).inDays + 1 : 0;
+      final hasta =
+          year == b.year ? b.difference(base).inDays + 1 : prefijo.length - 1;
+      n += prefijo[hasta] - prefijo[desde];
     }
     return n;
   }
@@ -140,9 +164,10 @@ class OrdenCiclo {
     this.cliente,
     this.cantidad,
     this.inicio,
-    this.fines,
-    this.versiones,
-  );
+    List<DateTime?> fines,
+    Map<String, dynamic> versiones,
+  ) : fines = List.unmodifiable(fines),
+      versiones = Map.unmodifiable(versiones);
   final String op, cliente;
   final int cantidad;
   final DateTime? inicio;
@@ -179,15 +204,15 @@ class MedicionCiclo {
   final DateTime hoy;
   DateTime? get inicio => orden.inicioDe(proceso);
   DateTime? get fin => orden.fines[proceso.index];
-  DateTime? get esperada =>
+  late final DateTime? esperada =
       inicio == null || parametro == null
           ? null
           : calendario.sumar(inicio!, parametro!.dias);
-  int? get duracion =>
+  late final int? duracion =
       inicio == null || fin == null
           ? null
           : calendario.transcurridos(inicio!, fin!);
-  bool? get cumplio =>
+  late final bool? cumplio =
       esperada == null || fin == null ? null : !fin!.isAfter(esperada!);
   String get estado =>
       inicio == null
@@ -202,27 +227,41 @@ class MedicionCiclo {
 }
 
 class DatosCiclos {
-  DatosCiclos(this.ordenes, this.parametros, this.hoy, this.revision);
+  DatosCiclos(
+    List<OrdenCiclo> ordenes,
+    List<ParametroCiclo> parametros,
+    this.hoy,
+    this.revision,
+  ) : ordenes = List.unmodifiable(ordenes),
+      parametros = List.unmodifiable(parametros);
   final List<OrdenCiclo> ordenes;
   final List<ParametroCiclo> parametros;
   final DateTime hoy;
   final String revision;
   final calendario = CalendarioColombia();
+  late final _parametrosPorId = {for (final p in parametros) p.id: p};
+  final _mediciones = <(OrdenCiclo, ProcesoCiclo), MedicionCiclo>{};
+  final _objetivos = <OrdenCiclo, int?>{};
   MedicionCiclo medir(OrdenCiclo o, ProcesoCiclo p) {
-    final id = o.versiones[p.name];
-    // Sin asignación no se inventa una versión: el servidor la asocia al importar/configurar.
-    final parametro =
-        parametros.where((v) => v.id == id && v.proceso == p).firstOrNull;
-    return MedicionCiclo(o, p, parametro, calendario, hoy);
+    return _mediciones.putIfAbsent((o, p), () {
+      final parametro = _parametrosPorId[o.versiones[p.name]];
+      return MedicionCiclo(
+        o,
+        p,
+        parametro?.proceso == p ? parametro : null,
+        calendario,
+        hoy,
+      );
+    });
   }
 
-  int? objetivoTotal(OrdenCiclo o) {
+  int? objetivoTotal(OrdenCiclo o) => _objetivos.putIfAbsent(o, () {
     final versiones = [
       for (final p in ProcesoCiclo.values) medir(o, p).parametro,
     ];
     if (versiones.any((p) => p == null)) return null;
     return versiones.fold<int>(3, (s, p) => s + p!.dias);
-  }
+  });
 }
 
 double? percentil(Iterable<int> valores, double p) {

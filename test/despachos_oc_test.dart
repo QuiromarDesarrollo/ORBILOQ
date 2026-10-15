@@ -128,6 +128,105 @@ Future<void> llenarPesos(WidgetTester tester) async {
 }
 
 void main() {
+  for (final rol in [RolCuenta.admin, RolCuenta.despacho]) {
+    testWidgets('Empaque masivo solo admin: ${rol.name}', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repo = InMemoryWmsRepository.seeded();
+      addTearDown(repo.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            usarSupabaseProvider.overrideWithValue(false),
+            usuarioSesionProvider.overrideWith(
+              (ref) async => UsuarioSesion(
+                numeroUsuario: '1',
+                nombre: 'Test',
+                rolCuenta: rol,
+              ),
+            ),
+            wmsRepositoryProvider.overrideWithValue(repo),
+            despachosOcProvider.overrideWithValue(_Despachos()),
+            destinatariosEmpaqueProvider.overrideWith((ref) async => []),
+            wmsSnapshotProvider.overrideWith(
+              (ref) => Stream.value(
+                WmsSnapshot(
+                  kardex: [
+                    prenda(),
+                    const ItemKardex(
+                      item: ItemOrden(
+                        id: 'j',
+                        op: '2',
+                        cliente: 'Cliente',
+                        oc: 'OC1',
+                        codigo: 'C2',
+                        descripcion: 'Pantalon',
+                        talla: 'M',
+                        cantidadPedida: 10,
+                      ),
+                      producido: 10,
+                      recibido: 10,
+                      despachado: 0,
+                      ubicaciones: {'A': 10},
+                    ),
+                  ],
+                  lotes: [],
+                ),
+              ),
+            ),
+            empaquesProvider.overrideWith(
+              (ref) async => [
+                {
+                  'id': 'caja1',
+                  'nombre': 'Caja prueba',
+                  'categoria': 'CAJA',
+                  'version': 'v1',
+                  'alto_cm': 10,
+                  'ancho_cm': 20,
+                  'largo_cm': 30,
+                },
+              ],
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: DespachoDialog(
+                correccion: {
+                  'id': 'd1',
+                  'version': 'v1',
+                  'cliente': 'Cliente',
+                  'oc': 'OC1',
+                  'fase': 'empacado',
+                  'detalle': [
+                    {'op': '1'},
+                  ],
+                  'empaques': [],
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final boton = find.text('Empacar OC completa');
+      if (rol == RolCuenta.admin) {
+        expect(boton, findsOneWidget);
+        await tester.tap(boton);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('2 OP.'), findsOneWidget);
+        await tester.tap(find.text('Preparar empaque'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('1 empaques'), findsWidgets);
+        expect(find.textContaining('OC agrupada en una caja'), findsOneWidget);
+      } else {
+        expect(boton, findsNothing);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final size in [
     const Size(1440, 900),
     const Size(320, 740),

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/result.dart';
 import '../domain/importacion_result.dart';
 import 'excel_ordenes_parser.dart';
+import 'excel_ordenes_async.dart';
 
 /// Orquesta la carga de un Excel de Órdenes de Producción:
 /// 1) valida y parsea el archivo en el dispositivo,
@@ -20,10 +21,12 @@ class SupabaseImportadorOrdenes {
     required Uint8List bytes,
     required String nombreArchivo,
     required String usuarioNombre,
+    void Function(String)? onProgreso,
   }) async {
     final ExcelOrdenesParseado parseado;
     try {
-      parseado = ExcelOrdenesParser.parsear(bytes);
+      onProgreso?.call('Leyendo y validando las hojas Orden y Tallas…');
+      parseado = await leerOrdenesAsync(bytes);
     } on ExcelOrdenesParseException catch (e) {
       return Err<ResumenImportacion>(e.mensaje);
     } catch (e) {
@@ -33,7 +36,10 @@ class SupabaseImportadorOrdenes {
     final storagePath = _rutaStorage(nombreArchivo);
 
     try {
-      await _client.storage.from('documentos').uploadBinary(
+      onProgreso?.call('Archivando el Excel original…');
+      await _client.storage
+          .from('documentos')
+          .uploadBinary(
             storagePath,
             bytes,
             fileOptions: const FileOptions(
@@ -42,7 +48,9 @@ class SupabaseImportadorOrdenes {
             ),
           );
     } on StorageException catch (e) {
-      return Err<ResumenImportacion>('No se pudo archivar el Excel original: ${e.message}');
+      return Err<ResumenImportacion>(
+        'No se pudo archivar el Excel original: ${e.message}',
+      );
     } catch (e) {
       // Cubre errores de red que no son StorageException (proxies/antivirus
       // que interfieren con la conexión, cortes de conexión, etc.) — sin
@@ -56,14 +64,22 @@ class SupabaseImportadorOrdenes {
     }
 
     try {
-      final res = await _client.rpc('importar_ordenes_produccion', params: {
-        'p_ordenes': parseado.ordenes,
-        'p_tallas': parseado.tallas,
-        'p_nombre_archivo': nombreArchivo,
-        'p_storage_path': storagePath,
-        'p_usuario_nombre': usuarioNombre,
-      });
-      return Ok<ResumenImportacion>(ResumenImportacion.fromJson(res as Map<String, dynamic>));
+      onProgreso?.call(
+        'Guardando ${parseado.ordenes.length} OP y ${parseado.tallas.length} líneas de tallas…',
+      );
+      final res = await _client.rpc(
+        'importar_ordenes_produccion',
+        params: {
+          'p_ordenes': parseado.ordenes,
+          'p_tallas': parseado.tallas,
+          'p_nombre_archivo': nombreArchivo,
+          'p_storage_path': storagePath,
+          'p_usuario_nombre': usuarioNombre,
+        },
+      );
+      return Ok<ResumenImportacion>(
+        ResumenImportacion.fromJson(res as Map<String, dynamic>),
+      );
     } on PostgrestException catch (e) {
       return Err<ResumenImportacion>('Error al importar: ${e.message}');
     } catch (e) {

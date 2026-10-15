@@ -114,37 +114,37 @@ class SupabaseWmsRepository implements WmsRepository {
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'items_orden',
-              callback: (_) => _refrescarEnSegundoPlano(),
+              callback: (_) => _programarRefresco(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'ordenes_produccion',
-              callback: (_) => _refrescarEnSegundoPlano(),
+              callback: (_) => _programarRefresco(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'movimientos',
-              callback: (_) => _refrescarEnSegundoPlano(),
+              callback: (_) => _programarRefresco(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'lotes',
-              callback: (_) => _refrescarEnSegundoPlano(),
+              callback: (_) => _programarRefresco(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'lote_items',
-              callback: (_) => _refrescarEnSegundoPlano(),
+              callback: (_) => _programarRefresco(),
             )
             .onPostgresChanges(
               event: PostgresChangeEvent.all,
               schema: 'public',
               table: 'reservas_despacho',
-              callback: (_) => _refrescarEnSegundoPlano(),
+              callback: (_) => _programarRefresco(),
             )
             .subscribe();
     _refrescarEnSegundoPlano();
@@ -155,9 +155,25 @@ class SupabaseWmsRepository implements WmsRepository {
   final StreamController<WmsSnapshot> _controller =
       StreamController.broadcast();
   WmsSnapshot? _ultimo;
+  Timer? _avisoPendiente;
+  Future<void>? _recarga;
+  bool _repetirRecarga = false;
+  bool _cerrado = false;
+
+  // Agrupa avisos por fila sin iniciar varias lecturas completas simultaneas.
+  void _programarRefresco() {
+    if (_cerrado || _avisoPendiente != null) return;
+    _avisoPendiente = Timer(const Duration(milliseconds: 350), () {
+      _avisoPendiente = null;
+      _refrescarEnSegundoPlano();
+    });
+  }
 
   @override
-  Future<WmsSnapshot> cargarSnapshot() => _cargarSnapshot();
+  Future<WmsSnapshot> cargarSnapshot() async {
+    await refrescar();
+    return _ultimo!;
+  }
 
   @override
   Stream<WmsSnapshot> watch() async* {
@@ -166,15 +182,32 @@ class SupabaseWmsRepository implements WmsRepository {
   }
 
   @override
-  Future<void> refrescar() async {
-    try {
-      final snapshot = await _cargarSnapshot();
-      _ultimo = snapshot;
-      if (!_controller.isClosed) _controller.add(snapshot);
-    } catch (e) {
-      if (!_controller.isClosed) _controller.addError(e);
-      rethrow;
+  Future<void> refrescar() {
+    if (_cerrado) return Future.value();
+    _avisoPendiente?.cancel();
+    _avisoPendiente = null;
+    if (_recarga != null) {
+      _repetirRecarga = true;
+      return _recarga!;
     }
+    return _recarga = _refrescarHastaActualizar().whenComplete(() {
+      _recarga = null;
+    });
+  }
+
+  Future<void> _refrescarHastaActualizar() async {
+    do {
+      _repetirRecarga = false;
+      try {
+        final snapshot = await _cargarSnapshot();
+        if (_cerrado) return;
+        _ultimo = snapshot;
+        _controller.add(snapshot);
+      } catch (e) {
+        if (!_cerrado) _controller.addError(e);
+        rethrow;
+      }
+    } while (_repetirRecarga && !_cerrado);
   }
 
   // Una operación ya guardada no debe parecer fallida por su recarga posterior.
@@ -189,6 +222,8 @@ class SupabaseWmsRepository implements WmsRepository {
 
   @override
   void dispose() {
+    _cerrado = true;
+    _avisoPendiente?.cancel();
     _client.removeChannel(_channel);
     _controller.close();
   }
@@ -218,29 +253,45 @@ class SupabaseWmsRepository implements WmsRepository {
   }
 
   Future<WmsSnapshot> _cargarSnapshot() async {
-    final kardexRows = await _traerTodo(
-      (desde, hasta) => _client
-          .from('vista_kardex')
-          .select()
-          .order('numero_op')
-          .order('codigo')
-          .range(desde, hasta),
-    );
+    final resultados = await Future.wait([
+      _traerTodo(
+        (desde, hasta) => _client
+            .from('vista_kardex')
+            .select()
+            .order('numero_op')
+            .order('codigo')
+            .range(desde, hasta),
+      ),
 
-    final stockRows = await _traerTodo(
-      (desde, hasta) => _client
-          .from('vista_stock_ubicacion_detalle')
-          .select()
-          .range(desde, hasta),
-    );
+      _traerTodo(
+        (desde, hasta) => _client
+            .from('vista_stock_ubicacion_detalle')
+            .select()
+            .range(desde, hasta),
+      ),
 
-    final loteItemsRows = await _traerTodo(
-      (desde, hasta) => _client
-          .from('vista_lote_items_detalle')
-          .select()
-          .order('fecha_envio', ascending: false)
-          .range(desde, hasta),
-    );
+      _traerTodo(
+        (desde, hasta) => _client
+            .from('vista_lote_items_detalle')
+            .select()
+            .order('fecha_envio', ascending: false)
+            .range(desde, hasta),
+      ),
+
+      _traerTodo(
+        (desde, hasta) => _client
+            .from('reservas_despacho')
+            .select('item_id,ubicacion:ubicaciones(codigo),cantidad')
+            .order('despacho_id')
+            .order('item_id')
+            .order('ubicacion_id')
+            .range(desde, hasta),
+      ),
+    ]);
+    final kardexRows = resultados[0];
+    final stockRows = resultados[1];
+    final loteItemsRows = resultados[2];
+    final reservasRows = resultados[3];
 
     final stockPorItem = <String, Map<String, int>>{};
     for (final fila in stockRows) {
@@ -250,15 +301,6 @@ class SupabaseWmsRepository implements WmsRepository {
       stockPorItem.putIfAbsent(itemId, () => {})[ubicacion] = cantidad;
     }
 
-    final reservasRows = await _traerTodo(
-      (desde, hasta) => _client
-          .from('reservas_despacho')
-          .select('item_id,ubicacion:ubicaciones(codigo),cantidad')
-          .order('despacho_id')
-          .order('item_id')
-          .order('ubicacion_id')
-          .range(desde, hasta),
-    );
     final reservasPorItem = <String, Map<String, int>>{};
     for (final r in reservasRows) {
       final porUbicacion = reservasPorItem.putIfAbsent(

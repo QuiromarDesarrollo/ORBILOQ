@@ -5,6 +5,42 @@ import 'ciclos_colores.dart';
 
 enum TipoGrafica { barras, columnas, lineas, area, dona }
 
+class SelectorTipoGrafica extends StatelessWidget {
+  const SelectorTipoGrafica({
+    super.key,
+    required this.titulo,
+    required this.onChanged,
+  });
+  final String titulo;
+  final ValueChanged<TipoGrafica?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 30,
+    height: 28,
+    child: PopupMenuButton<String>(
+      tooltip: 'Tipo de gráfica: $titulo',
+      padding: EdgeInsets.zero,
+      icon: const Icon(Icons.bar_chart, size: 20),
+      onSelected:
+          (v) =>
+              onChanged(v == 'original' ? null : TipoGrafica.values.byName(v)),
+      itemBuilder:
+          (_) => [
+            const PopupMenuItem(
+              value: 'original',
+              child: Text('Vista inicial'),
+            ),
+            for (final t in TipoGrafica.values)
+              PopupMenuItem(
+                value: t.name,
+                child: Text(_GraficaState.nombres[t.index]),
+              ),
+          ],
+    ),
+  );
+}
+
 class DatosGrafica {
   const DatosGrafica(
     this.etiquetas,
@@ -30,6 +66,8 @@ class GraficaIntercambiable extends StatefulWidget {
     this.inicial,
     this.altura = 150,
     this.controles,
+    this.selectorVisible = true,
+    this.tipoSeleccionado,
   });
   final DatosGrafica datos;
   final Widget original;
@@ -38,6 +76,8 @@ class GraficaIntercambiable extends StatefulWidget {
   final TipoGrafica? inicial;
   final double altura;
   final Widget? controles;
+  final bool selectorVisible;
+  final TipoGrafica? tipoSeleccionado;
   @override
   State<GraficaIntercambiable> createState() => _GraficaState();
 }
@@ -52,6 +92,7 @@ class _GraficaState extends State<GraficaIntercambiable> {
 
   @override
   Widget build(BuildContext context) {
+    final tipo = widget.selectorVisible ? this.tipo : widget.tipoSeleccionado;
     final d = widget.datos;
     final maximo = [
       ...d.valores,
@@ -77,35 +118,11 @@ class _GraficaState extends State<GraficaIntercambiable> {
                 message: widget.ayuda!,
                 child: const Icon(Icons.help_outline, size: 16),
               ),
-            SizedBox(
-              width: 30,
-              height: 28,
-              child: PopupMenuButton<String>(
-                tooltip: 'Tipo de gráfica: ${widget.titulo}',
-                padding: EdgeInsets.zero,
-                icon: const Icon(Icons.bar_chart, size: 20),
-                onSelected:
-                    (v) => setState(
-                      () =>
-                          tipo =
-                              v == 'original'
-                                  ? null
-                                  : TipoGrafica.values.byName(v),
-                    ),
-                itemBuilder:
-                    (_) => [
-                      const PopupMenuItem(
-                        value: 'original',
-                        child: Text('Vista inicial'),
-                      ),
-                      for (final t in TipoGrafica.values)
-                        PopupMenuItem(
-                          value: t.name,
-                          child: Text(nombres[t.index]),
-                        ),
-                    ],
+            if (widget.selectorVisible)
+              SelectorTipoGrafica(
+                titulo: widget.titulo,
+                onChanged: (v) => setState(() => this.tipo = v),
               ),
-            ),
           ],
         ),
         if (tipo != null && widget.controles != null) widget.controles!,
@@ -128,7 +145,7 @@ class _GraficaState extends State<GraficaIntercambiable> {
             child: CustomPaint(
               painter: _Pintor(
                 d,
-                tipo!,
+                tipo,
                 maximo,
                 Theme.of(context).colorScheme.onSurface,
                 List.filled(7, CiclosColores.bien(context)),
@@ -144,7 +161,7 @@ class _GraficaState extends State<GraficaIntercambiable> {
                   message:
                       '${d.etiquetas[n]}: ${d.valores[n]?.toStringAsFixed(1) ?? "Sin datos"} ${d.unidad}${n < d.metas.length ? " · Meta: ${d.metas[n]?.toStringAsFixed(1) ?? "Sin configurar"}" : ""}',
                   child: Text(
-                    '${n + 1}. ${d.etiquetas[n]}: ${d.valores[n]?.toStringAsFixed(1) ?? "—"}',
+                    '${n + 1}. ${d.etiquetas[n]}: ${d.valores[n]?.toStringAsFixed(1) ?? "—"}${d.porcentaje && d.valores[n] != null ? ' %' : ''}',
                     style: TextStyle(
                       fontSize: 10,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -194,7 +211,10 @@ class _Pintor extends CustomPainter {
       return;
     }
     final paint = Paint();
-    final w = s.width - 30, h = s.height - (s.height > 220 ? 70 : 26);
+    final etiquetasPorcentaje = tipo == TipoGrafica.columnas && d.porcentaje;
+    final top = etiquetasPorcentaje ? 26.0 : 8.0;
+    final w = s.width - 30,
+        h = s.height - (s.height > 220 ? 70 : 26) - (top - 8);
     if (tipo == TipoGrafica.dona) {
       final cell = s.width / n;
       final radius = math.min(cell / 2 - 4, 28.0);
@@ -231,7 +251,9 @@ class _Pintor extends CustomPainter {
         label(c, '${j + 1}', center - const Offset(3, 6));
         label(
           c,
-          v == null ? '—' : v.toStringAsFixed(1),
+          v == null
+              ? '—'
+              : '${v.toStringAsFixed(1)}${d.porcentaje ? ' %' : ''}',
           Offset(cell * j + 4, 105),
         );
       }
@@ -247,7 +269,7 @@ class _Pintor extends CustomPainter {
       ..strokeWidth = 1
       ..color = texto.withValues(alpha: .12);
     for (var k = 0; k <= 2; k++) {
-      final y = 8 + h * k / 2;
+      final y = top + h * k / 2;
       c.drawLine(Offset(28, y), Offset(s.width, y), paint);
     }
     if (tipo == TipoGrafica.barras) {
@@ -277,22 +299,26 @@ class _Pintor extends CustomPainter {
       }
       return;
     }
-    label(c, maximo.toStringAsFixed(0), Offset.zero);
-    label(c, '0', Offset(0, h));
+    label(
+      c,
+      '${maximo.toStringAsFixed(0)}${d.porcentaje ? '%' : ''}',
+      Offset.zero,
+    );
+    label(c, d.porcentaje ? '0%' : '0', Offset(0, top + h - 8));
     final step = w / n;
     Offset point(int j, double v) =>
-        Offset(28 + step * (j + .5), 8 + h * (1 - v / maximo));
+        Offset(28 + step * (j + .5), top + h * (1 - v / maximo));
     Offset? previous;
     for (var j = 0; j < n; j++) {
       final v = d.valores[j];
       if (s.height > 220) {
         c.save();
-        c.translate(28 + step * (j + .5) - 12, h + 38);
+        c.translate(28 + step * (j + .5) - 12, top + h + 30);
         c.rotate(-math.pi / 5);
         label(c, d.etiquetas[j], Offset.zero);
         c.restore();
       } else {
-        label(c, '${j + 1}', Offset(28 + step * (j + .5) - 3, h + 12));
+        label(c, '${j + 1}', Offset(28 + step * (j + .5) - 3, top + h + 4));
       }
       if (v == null) {
         previous = null;
@@ -305,11 +331,36 @@ class _Pintor extends CustomPainter {
       if (tipo == TipoGrafica.columnas) {
         c.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTWH(p.dx - step * .3, p.dy, step * .6, 8 + h - p.dy),
+            Rect.fromLTWH(p.dx - step * .3, p.dy, step * .6, top + h - p.dy),
             const Radius.circular(3),
           ),
           paint,
         );
+        if (etiquetasPorcentaje) {
+          final etiqueta = TextPainter(
+            text: TextSpan(
+              text: '${v.toStringAsFixed(1)} %',
+              style: TextStyle(
+                color: texto,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          final escala = math.min(
+            1.0,
+            math.max(1.0, step - 4) / etiqueta.width,
+          );
+          c.save();
+          c.translate(
+            p.dx - etiqueta.width * escala / 2,
+            p.dy - etiqueta.height * escala - 4,
+          );
+          c.scale(escala);
+          etiqueta.paint(c, Offset.zero);
+          c.restore();
+        }
       } else {
         if (previous != null) {
           if (tipo == TipoGrafica.area) {

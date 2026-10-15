@@ -13,6 +13,7 @@ import 'package:orbiloq_wms/domain/ciclos.dart';
 import 'package:orbiloq_wms/domain/ciclos_indicadores.dart';
 import 'package:orbiloq_wms/domain/sesion.dart';
 import 'package:orbiloq_wms/features/ciclos/presentation/ciclos_page.dart';
+import 'package:orbiloq_wms/features/ciclos/presentation/ciclos_detalle_op.dart';
 
 DateTime d(String s) => DateTime.parse('${s}T00:00:00Z');
 OrdenCiclo orden({
@@ -300,9 +301,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(tipo).last);
       await tester.pumpAndSettle();
-      expect(find.text('1. Compras: 120.0'), findsOneWidget);
+      expect(find.text('1. Compras: 120.0 %'), findsOneWidget);
       expect(find.text('2. Trazo: —'), findsOneWidget);
-      expect(find.text('3. Corte: 0.0'), findsOneWidget);
+      expect(find.text('3. Corte: 0.0 %'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
   });
@@ -341,7 +342,7 @@ void main() {
       Theme.of(tester.element(find.byType(CiclosPage))).brightness,
       Brightness.light,
     );
-    expect(find.text('Trazabilidad por OP'), findsOneWidget);
+    expect(find.byType(CiclosDetalleOp), findsOneWidget);
     await tester.tap(find.byTooltip('Elegir apariencia'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('tema-oscuro')));
@@ -415,13 +416,15 @@ void main() {
       }
 
       expect(tester.takeException(), isNull);
-      await tester.scrollUntilVisible(find.text('P50'), 200);
+      await tester.ensureVisible(find.text('Análisis de tiempos'));
+      await tester.tap(find.text('Análisis de tiempos'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('P50').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('P50').first);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.drag(find.byType(Scrollable).first, const Offset(0, 2500));
+      await tester.ensureVisible(find.text('Capacidad').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Capacidad').first);
       await tester.pumpAndSettle();
@@ -450,7 +453,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Detalle por OP').first);
       await tester.pumpAndSettle();
-      expect(find.text('Trazabilidad por OP'), findsOneWidget);
+      expect(find.byType(CiclosDetalleOp), findsOneWidget);
       expect(tester.takeException(), isNull);
       final scroll = find.byType(Scrollable).first;
       for (var n = 0; n < 15; n++) {

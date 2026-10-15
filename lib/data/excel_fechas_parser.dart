@@ -26,17 +26,18 @@ String _normalizarEncabezado(String s) {
 /// variante de escritura para cada una (el Excel del ERP puede cambiar
 /// ligeramente el texto exacto entre exportaciones).
 final _columnas = <String, String>{
-  for (final e in {
-    'N° DE ORDEN': 'numero_op',
-    'NO. DE ORDEN': 'numero_op',
-    'NUMERO DE ORDEN': 'numero_op',
-    'ORDEN': 'numero_op',
-    'IDENTIFICADOR': 'numero_op',
-    'FECHA PROD': 'fecha_esperada_produccion',
-    'FECHA PRODUCCION': 'fecha_esperada_produccion',
-    'FECHA LOG': 'fecha_esperada_logistica',
-    'FECHA LOGISTICA': 'fecha_esperada_logistica',
-  }.entries)
+  for (final e
+      in {
+        'N° DE ORDEN': 'numero_op',
+        'NO. DE ORDEN': 'numero_op',
+        'NUMERO DE ORDEN': 'numero_op',
+        'ORDEN': 'numero_op',
+        'IDENTIFICADOR': 'numero_op',
+        'FECHA PROD': 'fecha_esperada_produccion',
+        'FECHA PRODUCCION': 'fecha_esperada_produccion',
+        'FECHA LOG': 'fecha_esperada_logistica',
+        'FECHA LOGISTICA': 'fecha_esperada_logistica',
+      }.entries)
     _normalizarEncabezado(e.key): e.value,
 };
 
@@ -62,7 +63,8 @@ class ExcelFechasParser {
       throw ExcelFechasParseException('La hoja está vacía.');
     }
 
-    final encabezados = hoja.rows.first;
+    final filasHoja = hoja.rows;
+    final encabezados = filasHoja.first;
     final indicePorClave = <String, int>{};
     final encabezadosLeidos = <String>[];
     for (var i = 0; i < encabezados.length; i++) {
@@ -87,8 +89,8 @@ class ExcelFechasParser {
     }
 
     final filas = <FilaFechaEsperada>[];
-    for (var f = 1; f < hoja.rows.length; f++) {
-      final fila = hoja.rows[f];
+    for (var f = 1; f < filasHoja.length; f++) {
+      final fila = filasHoja[f];
       final vacia = fila.every((c) => _texto(c?.value)?.trim().isEmpty ?? true);
       if (vacia) continue;
 
@@ -96,7 +98,10 @@ class ExcelFechasParser {
       for (final entrada in indicePorClave.entries) {
         final idx = entrada.value;
         final celda = idx < fila.length ? fila[idx]?.value : null;
-        mapa[entrada.key] = entrada.key == 'numero_op' ? _texto(celda)?.trim() : _fechaIso(celda);
+        mapa[entrada.key] =
+            entrada.key == 'numero_op'
+                ? _texto(celda)?.trim()
+                : _fechaIso(celda);
       }
 
       if ((mapa['numero_op'] ?? '').isEmpty) continue; // fila sin OP: se ignora
@@ -104,7 +109,9 @@ class ExcelFechasParser {
     }
 
     if (filas.isEmpty) {
-      throw ExcelFechasParseException('No se encontraron filas con datos válidos.');
+      throw ExcelFechasParseException(
+        'No se encontraron filas con datos válidos.',
+      );
     }
     return filas;
   }
@@ -140,7 +147,14 @@ class ExcelFechasParser {
       if (valor is DateCellValue) {
         dt = DateTime(valor.year, valor.month, valor.day);
       } else if (valor is DateTimeCellValue) {
-        dt = DateTime(valor.year, valor.month, valor.day, valor.hour, valor.minute, valor.second);
+        dt = DateTime(
+          valor.year,
+          valor.month,
+          valor.day,
+          valor.hour,
+          valor.minute,
+          valor.second,
+        );
       }
       if (dt != null) return _formatoIso(dt);
     } catch (_) {

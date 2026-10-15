@@ -96,26 +96,28 @@ class ExcelKardex {
     final libro = Excel.decodeBytes(bytes);
     final formato = libro.tables['Formato'];
     final hoja = libro.tables['Kardex'];
+    final filasFormato = formato?.rows ?? <List<Data?>>[];
+    final filasHoja = hoja?.rows ?? <List<Data?>>[];
     String texto(Data? d) => d?.value?.toString().trim() ?? '';
     if (formato == null ||
-        formato.rows.isEmpty ||
+        filasFormato.isEmpty ||
         hoja == null ||
-        hoja.rows.isEmpty ||
-        formato.rows.first.length < 3 ||
-        texto(formato.rows.first[0]) != 'ORBILOQ_KARDEX_V1') {
+        filasHoja.isEmpty ||
+        filasFormato.first.length < 3 ||
+        texto(filasFormato.first[0]) != 'ORBILOQ_KARDEX_V1') {
       throw const FormatException(
         'Usa un Excel generado con Exportar tabla de esta versión.',
       );
     }
-    if (texto(formato.rows.first[1]) != vista.name) {
+    if (texto(filasFormato.first[1]) != vista.name) {
       throw const FormatException('El archivo pertenece a la otra vista.');
     }
-    final version = texto(formato.rows.first[2]);
+    final version = texto(filasFormato.first[2]);
     if (version.isEmpty) {
       throw const FormatException('Falta la versión del archivo.');
     }
     final cols = columnas(vista);
-    final headers = hoja.rows.first.map(texto).toList();
+    final headers = filasHoja.first.map(texto).toList();
     if (headers.toSet().length != headers.length ||
         cols.values.any((h) => !headers.contains(h))) {
       throw const FormatException(
@@ -125,8 +127,8 @@ class ExcelKardex {
     final filas = <Map<String, dynamic>>[];
     final ids = <String>{};
     final claves = <String>{};
-    for (var r = 1; r < hoja.rows.length; r++) {
-      final row = hoja.rows[r];
+    for (var r = 1; r < filasHoja.length; r++) {
+      final row = filasHoja[r];
       if (row.every((d) => texto(d).isEmpty)) continue;
       if (filas.length >= 5000) {
         throw const FormatException(

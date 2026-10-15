@@ -3,6 +3,7 @@ import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'historial_despachos_vista.dart';
 import '../../../data/seguimiento_entregas.dart';
 import 'seguimiento_entregas_tabla.dart';
+import 'facturacion_panel.dart';
 import 'dart:convert';
 import 'dart:math' show max, min;
 import '../../../data/destinatarios_empaque.dart';
@@ -48,6 +49,10 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   bool get _puedeSeguimiento =>
       !ref.read(usarSupabaseProvider) ||
       (ref.read(usuarioSesionProvider).valueOrNull?.puedeSeguimiento ?? false);
+  bool get _admin =>
+      ref.read(usuarioSesionProvider).valueOrNull?.tieneRol(RolCuenta.admin) ==
+      true;
+  bool _empaqueMasivo = false;
   int _paso = 0;
   bool _exito = false;
   bool _pantallaCompleta = false;
@@ -338,6 +343,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   }
 
   void _limpiar() {
+    _empaqueMasivo = false;
     _pesosBrutos.clear();
     _opAbierta.clear();
     _buscarOpEmpaque.clear();
@@ -1239,6 +1245,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
             'cantidad': n,
             'version': e['version'],
             'peso_bruto_kg': _pesoBruto(entry.key, e),
+            if (_empaqueMasivo) 'admin_masivo': true,
           });
           cantidades[i.id] = (cantidades[i.id] ?? 0) + n;
         }
@@ -1416,6 +1423,102 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
       ],
     ),
   );
+  Future<void> _empacarOcMasiva() async {
+    if (!_admin || _ocupado || _preparando) return;
+    final cajas =
+        (ref.read(empaquesProvider).valueOrNull ?? [])
+            .where((e) => e['categoria'] == 'CAJA')
+            .toList();
+    final elegibles =
+        _lineas
+            .where(
+              (i) =>
+                  min(i.disponibleParaDespacho, i.pendienteDisponibleDespacho) >
+                  0,
+            )
+            .toList();
+    if (cajas.isEmpty || elegibles.isEmpty) {
+      setState(
+        () =>
+            _mensaje =
+                'Se necesita una caja activa y prendas disponibles de esta OC.',
+      );
+      return;
+    }
+    String caja = '${cajas.first['id']}';
+    final total = elegibles.fold<int>(
+      0,
+      (n, i) =>
+          n + min(i.disponibleParaDespacho, i.pendienteDisponibleDespacho),
+    );
+    final elegido = await showDialog<String>(
+      context: context,
+      builder:
+          (c) => StatefulBuilder(
+            builder:
+                (c, cambiar) => AlertDialog(
+                  title: const Text('Empacar toda la OC en una caja'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'OC $_oc · $total unidades disponibles · ${elegibles.map((i) => i.item.op).toSet().length} OP. Reemplaza la distribución de empaques que estás editando. Las unidades sin stock quedan pendientes.',
+                      ),
+                      DropdownButton<String>(
+                        isExpanded: true,
+                        value: caja,
+                        items: [
+                          for (final e in cajas)
+                            DropdownMenuItem(
+                              value: '${e['id']}',
+                              child: Text(
+                                '${e['nombre']}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) => cambiar(() => caja = v!),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(c),
+                      child: const Text('Cancelar'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(c, caja),
+                      child: const Text('Preparar empaque'),
+                    ),
+                  ],
+                ),
+          ),
+    );
+    if (elegido == null || !mounted || !_admin) return;
+    setState(() {
+      _ops
+        ..clear()
+        ..addAll(elegibles.map((i) => i.item.op));
+      _asignaciones.clear();
+      _pesosBrutos.clear();
+      _rotulosGenerados.clear();
+      final pieza = '${_siguienteEmpaque++}';
+      for (final i in elegibles) {
+        _asignaciones[i.id] = {
+          pieza: _EmpaqueAsignado(elegido)
+            ..prendas =
+                '${min(i.disponibleParaDespacho, i.pendienteDisponibleDespacho)}',
+        };
+      }
+      _empaqueMasivo = true;
+      _planRevisado = null;
+      _revisionEmpaques++;
+      _buscarOpEmpaque.clear();
+      _mensaje =
+          'OC agrupada en una caja. Indica su peso bruto y revisa antes de confirmar.';
+    });
+  }
+
   Widget _cabeceraEmpaque() => LayoutBuilder(
     builder: (context, c) {
       final titulo = _titulo(
@@ -1438,16 +1541,31 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         ),
         onChanged: (_) => setState(() {}),
       );
-      return c.maxWidth < 650
+      return c.maxWidth < 950
           ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [titulo, buscador],
+            children: [
+              titulo,
+              buscador,
+              if (_admin)
+                TextButton.icon(
+                  onPressed: _ocupado || _preparando ? null : _empacarOcMasiva,
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text("Empacar OC completa"),
+                ),
+            ],
           )
           : Row(
             children: [
               Expanded(child: titulo),
               const SizedBox(width: 20),
               SizedBox(width: 240, child: buscador),
+              if (_admin)
+                TextButton.icon(
+                  onPressed: _ocupado || _preparando ? null : _empacarOcMasiva,
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text("Empacar OC completa"),
+                ),
             ],
           );
     },
@@ -1974,7 +2092,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         iconColor: _navy,
         child: DefaultTabController(
           key: ValueKey(puedeSeguimiento),
-          length: puedeSeguimiento ? 3 : 2,
+          length: puedeSeguimiento ? 4 : 2,
           initialIndex:
               widget.correccion == null &&
                       ref.watch(usarSupabaseProvider) &&
@@ -1987,10 +2105,12 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                 (tabContext) => Column(
                   children: [
                     TabBar(
+                      isScrollable: MediaQuery.sizeOf(context).width < 650,
                       labelPadding: EdgeInsets.zero,
                       tabs: [
                         const Tab(text: 'Despacho'),
                         if (puedeSeguimiento) const Tab(text: 'Seguimiento'),
+                        if (puedeSeguimiento) const Tab(text: 'Facturación'),
                         const Tab(text: 'Historial'),
                       ],
                     ),
@@ -2157,6 +2277,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                           const SeguimientoPanel(
                             pendientes: _Historial(seguimiento: true),
                           ),
+                        if (puedeSeguimiento) const FacturacionPanel(),
                         const _Historial(),
                       ]),
                     ),

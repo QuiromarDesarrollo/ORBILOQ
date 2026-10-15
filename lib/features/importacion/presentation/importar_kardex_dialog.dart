@@ -9,6 +9,7 @@ import '../../../application/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../application/auth_providers.dart';
 import '../../../data/excel_kardex.dart';
+import '../../../data/excel_operativo_async.dart';
 import '../../../domain/models.dart';
 import '../../../domain/sesion.dart';
 import '../../../shared/widgets/wms_dialog.dart';
@@ -59,7 +60,8 @@ class _ImportarKardexState extends ConsumerState<ImportarKardexDialog> {
       if (file.bytes == null) {
         throw const FormatException('No se pudo leer el archivo.');
       }
-      final archivo = ExcelKardex.leer(file.bytes!, widget.vista);
+      final archivo = await leerKardexAsync(file.bytes!, widget.vista);
+      if (!mounted) return;
       setState(() {
         _archivo = archivo;
         _nombre = file.name;
@@ -117,9 +119,7 @@ class _ImportarKardexState extends ConsumerState<ImportarKardexDialog> {
         Navigator.pop(context);
         mostrarAvisoSnack(
           context,
-          const SnackBar(
-            content: Text('Importación guardada correctamente.'),
-          ),
+          const SnackBar(content: Text('Importación guardada correctamente.')),
           tipo: TipoAviso.exito,
         );
       } else {

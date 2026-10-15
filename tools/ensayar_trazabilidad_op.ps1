@@ -90,6 +90,9 @@ try {
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/093_destinatarios_internacionales.sql') 'internacional093.log'
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/093_destinatarios_internacionales.sql') 'internacional093_repetida.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_destinatarios_internacionales.sql') 'internacional.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/099_opciones_admin_le.sql') 'admin099.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/099_opciones_admin_le.sql') 'admin099_repetida.log'
+ RunSql 'ensayo' (Join-Path $repo 'tools/test_opciones_admin_le.sql') 'opciones_admin.log'
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/083_reiniciar_movimientos_y_empaques.sql') 'reset.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_reset_rotulos_verificar.sql') 'reset_verificado.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_multiperfil_historico_preparar.sql') 'historico_preparar.log'
@@ -97,6 +100,9 @@ try {
  RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/094_usuarios_multiperfil.sql') 'roles094_repetida.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_usuarios_multiperfil.sql') 'multiperfil.log'
  RunSql 'ensayo' (Join-Path $repo 'tools/test_multiperfil_historico.sql') 'historico_multiperfil.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/095_admin_destinatarios.sql') 'destinatarios095.log'
+ RunSql 'ensayo' (Join-Path $repo 'sql/pruebas/095_admin_destinatarios.sql') 'destinatarios095_repetida.log'
+ RunSql 'ensayo' (Join-Path $repo 'tools/test_admin_destinatarios.sql') 'admin_destinatarios.log'
  Write-Output "OK: listas de empaque, numeracion, tallas compartidas, stock, consecutivos, reimpresion, sedes y seguimiento. Logs: $dest"
 } finally {
  if($started){ & "$PgBin\pg_ctl.exe" -D (Join-Path $dest 'data') -m fast -w stop | Out-Null }

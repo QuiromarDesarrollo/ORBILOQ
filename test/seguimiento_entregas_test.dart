@@ -107,6 +107,11 @@ void main() {
     expect(find.text('QUIROMAR'), findsOneWidget);
     await tester.tap(find.text('En tránsito').last);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Entregado con novedad').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Entregado con novedad'), findsWidgets);
+    await tester.tap(find.text('Entregado con novedad').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Devuelto por el cliente').last);
     await tester.pumpAndSettle();
     expect(find.textContaining('Este estado no reingresa'), findsOneWidget);

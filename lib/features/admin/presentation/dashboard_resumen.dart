@@ -1,3 +1,7 @@
+import 'dashboard_facturacion_semanal.dart';
+import '../../../application/dashboard_despachos_mensuales.dart';
+import 'dashboard_despachos_mensuales.dart';
+import '../../../application/dashboard_flujo_acumulado.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 import 'dashboard_volumen_barras.dart';
@@ -13,7 +17,6 @@ import '../../../application/dashboard_enfoque.dart';
 import '../../../application/dashboard_atencion.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/reportes_admin_repository.dart';
-import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_loader.dart';
 import 'dashboard_ejecutivo_page.dart';
 import 'dashboard_recepcion_section.dart';
@@ -88,6 +91,20 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                   clienteDashboard(k.item.cliente) == cliente,
             )
             .toList();
+    final diaCorte = fechaReporte(widget.datos.corte.toIso8601String())!;
+    final desdeDespachos =
+        widget.periodo?.inicio ??
+        diaCorte.subtract(
+          Duration(days: 7 * (widget.semanas - 1) + diaCorte.weekday - 1),
+        );
+    final hastaDespachos = widget.periodo?.fin ?? diaCorte;
+    final filtroDespachos = (
+      desde: desdeDespachos.toIso8601String().substring(0, 10),
+      hasta: hastaDespachos.toIso8601String().substring(0, 10),
+      cliente: cliente,
+      corte: widget.datos.corte.toUtc().toIso8601String(),
+    );
+    final despachosMes = ref.watch(despachosMensualesProvider(filtroDespachos));
     final pal = palOf(context);
     Widget datosAud(Widget Function(List<FilaReporte>) build) => aud.when(
       skipLoadingOnRefresh: false,
@@ -127,7 +144,8 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
     );
     return LayoutBuilder(
       builder: (context, c) {
-        final desktop = c.maxWidth >= 1000;
+        final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+        final desktop = c.maxWidth >= 1050 && escala <= 1.3;
         final rowHeight = desktop ? 250.0 : 290.0;
         Widget tile(
           String titulo,
@@ -148,37 +166,43 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Wrap(
-                  spacing: 14,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 6,
                   children: [
-                    for (var i = 0; i < 3; i++)
-                      Text(
-                        '${nombresSeries[i]}  ${numero(tendencia.totales[i])}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: DashboardVolumenBarras.colores(context)[i],
-                          fontWeight: FontWeight.bold,
+                    Wrap(
+                      spacing: 14,
+                      runSpacing: 4,
+                      children: [
+                        for (var i = 0; i < 3; i++)
+                          Text(
+                            '${nombresSeries[i]}  ${numero(tendencia.totales[i])}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: DashboardVolumenBarras.colores(context)[i],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                      ],
+                    ),
+                    SegmentedButton<bool>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('Día')),
+                        ButtonSegment(value: true, label: Text('Semana')),
+                      ],
+                      selected: {_porSemana},
+                      onSelectionChanged:
+                          (v) => setState(() => _porSemana = v.single),
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        textStyle: WidgetStatePropertyAll(
+                          TextStyle(fontSize: 11),
                         ),
                       ),
-                  ],
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: SegmentedButton<bool>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('Día')),
-                      ButtonSegment(value: true, label: Text('Semana')),
-                    ],
-                    selected: {_porSemana},
-                    onSelectionChanged:
-                        (v) => setState(() => _porSemana = v.single),
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      textStyle: WidgetStatePropertyAll(
-                        TextStyle(fontSize: 11),
-                      ),
                     ),
-                  ),
+                  ],
                 ),
                 DashboardVolumenBarras(
                   datos: tendencia.semanas,
@@ -261,7 +285,10 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                             valor == null
                                 ? 'Sin datos'
                                 : '${valor.toStringAsFixed(1)} $sufijo',
-                            style: Theme.of(context).textTheme.titleLarge,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -351,8 +378,11 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                             Expanded(
                               child: LinearProgressIndicator(
                                 value: e.value / volumen.values.first,
-                                minHeight: 8,
-                                color: pal.accent,
+                                minHeight: 5,
+                                color:
+                                    DashboardVolumenBarras.colores(
+                                      context,
+                                    ).first,
                                 backgroundColor: pal.accent.withValues(
                                   alpha: .1,
                                 ),
@@ -362,6 +392,17 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                             Text(
                               numero(e.value),
                               style: const TextStyle(fontSize: 11),
+                            ),
+                            SizedBox(
+                              width: 36,
+                              child: Text(
+                                '${(100 * e.value / volumen.values.fold<int>(0, (a, b) => a + b)).toStringAsFixed(0)} %',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: pal.textMuted,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -384,148 +425,136 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
             ),
           ),
           tile(
-            'Salud de clientes',
-            'Todos los clientes del alcance seleccionado. Rojo: OP vencida o tasa NC > 5 %. Amarillo: fecha próxima a 3 días, tasa NC > 2 % o datos incompletos. Verde: sin estas alertas. NC = unidades reportadas / entregadas por Producción en el período. Las fechas y pendientes son actuales.',
-            estado(
-              () => datosNc((f) {
-                final salud = saludClientes(
-                  kardex!,
-                  movimientos,
-                  f,
-                  corte: widget.datos.corte,
-                  semanas: widget.semanas,
-                  periodo: widget.periodo,
-                );
-                return Column(
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '${salud.length} clientes · estado actual',
-                        style: const TextStyle(fontSize: 10),
+            'Puntualidad de despachos por mes',
+            'Cuenta cada LE liberada una vez, por mes de salida de bodega (Bogotá, lunes a viernes), con el cliente y período seleccionados. A tiempo: salida en o antes de todas las fechas esperadas de Logística de sus OP. Con retraso: supera al menos una. Si falta alguna fecha o vínculo, solo cuenta en total y sin fecha esperada. Usa los plazos actuales; no mide entrega al cliente ni reconstruye cambios históricos de las metas.',
+            ref
+                .watch(puntualidadMensualProvider(filtroDespachos))
+                .when(
+                  loading:
+                      () => const WmsLoadingStrip(
+                        label: 'Consultando puntualidad…',
                       ),
-                    ),
-                    for (final s in salud)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Tooltip(
-                                message: '${s.nombre}: ${s.motivo}',
-                                child: Text(
-                                  s.nombre,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 11),
+                  error:
+                      (_, __) => Column(
+                        children: [
+                          const Text(
+                            'No se pudo consultar puntualidad. Verifica la migración SQL 100.',
+                          ),
+                          TextButton(
+                            onPressed:
+                                () => ref.invalidate(
+                                  puntualidadMensualProvider(filtroDespachos),
                                 ),
-                              ),
-                            ),
-                            StatusChip(
-                              label:
-                                  ['En rango', 'Seguimiento', 'Prioridad'][s
-                                      .nivel],
-                              color:
-                                  [
-                                    pal.accent,
-                                    Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? Colors.amberAccent
-                                        : Colors.orange.shade900,
-                                    pal.chipRed,
-                                  ][s.nivel],
-                            ),
-                          ],
-                        ),
+                            child: const Text('Reintentar'),
+                          ),
+                        ],
                       ),
-                  ],
-                );
-              }),
-            ),
-            detalle: estado(
-              () => datosNc(
-                (f) => TablaSaludClientes(
-                  datos: saludClientes(
-                    kardex!,
-                    movimientos,
-                    f,
-                    corte: widget.datos.corte,
-                    semanas: widget.semanas,
-                    periodo: widget.periodo,
-                  ),
+                  data:
+                      (datos) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 4,
+                            children: [
+                              for (final e
+                                  in [
+                                    'Total',
+                                    'A tiempo',
+                                    'Con retraso',
+                                  ].asMap().entries)
+                                Text(
+                                  '● ${e.value}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color:
+                                        DashboardDespachosMensuales.colores(
+                                          context,
+                                        )[e.key],
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          DashboardDespachosMensuales(
+                            key: const ValueKey('puntualidad-mensual'),
+                            datos: datos,
+                            claves: const ['total', 'a_tiempo', 'con_retraso'],
+                            nombres: const [
+                              'Total de despachos',
+                              'Completados a tiempo',
+                              'Completados con retraso',
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Fecha de salida vs. fecha esperada de Logística',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                          for (final d in datos.where(
+                            (d) => (d['sin_fecha'] as num) > 0,
+                          ))
+                            Text(
+                              '${d['mes'].toString().substring(0, 7)}: ${d['sin_fecha']} sin fecha esperada completa',
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                        ],
+                      ),
                 ),
-              ),
-            ),
           ),
           tile(
-            'Órdenes de producción hoy',
-            'Cada OP cuenta una vez en la primera etapa pendiente entre sus líneas vigentes. Producción incluye no conformes pendientes. Después: recepción, despacho y completo. Se excluyen líneas eliminadas. El cliente filtra las OP; el período no cambia su estado actual.',
-            estado(() {
-              final etapas = contarEtapas(kardex!);
-              return Column(
-                children: [
-                  Text(
-                    '${etapas.take(3).fold(0, (a, b) => a + b)} activas · ${etapas[3]} completas',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  const SizedBox(height: 12),
-                  if (etapas.fold<int>(0, (a, b) => a + b) > 0)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Row(
-                        children: [
-                          for (var i = 0; i < 4; i++)
-                            if (etapas[i] > 0)
-                              Expanded(
-                                flex: etapas[i],
-                                child: Container(
-                                  height: 8,
-                                  color:
-                                      [
-                                        const Color(0xFF093E52),
-                                        const Color(0xFF4EA4BF),
-                                        const Color(0xFF91A500),
-                                        const Color(0xFFCFDDE2),
-                                      ][i],
-                                ),
-                              ),
-                        ],
+            'Despachos por mes',
+            'Cuenta cada despacho confirmado una vez, por mes de salida en Bogotá. Total incluye todos los estados; sin contratiempo corresponde a Entregado y con contratiempo a Entregado con novedad. En tránsito y devoluciones solo cuentan en el total. Usa el estado actual de la revisión vigente, cliente y fechas seleccionados (lunes a viernes). No cuenta prendas ni mide puntualidad.',
+            despachosMes.when(
+              loading:
+                  () => const WmsLoadingStrip(label: 'Consultando despachos…'),
+              error:
+                  (_, __) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'No se pudo consultar el reporte de despachos. Verifica la migración SQL 096.',
                       ),
-                    ),
-                  const SizedBox(height: 12),
-                  for (var i = 0; i < 4; i++)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.circle,
-                            size: 7,
-                            color:
-                                [
-                                  const Color(0xFF093E52),
-                                  const Color(0xFF4EA4BF),
-                                  const Color(0xFF91A500),
-                                  const Color(0xFFCFDDE2),
-                                ][i],
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              etapasDashboard[i],
-                              style: const TextStyle(fontSize: 12),
+                      TextButton(
+                        onPressed:
+                            () => ref.invalidate(
+                              despachosMensualesProvider(filtroDespachos),
                             ),
-                          ),
-                          Text(
-                            '${etapas[i]}',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+              data:
+                  (datos) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 4,
+                        children: [
+                          for (final entry
+                              in [
+                                'Total',
+                                'Sin contratiempo',
+                                'Con contratiempo',
+                              ].asMap().entries)
+                            Text(
+                              '● ${entry.value}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color:
+                                    DashboardDespachosMensuales.colores(
+                                      context,
+                                    )[entry.key],
+                              ),
+                            ),
                         ],
                       ),
-                    ),
-                ],
-              );
-            }),
+                      const SizedBox(height: 6),
+                      DashboardDespachosMensuales(datos: datos),
+                    ],
+                  ),
+            ),
           ),
           tile(
             'Atención requerida',
@@ -586,27 +615,7 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                         'Sin alertas detectadas con estos criterios.',
                         style: TextStyle(fontSize: 11),
                       ),
-                    for (final a in alertas)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 5),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              a.urgente ? Icons.error_outline : Icons.schedule,
-                              size: 16,
-                              color: a.urgente ? pal.chipRed : pal.accent,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '${a.titulo}\n${a.detalle}',
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _AlertasResumen(alertas: alertas),
                   ],
                 );
               }),
@@ -615,41 +624,9 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
         ];
         cards.add(
           tile(
-            'Calidad en recepción',
-            'Conformidad, novedades y causales del período seleccionado. Las líneas en tránsito se excluyen del porcentaje de conformidad.',
-            datosAud((f) {
-              final d = recepcion(f);
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  LinearProgressIndicator(
-                    value:
-                        d.porcentajeConforme == null
-                            ? 0
-                            : d.porcentajeConforme! / 100,
-                    color: const Color(0xFF299D64),
-                    backgroundColor: pal.cardBorder,
-                    minHeight: 8,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${d.conformes} conformes · ${d.novedades} con novedad · ${d.enTransito} en tránsito excluidas',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  const SizedBox(height: 14),
-                  datosNc(
-                    (f) => _CausalesCompactas(
-                      datos: compararCausales(
-                        f,
-                        widget.datos.corte,
-                        periodo: widget.periodo,
-                      ),
-                      alto: 140,
-                    ),
-                  ),
-                ],
-              );
-            }),
+            'Facturación de despachos semanales',
+            'Cuenta despachos únicos por semana de salida (lunes a viernes, Bogotá), dentro del período y cliente seleccionados. Completada usa el estado actual de Facturación: entrega registrada, LE, OC, remisión e ID OC completos en la revisión vigente. Pendientes incluye despachos todavía no entregados. No cuenta prendas ni facturas fiscales emitidas.',
+            DashboardFacturacionSemanal(filtro: filtroDespachos),
           ),
         );
         Widget valor(String numero, String pie, {Color? color}) => Column(
@@ -658,74 +635,60 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
             Text(
               numero,
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: color ?? pal.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
-            Text(pie, style: TextStyle(fontSize: 10, color: pal.textMuted)),
+            Text(
+              pie,
+              style: TextStyle(fontSize: 10, color: color ?? pal.textMuted),
+            ),
           ],
         );
+        final flujo = FlujoAcumulado(kardex ?? []);
         final kpis = <(String, Widget)>[
           (
-            'Entregado',
-            valor(numero(tendencia.totales[0]), 'Producción → logística'),
+            'Unidades pedidas',
+            estado(() => valor(numero(flujo.pedidas), 'Total solicitado')),
           ),
           (
-            'Recibido',
-            valor(numero(tendencia.totales[1]), 'Validado en logística'),
-          ),
-          (
-            'Despachado',
-            valor(numero(tendencia.totales[2]), 'Enviado a clientes'),
-          ),
-          (
-            'Conformidad de recepción',
-            datosAud((f) {
-              final d = recepcion(f);
-              return valor(
-                d.porcentajeConforme == null
-                    ? 'Sin datos'
-                    : '${d.porcentajeConforme!.toStringAsFixed(1)} %',
-                '${d.conformes} conformes · ${d.novedades} con novedad',
-                color: const Color(0xFF299D64),
-              );
-            }),
-          ),
-          (
-            'Tasa de sobrantes',
-            datosAud((f) {
-              final d = recepcion(f);
-              return valor(
-                d.tasaSobrantes == null
-                    ? 'Sin datos'
-                    : '${d.tasaSobrantes!.toStringAsFixed(1)} %',
-                d.diasPromedio == null
-                    ? 'Resolución promedio: sin datos'
-                    : 'Resolución: ${d.diasPromedio!.toStringAsFixed(1)} días',
-              );
-            }),
-          ),
-          (
-            'Alertas',
+            'Entregado a Logística',
             estado(
-              () => datosAud((f) {
-                final a = calcularAtencion(
-                  kardex!,
-                  f,
-                  corte: widget.datos.corte,
-                  proximos: proximos,
-                  antiguedad: antiguedad,
-                );
-                return valor(
-                  '${a.length}',
-                  a.isEmpty
-                      ? 'Sin alertas con estos criterios'
-                      : 'Requieren atención',
-                  color: a.isEmpty ? const Color(0xFF299D64) : pal.chipRed,
-                );
-              }),
+              () => valor(
+                numero(flujo.entregado),
+                '${porcentajeFlujo(flujo.entregado, flujo.pedidas)} de lo pedido',
+              ),
+            ),
+          ),
+          (
+            'Pendiente por entregar a Logística',
+            estado(
+              () => valor(
+                numero(flujo.pendienteEntrega),
+                '${porcentajeFlujo(flujo.pendienteEntrega, flujo.pedidas)} de lo pedido',
+                color: const Color(0xff9a7800),
+              ),
+            ),
+          ),
+          (
+            'Recibido en Bodega',
+            estado(
+              () => valor(
+                numero(flujo.recibido),
+                '${porcentajeFlujo(flujo.recibido, flujo.entregado)} de lo entregado',
+                color: const Color(0xff158568),
+              ),
+            ),
+          ),
+          (
+            'Despachadas',
+            estado(
+              () => valor(
+                numero(flujo.despachado),
+                '${porcentajeFlujo(flujo.despachado, flujo.recibido)} de lo recibido',
+              ),
             ),
           ),
         ];
@@ -748,96 +711,161 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 16,
+                  runSpacing: 10,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      'Resumen ejecutivo',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    if (widget.periodo != null)
-                      DashboardCalendario(
-                        periodo: widget.periodo!,
-                        onChanged: widget.cambiarPeriodo ?? (_) {},
-                      ),
-                    SizedBox(
-                      width: 225,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: cliente,
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Cliente'),
-                        items: [
-                          const DropdownMenuItem<String>(
-                            value: null,
-                            child: Text('Todos los clientes'),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text(
+                          'Resumen ejecutivo',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
                           ),
-                          for (final n in clientes)
-                            DropdownMenuItem(
-                              value: n,
-                              child: Text(n, overflow: TextOverflow.ellipsis),
-                            ),
-                        ],
-                        onChanged: (v) => setState(() => cliente = v),
-                      ),
+                        ),
+                        Text(
+                          'Corte ${fechaCorta(fechaReporte(widget.datos.corte.toIso8601String())!)} · Solo lectura',
+                          style: TextStyle(fontSize: 10, color: pal.textMuted),
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Corte ${fechaCorta(fechaReporte(widget.datos.corte.toIso8601String())!)} · Solo lectura',
-                      style: Theme.of(context).textTheme.bodySmall,
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (widget.periodo != null)
+                          DashboardCalendario(
+                            periodo: widget.periodo!,
+                            onChanged: widget.cambiarPeriodo ?? (_) {},
+                          ),
+                        SizedBox(
+                          width: 190,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: cliente,
+                            isExpanded: true,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: pal.textPrimary,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Cliente',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                            ),
+                            items: [
+                              const DropdownMenuItem<String>(
+                                value: null,
+                                child: Text('Todos los clientes'),
+                              ),
+                              for (final n in clientes)
+                                DropdownMenuItem(
+                                  value: n,
+                                  child: Text(
+                                    n,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) => setState(() => cliente = v),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
+                Text(
+                  'Acumulado · ${cliente ?? 'Todos los clientes'} · OP vigentes · Sin recorte por fechas',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                const SizedBox(height: 6),
                 LayoutBuilder(
                   builder: (context, box) {
                     final columnas =
-                        box.maxWidth >= 1000
-                            ? 6
+                        box.maxWidth >= 1000 && escala <= 1.3
+                            ? 5
                             : box.maxWidth >= 600
                             ? 3
                             : 2;
-                    final ancho =
-                        (box.maxWidth - (columnas - 1) * 10) / columnas;
-                    return Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        for (final k in kpis)
-                          SizedBox(
-                            width: ancho,
-                            child: Container(
-                              constraints: const BoxConstraints(minHeight: 115),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: pal.card,
-                                border: Border.all(color: pal.cardBorder),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    k.$1,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: pal.textSecondary,
+                    final ancho = (box.maxWidth - 2) / columnas;
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: pal.card,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: pal.cardBorder),
+                      ),
+                      child: Wrap(
+                        spacing: 0,
+                        runSpacing: 0,
+                        children: [
+                          for (final k in kpis)
+                            SizedBox(
+                              width: ancho,
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  minHeight: 86,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: pal.card,
+                                  border: Border(
+                                    right: BorderSide(
+                                      color: pal.cardBorder.withValues(
+                                        alpha: .5,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  k.$2,
-                                ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      k.$1,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: pal.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    k.$2,
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     );
                   },
                 ),
                 const SizedBox(height: 14),
                 if (desktop) ...[
-                  fila([0, 6], [7, 3]),
+                  fila([0, 6], [2, 1]),
                   const SizedBox(height: 12),
-                  fila([3, 5, 8], [1, 1, 1]),
+                  SizedBox(
+                    height: 300,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: cards[3]),
+                        const SizedBox(width: 12),
+                        Expanded(child: cards[8]),
+                        const SizedBox(width: 12),
+                        Expanded(child: cards[5]),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   SizedBox(height: 200, child: cards[7]),
                 ] else
@@ -845,10 +873,10 @@ class _DashboardResumenState extends ConsumerState<DashboardResumen> {
                     spacing: 12,
                     runSpacing: 12,
                     children: [
-                      for (final i in [0, 6, 3, 5, 8, 7])
+                      for (final i in [0, 6, 3, 8, 5, 7])
                         SizedBox(
                           width:
-                              c.maxWidth >= 700
+                              c.maxWidth >= 700 && escala <= 1.3
                                   ? (c.maxWidth - 44) / 2
                                   : c.maxWidth - 32,
                           height: i == 0 ? 320 : 290,
@@ -955,85 +983,197 @@ class _CausalesCompactas extends StatelessWidget {
   final double alto;
   @override
   Widget build(BuildContext context) {
-    if (datos.isEmpty) return const Text('Sin no conformidades registradas.');
+    if (datos.isEmpty) {
+      return const Text(
+        'Sin no conformidades registradas.',
+        style: TextStyle(fontSize: 11),
+      );
+    }
     final pal = palOf(context);
-    final maximo = datos.map((c) => c.historico).reduce(math.max);
-    final altura = math.max(40.0, alto - 58);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: 12,
-          children: [
-            Text(
-              '● Período',
-              style: TextStyle(fontSize: 10, color: pal.accent),
-            ),
-            Text(
-              '● Histórico',
-              style: TextStyle(fontSize: 10, color: coloresSeries(context)[1]),
-            ),
-          ],
+        const Text(
+          'Causales de novedad',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final c in datos)
-                SizedBox(
-                  width: 95,
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        height: altura + 18,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            for (var i = 0; i < 2; i++)
-                              SizedBox(
-                                width: 42,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      '${i == 0 ? c.recientes : c.historico}',
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
-                                    Container(
-                                      width: 19,
-                                      height:
-                                          (i == 0 ? c.recientes : c.historico) /
-                                          maximo *
-                                          altura,
-                                      color:
-                                          i == 0
-                                              ? pal.accent
-                                              : coloresSeries(context)[1],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Text(
-                          c.nombre,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+        Table(
+          columnWidths: const {
+            0: FlexColumnWidth(2),
+            1: FlexColumnWidth(),
+            2: FlexColumnWidth(),
+          },
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          border: TableBorder(
+            horizontalInside: BorderSide(
+              color: pal.cardBorder.withValues(alpha: .5),
+            ),
           ),
+          children: [
+            const TableRow(
+              children: [
+                Text('Causal', style: TextStyle(fontSize: 10)),
+                Text(
+                  'Período',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 10),
+                ),
+                Text(
+                  'Histórico',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 10),
+                ),
+              ],
+            ),
+            for (final c in datos)
+              TableRow(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Text(c.nombre, style: const TextStyle(fontSize: 11)),
+                  ),
+                  Text(
+                    '${c.recientes}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  Text(
+                    '${c.historico}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ],
+              ),
+          ],
         ),
       ],
     );
   }
+}
+
+class _AlertasResumen extends StatelessWidget {
+  const _AlertasResumen({required this.alertas});
+  final List<AlertaDashboard> alertas;
+
+  Widget tabla(BuildContext context, List<AlertaDashboard> filas) {
+    final pal = palOf(context);
+    return LayoutBuilder(
+      builder: (context, box) {
+        if (box.maxWidth < 650 ||
+            MediaQuery.textScalerOf(context).scale(12) > 16) {
+          return Column(
+            children: [
+              for (final a in filas)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(
+                    a.titulo,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    a.detalle,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+            ],
+          );
+        }
+        return Table(
+          columnWidths: const {
+            0: FlexColumnWidth(3),
+            1: FlexColumnWidth(4),
+            2: FixedColumnWidth(100),
+          },
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          border: TableBorder(
+            horizontalInside: BorderSide(
+              color: pal.cardBorder.withValues(alpha: .5),
+            ),
+          ),
+          children: [
+            const TableRow(
+              children: [
+                Text('OP / Área / Cliente', style: TextStyle(fontSize: 10)),
+                Text('Pendiente', style: TextStyle(fontSize: 10)),
+                Text(
+                  'Antigüedad / plazo',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 10),
+                ),
+              ],
+            ),
+            for (final a in filas)
+              TableRow(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Text(a.titulo, style: const TextStyle(fontSize: 11)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    child: Text(
+                      a.detalle,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ),
+                  Text(
+                    a.dias > 0
+                        ? '${a.dias} días'
+                        : a.dias == 0
+                        ? 'Hoy'
+                        : 'En ${-a.dias} días',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: a.urgente ? pal.chipRed : pal.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (alertas.isNotEmpty) tabla(context, alertas.take(2).toList()),
+      if (alertas.length > 2)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed:
+                () => showWmsDialog<void>(
+                  context,
+                  (context) => WmsDialogShell(
+                    title: 'Atención requerida · ${alertas.length} alertas',
+                    closeTooltip: 'Cerrar alertas',
+                    icon: Icons.warning_amber_rounded,
+                    iconColor: palOf(context).chipRed,
+                    maxWidth: 1100,
+                    child: SingleChildScrollView(
+                      child: tabla(context, alertas),
+                    ),
+                  ),
+                ),
+            child: Text(
+              'Ver las ${alertas.length} alertas',
+              style: const TextStyle(fontSize: 11),
+            ),
+          ),
+        ),
+    ],
+  );
 }
