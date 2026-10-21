@@ -22,9 +22,11 @@ async function leer(script, entrada) {
   } finally { await w.terminate(); }
 }
 const erp = new Uint8Array(readFileSync('.dart_tool/erp-benchmark.xlsx'));
+const inventario = new Uint8Array(readFileSync('.dart_tool/inventario-benchmark.xlsx'));
 const kardex = new Uint8Array(readFileSync('.dart_tool/kardex-benchmark.xlsx'));
 for (const [script, entrada, esperado] of [
   ['ordenes_excel_worker.js', erp, 'erp'],
+  ['operativo_excel_worker.js', {bytes: inventario, tipo: 'inventario'}, 'inventario'],
   ['operativo_excel_worker.js', {bytes: erp, tipo: 'fechas'}, 'fechas'],
   ['operativo_excel_worker.js', {bytes: kardex, tipo: 'kardex', vista: 'produccion'}, 'kardex'],
 ]) {

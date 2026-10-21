@@ -73,6 +73,7 @@ const List<double> _kAnchosBodega = [
   100,
   100,
   220,
+  95,
 ];
 const List<String> kEtiquetasBodega = [
   'OP / OBS.',
@@ -88,6 +89,7 @@ const List<String> kEtiquetasBodega = [
   'FECHA DE DESPACHO',
   'FECHA ESPERADA',
   'CUMPLIMIENTO',
+  'INVENTARIO',
 ];
 const List<String?> kColumnasBodega = [
   ColKardex.op,
@@ -103,6 +105,7 @@ const List<String?> kColumnasBodega = [
   ColKardex.fechaEntregaBodega,
   ColKardex.fechaEsperadaBodega,
   ColKardex.diasFaltantesBodega,
+  ColKardex.inventario,
 ];
 
 const _kPaletaProducto = [
@@ -194,7 +197,7 @@ class _KardexTableState extends ConsumerState<KardexTable> {
     final esProduccion = rol == Rol.produccion;
     final anchosCompletos = [
       ...(esProduccion ? _kAnchosProduccion : _kAnchosBodega),
-      if (esAdmin) 112.0,
+      if (esAdmin) 76.0,
     ];
     final etiquetasCompletas = [
       ...(esProduccion ? kEtiquetasProduccion : kEtiquetasBodega),
@@ -212,6 +215,11 @@ class _KardexTableState extends ConsumerState<KardexTable> {
                 : ![4, 5, 8].contains(i)))
           i,
     ];
+    // Mantener los índices de las columnas existentes y colocar Inventario junto a Bodega.
+    if (!esProduccion) {
+      indices.remove(13);
+      indices.insert(indices.indexOf(6) + 1, 13);
+    }
     if (rol == Rol.logistica) {
       etiquetasCompletas[10] = 'FECHA DE RECIBIDO';
       columnasCompletas[10] = ColKardex.fechaRecibido;
@@ -246,7 +254,7 @@ class _KardexTableState extends ConsumerState<KardexTable> {
             : i == 2
             ? 160.0
             : columnasCompletas[i] == null
-            ? 112.0
+            ? 76.0
             : 70.0,
         double.infinity,
       );
@@ -441,25 +449,7 @@ class _KardexTableState extends ConsumerState<KardexTable> {
                             ),
                           ),
                         ),
-                        if (esAdmin) ...[
-                          const SizedBox(width: 4),
-                          IconButton(
-                            tooltip: 'Editar fila',
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            onPressed:
-                                () => showEdicionAdminDialog(
-                                  context,
-                                  item,
-                                  CampoAdmin.cantidad,
-                                ),
-                          ),
-                          IconButton(
-                            tooltip: 'Borrar fila',
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            onPressed:
-                                () => showWmsEliminarLinea(context, item),
-                          ),
-                        ],
+                        if (esAdmin) _AccionesFila(item: item),
                       ],
                     ),
                   ],
@@ -773,34 +763,10 @@ class _KardexRow extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            for (var i = 0; i < celdas.length; i++)
-              if (indices.contains(i)) celdas[i],
+            for (final i in indices)
+              if (i < celdas.length) celdas[i],
             if (esAdmin)
-              _Celda(
-                celdas.length,
-                anchos,
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Editar fila',
-                      color: pal.accent,
-                      icon: const Icon(Icons.edit_outlined, size: 20),
-                      onPressed:
-                          () => showEdicionAdminDialog(
-                            context,
-                            item,
-                            CampoAdmin.cantidad,
-                          ),
-                    ),
-                    IconButton(
-                      tooltip: 'Borrar fila',
-                      color: Colors.redAccent,
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      onPressed: () => showWmsEliminarLinea(context, item),
-                    ),
-                  ],
-                ),
-              ),
+              _Celda(celdas.length, anchos, _AccionesFila(item: item)),
           ],
         ),
       ),
@@ -1184,6 +1150,23 @@ class _KardexRow extends ConsumerWidget {
       ),
       _Celda(11, anchos, _chipFecha(item.fechaEsperadaLogistica, pal)),
       _Celda(12, anchos, _chipCumplimiento(item.cumplimientoLogistica(), pal)),
+      _Celda(
+        13,
+        anchos,
+        Tooltip(
+          message:
+              'Unidades en inventario: libres y reservadas, sin salidas ni reversiones',
+          child: Text(
+            '${item.stockInventario}',
+            style: TextStyle(
+              fontSize: 13,
+              color: item.stockInventario > 0 ? pal.chipGreen : pal.textMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        alignment: Alignment.center,
+      ),
     ];
   }
 
@@ -1296,5 +1279,45 @@ class _FilaConHoverState extends State<_FilaConHover> {
               : Colors.transparent,
       child: widget.child,
     ),
+  );
+}
+
+class _AccionesFila extends StatelessWidget {
+  const _AccionesFila({required this.item});
+  final ItemKardex item;
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    tooltip: 'Acciones de la fila',
+    icon: Icon(Icons.more_vert, color: palOf(context).accent, size: 21),
+    onSelected: (accion) {
+      if (accion == 'editar') {
+        showEdicionAdminDialog(context, item, CampoAdmin.cantidad);
+      } else if (accion == 'eliminar') {
+        showWmsEliminarLinea(context, item);
+      }
+    },
+    itemBuilder:
+        (_) => const [
+          PopupMenuItem(
+            value: 'editar',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 18),
+                SizedBox(width: 10),
+                Text('Editar'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'eliminar',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                SizedBox(width: 10),
+                Text('Eliminar', style: TextStyle(color: Colors.redAccent)),
+              ],
+            ),
+          ),
+        ],
   );
 }

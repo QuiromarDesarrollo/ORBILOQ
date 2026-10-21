@@ -43,13 +43,6 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
             ? ColKardex.estadoProduccion
             : ColKardex.estadoBodega;
     final pal = palOf(context);
-    final tipoFecha = switch (rol) {
-      Rol.produccion => 'Fecha de entrega',
-      Rol.logistica => 'Fecha de recibido',
-      Rol.despacho => 'Fecha de despacho',
-    };
-    String fecha(DateTime d) =>
-        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
     ref.listen(kardexFiltersProvider, (_, nuevo) {
       if (_busquedaCtrl.text != nuevo.busqueda) {
         _busquedaCtrl.text = nuevo.busqueda;
@@ -123,83 +116,6 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
               onChanged:
                   (v) => notifier.setColumna(colEstado, v == null ? {} : {v}),
             ),
-            SizedBox(
-              width: estrecho ? double.infinity : 275,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.date_range_outlined, size: 18),
-                label: Text(
-                  filtros.desde == null
-                      ? '$tipoFecha: todas'
-                      : '$tipoFecha\n${fecha(filtros.desde!)} – ${fecha(filtros.hasta!)}',
-                ),
-                onPressed: () async {
-                  final fechas =
-                      ref
-                          .read(kardexProvider)
-                          .map(
-                            (i) => switch (rol) {
-                              Rol.produccion => i.fechaEntrega,
-                              Rol.logistica => i.fechaRecepcion,
-                              Rol.despacho => i.fechaDespacho,
-                            },
-                          )
-                          .whereType<DateTime>()
-                          .toList();
-                  final hoy = DateTime.now();
-                  var inicio = DateTime(2000);
-                  var fin = DateTime(hoy.year + 5, 12, 31);
-                  for (final f in [
-                    ...fechas,
-                    if (filtros.desde != null) filtros.desde!,
-                    if (filtros.hasta != null) filtros.hasta!,
-                  ]) {
-                    if (f.isBefore(inicio)) {
-                      inicio = DateTime(f.year, f.month, f.day);
-                    }
-                    if (f.isAfter(fin)) fin = DateTime(f.year, f.month, f.day);
-                  }
-                  final rango = await showDateRangePicker(
-                    context: context,
-                    firstDate: inicio,
-                    lastDate: fin,
-                    initialDateRange:
-                        filtros.desde == null
-                            ? null
-                            : DateTimeRange(
-                              start: filtros.desde!,
-                              end: filtros.hasta!,
-                            ),
-                    helpText: tipoFecha,
-                    saveText: 'Aplicar',
-                    cancelText: 'Cancelar',
-                    confirmText: 'Aplicar',
-                    fieldStartLabelText: 'Desde',
-                    fieldEndLabelText: 'Hasta',
-                  );
-                  if (!mounted || rango == null || ref.read(rolProvider) != rol) {
-                    return;
-                  }
-                  ref
-                      .read(kardexFiltersProvider.notifier)
-                      .setFechas(rango.start, rango.end);
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor:
-                      filtros.desde == null ? pal.textSecondary : pal.accent,
-                  side: BorderSide(color: pal.cardBorder),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 14,
-                  ),
-                ),
-              ),
-            ),
-            if (filtros.desde != null)
-              IconButton(
-                tooltip: 'Quitar filtro de fechas',
-                onPressed: () => notifier.setFechas(null, null),
-                icon: const Icon(Icons.event_busy_outlined),
-              ),
             OutlinedButton.icon(
               onPressed: () {
                 _busquedaCtrl.clear();
@@ -232,24 +148,12 @@ class _KardexFiltersBarState extends ConsumerState<KardexFiltersBar> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: campos[3]),
-                    const SizedBox(width: 8),
-                    campos.last,
-                  ],
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: campos.last,
                 ),
-                if (filtros.desde != null) campos[4],
               ] else
                 Wrap(spacing: 12, runSpacing: 12, children: campos),
-              if (filtros.desde != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Filtra por la última fecha registrada. Las tarjetas muestran los saldos actuales de las filas seleccionadas.',
-                  style: TextStyle(fontSize: 12, color: pal.textSecondary),
-                ),
-              ],
             ],
           );
         },

@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/data/inventario_repository.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -125,6 +126,21 @@ Future<void> llenarPesos(WidgetTester tester) async {
   }
   await tester.ensureVisible(find.text('Revisar empaque'));
   await tester.pumpAndSettle();
+}
+
+class _InventarioMultiple implements InventarioRepository {
+  @override
+  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
+  final llamadas = <Map<String, dynamic>>[];
+  @override
+  Future<dynamic> ejecutar(
+    String funcion,
+    Map<String, dynamic> parametros,
+  ) async {
+    expect(funcion, 'inventario_empacar_multiple');
+    llamadas.add(parametros);
+    return {'id': 'despacho-multiple'};
+  }
 }
 
 void main() {
@@ -563,12 +579,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Destino del empaque'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('destino-null')));
+    expect(find.text('Destinatario o sede *'), findsOneWidget);
+    await tester.tap(find.text('Buscar y seleccionar destinatario o sede'));
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('DESTINATARIO NORTE').last);
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('destino-destino-1')), findsOneWidget);
+    expect(find.text('CALLE 9'), findsOneWidget);
     await tester.ensureVisible(
       find.widgetWithText(DropdownButtonFormField<String>, 'Cliente'),
     );
@@ -669,7 +685,7 @@ void main() {
     expect(plan.single['cantidad'], 4);
     expect(() => planificarDespacho([i], {'i': 5}), throwsFormatException);
   });
-  testWidgets('Empacados aparecen en Seguimiento y no en Historial', (
+  testWidgets('Empacados aparecen en Seguimiento y también en Historial', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1500, 1000);
@@ -696,9 +712,12 @@ void main() {
     await tester.tap(find.text('Seguimiento'));
     await tester.pumpAndSettle();
     expect(find.text('LE N° 2971'), findsOneWidget);
+    await tester.ensureVisible(find.text('Historial'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Historial'));
     await tester.pumpAndSettle();
-    expect(find.text('LE N° 2971'), findsNothing);
+    expect(find.text('LE N° 2971'), findsOneWidget);
+    expect(find.text('Por liberar'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets(
@@ -1069,6 +1088,8 @@ void main() {
       expect(despachos.solicitudes.length, 3);
       expect(despachos.ocsDocumento.last, '');
       expect(despachos.solicitudes.last, isNot(despachos.solicitudes.first));
+      await tester.ensureVisible(find.text('Historial'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Historial'));
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -1217,6 +1238,178 @@ void main() {
     expect(despachos.empaquesEnviados.single.map((e) => e['cantidad']), [2, 3]);
     expect(tester.takeException(), isNull);
   });
+  testWidgets(
+    'Inventario múltiple guarda tres orígenes y dos artículos en una LE',
+    (tester) async {
+      tester.view.physicalSize = const Size(1100, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repo = InMemoryWmsRepository.seeded();
+      addTearDown(repo.dispose);
+      final despachos = _Despachos();
+      final inventario = _InventarioMultiple();
+      final otra = ItemKardex(
+        item: const ItemOrden(
+          id: 'j',
+          op: '1',
+          cliente: 'Cliente',
+          oc: 'OC1',
+          codigo: 'C',
+          descripcion: 'Camisa',
+          talla: 'L',
+          cantidadPedida: 10,
+        ),
+        producido: 10,
+        recibido: 10,
+        despachado: 0,
+        ubicaciones: const {'A': 10},
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            usarSupabaseProvider.overrideWithValue(false),
+            wmsRepositoryProvider.overrideWithValue(repo),
+            wmsSnapshotProvider.overrideWith(
+              (ref) => Stream.value(
+                WmsSnapshot(kardex: [prenda(), otra], lotes: []),
+              ),
+            ),
+            despachosOcProvider.overrideWithValue(despachos),
+            inventarioRepositoryProvider.overrideWithValue(inventario),
+            destinatariosEmpaqueProvider.overrideWith(
+              (ref) async => [
+                {
+                  'id': 'dest',
+                  'version': 'v1',
+                  'datos': {
+                    'nombre': 'DESTINO MULTIPLE',
+                    'sede': 'Sede',
+                    'ciudad': 'Bogotá',
+                  },
+                },
+              ],
+            ),
+            empaquesProvider.overrideWith(
+              (ref) async => [
+                {
+                  'id': 'caja1',
+                  'nombre': 'Caja prueba',
+                  'categoria': 'CAJA',
+                  'largo_cm': 30,
+                  'ancho_cm': 20,
+                  'alto_cm': 10,
+                  'version': 'v1',
+                },
+              ],
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: DespachoDialog(
+                inventario: {
+                  'cliente': 'Cliente',
+                  'origenes': [
+                    {
+                      'id': 't1',
+                      'item_id': 'i',
+                      'numero_op': '1',
+                      'producto': 'Camisa',
+                      'cliente': 'Cliente',
+                      'ficha': 'F1',
+                      'talla': 'M',
+                      'ubicacion': 'A',
+                      'libre': 1,
+                    },
+                    {
+                      'id': 't2',
+                      'item_id': 'i',
+                      'numero_op': '1',
+                      'producto': 'Camisa',
+                      'cliente': 'Cliente',
+                      'ficha': 'F1',
+                      'talla': 'M',
+                      'ubicacion': 'B',
+                      'libre': 1,
+                    },
+                    {
+                      'id': 't3',
+                      'item_id': 'j',
+                      'numero_op': '2',
+                      'producto': 'Pantalón',
+                      'cliente': 'Cliente',
+                      'ficha': 'F2',
+                      'talla': 'L',
+                      'ubicacion': 'C',
+                      'libre': 3,
+                    },
+                  ],
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Buscar y seleccionar destinatario o sede'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(ListTile));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Orden de compra de destino'),
+        'OC MULTIPLE',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Elegir prendas'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Armar empaques'));
+      await tester.pumpAndSettle();
+      final agregar = find.widgetWithText(
+        DropdownButtonFormField<String>,
+        'Agregar empaque',
+      );
+      await tester.ensureVisible(agregar.first);
+      await tester.pumpAndSettle();
+      await tester.tap(agregar.first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Nuevo ·').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Prendas').first,
+        '2',
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(agregar.last);
+      await tester.pumpAndSettle();
+      await tester.tap(agregar.last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Usar empaque 1').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Prendas').last,
+        '3',
+      );
+
+      await tester.pumpAndSettle();
+      await llenarPesos(tester);
+      await tester.tap(find.text('Revisar empaque'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirmar empaque'));
+      await tester.pumpAndSettle();
+      expect(inventario.llamadas, hasLength(1));
+      final envio = inventario.llamadas.single;
+      expect(envio['p_oc'], 'OC MULTIPLE');
+      expect(envio['p_destinatario'], 'dest');
+      expect(envio['p_asignaciones'], [
+        {'transferencia': 't1', 'cantidad': 1},
+        {'transferencia': 't2', 'cantidad': 1},
+        {'transferencia': 't3', 'cantidad': 3},
+      ]);
+      expect((envio['p_empaques'] as List).map((e) => e['numero']), [1, 1]);
+      expect(despachos.planes, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
   test('Estado de OC considera todas las OP, aunque no tengan movimientos', () {
     final completa = prenda(despachado: 10);
     final pendiente = ItemKardex(

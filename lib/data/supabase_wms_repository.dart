@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/result.dart';
+import '../core/inventario_entorno.dart';
 import '../domain/models.dart';
 import '../domain/edicion_admin.dart';
 import '../domain/wms_repository.dart';
@@ -107,46 +108,53 @@ class SupabaseWmsRepository implements WmsRepository {
   }
 
   SupabaseWmsRepository(this._client) {
-    _channel =
-        _client
-            .channel('wms_cambios')
-            .onPostgresChanges(
-              event: PostgresChangeEvent.all,
-              schema: 'public',
-              table: 'items_orden',
-              callback: (_) => _programarRefresco(),
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.all,
-              schema: 'public',
-              table: 'ordenes_produccion',
-              callback: (_) => _programarRefresco(),
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.all,
-              schema: 'public',
-              table: 'movimientos',
-              callback: (_) => _programarRefresco(),
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.all,
-              schema: 'public',
-              table: 'lotes',
-              callback: (_) => _programarRefresco(),
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.all,
-              schema: 'public',
-              table: 'lote_items',
-              callback: (_) => _programarRefresco(),
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.all,
-              schema: 'public',
-              table: 'reservas_despacho',
-              callback: (_) => _programarRefresco(),
-            )
-            .subscribe();
+    final canal = _client
+        .channel('wms_cambios')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'items_orden',
+          callback: (_) => _programarRefresco(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'ordenes_produccion',
+          callback: (_) => _programarRefresco(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'movimientos',
+          callback: (_) => _programarRefresco(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'lotes',
+          callback: (_) => _programarRefresco(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'lote_items',
+          callback: (_) => _programarRefresco(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'reservas_despacho',
+          callback: (_) => _programarRefresco(),
+        );
+    if (inventarioEnPruebas) {
+      canal.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'inventario_actualizacion',
+        callback: (_) => _programarRefresco(),
+      );
+    }
+    _channel = canal.subscribe();
     _refrescarEnSegundoPlano();
   }
 
@@ -252,6 +260,29 @@ class SupabaseWmsRepository implements WmsRepository {
     return todas;
   }
 
+  Future<List<Map<String, dynamic>>> _saldosInventario() async {
+    if (!inventarioEnPruebas) return [];
+    final filas = <Map<String, dynamic>>[];
+    var despues = '';
+    while (true) {
+      final pagina =
+          (await _client.rpc(
+                    'inventario_saldos_items',
+                    params: {'p_despues': despues},
+                  )
+                  as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+      filas.addAll(pagina);
+      if (pagina.length < 500) return filas;
+      final clave = '${pagina.last['clave']}';
+      if (clave == despues) {
+        throw StateError('No avanzó la consulta de inventario');
+      }
+      despues = clave;
+    }
+  }
+
   Future<WmsSnapshot> _cargarSnapshot() async {
     final resultados = await Future.wait([
       _traerTodo(
@@ -287,11 +318,14 @@ class SupabaseWmsRepository implements WmsRepository {
             .order('ubicacion_id')
             .range(desde, hasta),
       ),
+      _saldosInventario(),
     ]);
     final kardexRows = resultados[0];
     final stockRows = resultados[1];
     final loteItemsRows = resultados[2];
     final reservasRows = resultados[3];
+    final inventarioRows = resultados[4];
+    final inventarioPorItem = <String, int>{};
 
     final stockPorItem = <String, Map<String, int>>{};
     for (final fila in stockRows) {
@@ -310,9 +344,20 @@ class SupabaseWmsRepository implements WmsRepository {
       final u = '${r['ubicacion']['codigo']}';
       porUbicacion[u] = (porUbicacion[u] ?? 0) + (r['cantidad'] as num).toInt();
     }
+    for (final r in inventarioRows) {
+      final id = '${r['item_id']}';
+      final u = '${r['ubicacion']}';
+      final reservado = (r['reservado'] as num).toInt();
+      final total = (r['libre'] as num).toInt() + reservado;
+      inventarioPorItem[id] = (inventarioPorItem[id] ?? 0) + total;
+      final stock = stockPorItem.putIfAbsent(id, () => {});
+      stock[u] = (stock[u] ?? 0) - total;
+      final reservas = reservasPorItem.putIfAbsent(id, () => {});
+      reservas[u] = (reservas[u] ?? 0) - reservado;
+    }
     final kardex = [
       for (final row in kardexRows)
-        _kardexDesdeFila(row, stockPorItem, reservasPorItem),
+        _kardexDesdeFila(row, stockPorItem, reservasPorItem, inventarioPorItem),
     ];
 
     return WmsSnapshot(kardex: kardex, lotes: _agruparLotes(loteItemsRows));
@@ -322,6 +367,7 @@ class SupabaseWmsRepository implements WmsRepository {
     Map<String, dynamic> row,
     Map<String, Map<String, int>> stockPorItem,
     Map<String, Map<String, int>> reservasPorItem,
+    Map<String, int> inventarioPorItem,
   ) {
     final id = row['item_orden_id'] as String;
     final item = ItemOrden(
@@ -341,6 +387,7 @@ class SupabaseWmsRepository implements WmsRepository {
       producido: (row['producido'] as num).toInt(),
       recibido: (row['recibido'] as num).toInt(),
       despachado: (row['despachado'] as num).toInt(),
+      stockInventario: inventarioPorItem[id] ?? 0,
       ubicaciones: stockPorItem[id] ?? const {},
       reservas: reservasPorItem[id] ?? const {},
       fechaEntrega: _fecha(row['fecha_ultima_entrega']),

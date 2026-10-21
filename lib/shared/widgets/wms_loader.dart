@@ -33,16 +33,17 @@ class _WmsLoaderState extends State<WmsLoader>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final host =
-        context.dependOnInheritedWidgetOfExactType<_DialogLoadingScope>()?.host;
+    final active = TickerMode.valuesOf(context).enabled;
+    final scope =
+        context.dependOnInheritedWidgetOfExactType<_DialogLoadingScope>();
+    // Las pestañas conservadas fuera de pantalla no deben bloquear la visible.
+    final host = active ? scope?.host : null;
     if (_host != host) {
       _host?.remove(this);
       _host = host;
       _host?.add(this);
     }
-    if (_host != null ||
-        MediaQuery.disableAnimationsOf(context) ||
-        !TickerMode.valuesOf(context).enabled) {
+    if (_host != null || MediaQuery.disableAnimationsOf(context) || !active) {
       _clock.stop();
     } else if (!_clock.isAnimating) {
       _clock.repeat();

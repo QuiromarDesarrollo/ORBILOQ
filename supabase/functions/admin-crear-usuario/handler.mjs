@@ -20,15 +20,16 @@ export function crearHandler(api) {
       try { datos = JSON.parse(raw); } catch { return respuesta(400, { error: 'Solicitud invalida.' }); }
       if (!datos || typeof datos !== 'object') return respuesta(400, { error: 'Solicitud invalida.' });
       const { numero, nombre, contrasena } = datos;
-      const prioridad = ['admin', 'seguimiento', 'produccion', 'logistica', 'despacho', 'gerencia'];
+      const prioridad = ['admin', 'seguimiento', 'produccion', 'logistica', 'despacho', 'gerencia',
+        ...(api.permitirConductor === true ? ['conductor'] : [])];
       const solicitados = datos.roles === undefined ? [datos.rol] : datos.roles;
-      if (!Array.isArray(solicitados) || solicitados.length < 1 || solicitados.length > 6 || solicitados.some(r => !prioridad.includes(r))) {
+      if (!Array.isArray(solicitados) || solicitados.length < 1 || solicitados.length > prioridad.length || solicitados.some(r => !prioridad.includes(r))) {
         return respuesta(400, { error: 'Selecciona al menos un perfil valido.' });
       }
       const roles = prioridad.filter(r => solicitados.includes(r));
       const rol = roles[0];
       if (typeof numero !== 'string' || !/^\d{1,30}$/.test(numero) || typeof nombre !== 'string' || !nombre.trim() || nombre.trim().length > 150 ||
-          !['admin', 'produccion', 'logistica', 'despacho', 'seguimiento', 'gerencia'].includes(rol) || typeof contrasena !== 'string' || contrasena.length < 12 || contrasena.length > 128) {
+          !prioridad.includes(rol) || typeof contrasena !== 'string' || contrasena.length < 12 || contrasena.length > 128) {
         return respuesta(400, { error: 'Completa numero, nombre, rol y una contraseña de 12 a 128 caracteres.' });
       }
       if (await api.existeNumero(numero)) return respuesta(409, { error: 'El numero de usuario ya existe. Edita la cuenta existente.' });

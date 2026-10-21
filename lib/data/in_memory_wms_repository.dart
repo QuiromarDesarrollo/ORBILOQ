@@ -700,7 +700,7 @@ class InMemoryWmsRepository implements WmsRepository {
     if (cantidad > pendiente) {
       return Err<LoteLinea>(
         'LÍMITE EXCEDIDO: solo faltan $pendiente Uds por recibir en esta línea. '
-        'Si llegó más de lo declarado, usa la Bandeja de Sobrantes para el exceso.',
+        'Verifica la cantidad declarada antes de registrar la recepción.',
       );
     }
 

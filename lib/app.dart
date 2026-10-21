@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'application/auth_providers.dart';
+import 'core/conductor_entorno.dart';
+import 'domain/sesion.dart';
+import 'features/conductor/presentation/conductor_page.dart';
 import 'application/providers.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/login_page.dart';
@@ -45,6 +48,10 @@ class _PuertaDeEntrada extends ConsumerWidget {
           (usuario) =>
               usuario == null
                   ? const LoginPage()
+                  : conductorHabilitado() &&
+                      usuario.tieneRol(RolCuenta.conductor) &&
+                      usuario.areas.isEmpty
+                  ? const ConductorPage()
                   : usuario.soloGerencia
                   ? const DashboardCatalogoPage()
                   : const KardexPage(),

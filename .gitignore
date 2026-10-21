@@ -46,3 +46,16 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Dependencias locales de herramientas auxiliares (no forman parte de Flutter).
+**/node_modules/
+
+# Temporales de Office y cachés de Python.
+~$*
+**/__pycache__/
+
+# Configuración local; conservar solo ejemplos sin credenciales.
+.env
+.env.*
+!.env.example
+!.env.*.example

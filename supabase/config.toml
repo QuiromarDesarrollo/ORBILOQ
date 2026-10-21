@@ -2,3 +2,11 @@
 # La función verifica cada JWT con Auth.getUser y consulta el rol en la base.
 # Evita depender del verificador heredado del gateway con claves asimétricas.
 verify_jwt = false
+
+[functions.conductor-evidencia]
+# Auth.getUser verifica el JWT y la consulta del vehículo aplica RLS.
+verify_jwt = false
+
+[functions.entrega-correo]
+# Auth.getUser valida el token y entrega_correo_consultar exige admin/seguimiento activo.
+verify_jwt = false

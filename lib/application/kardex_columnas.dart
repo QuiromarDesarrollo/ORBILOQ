@@ -36,6 +36,7 @@ final Map<String, ExtractorColumna> columnasLogistica = {
   ColKardex.produccion: (i) => '${i.producido}',
   ColKardex.pendienteProduccionBodega: (i) => '${i.pendienteProduccion}',
   ColKardex.bodega: (i) => '${i.stockDisponible}',
+  ColKardex.inventario: (i) => '${i.stockInventario}',
   ColKardex.despachadas: (i) => '${i.despachado}',
   ColKardex.noConformeBodega: (i) => '${i.pendienteReproceso}',
   ColKardex.estadoBodega: (i) => i.estadoLogistica.etiqueta,

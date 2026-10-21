@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/data/excel_inventario.dart';
 // ignore_for_file: avoid_print
 import 'dart:typed_data';
 import 'package:excel/excel.dart';
@@ -9,6 +10,24 @@ import 'package:orbiloq_wms/data/excel_kardex.dart';
 import 'package:orbiloq_wms/domain/models.dart';
 
 void main() {
+  final inv = Excel.decodeBytes(ExcelInventario.plantilla());
+  for (var i = 0; i < 1000; i++) {
+    inv['Inventario'].appendRow([
+      TextCellValue('FICHA V0'),
+      TextCellValue('CLIENTE'),
+      TextCellValue('000$i'),
+      TextCellValue('PRENDA $i'),
+      TextCellValue('M'),
+      IntCellValue(14),
+      TextCellValue('RACK C3'),
+    ]);
+  }
+  final invBytes = Uint8List.fromList(inv.encode()!);
+  File('.dart_tool/inventario-benchmark.xlsx').writeAsBytesSync(invBytes);
+  File(
+    '.dart_tool/inventario-benchmark.json',
+  ).writeAsStringSync(jsonEncode(ExcelInventario.leer(invBytes)));
+
   final kardex = ExcelKardex.generar(
     ArchivoKardex(Rol.produccion, 'v-test', [
       {

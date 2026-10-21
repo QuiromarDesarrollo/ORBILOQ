@@ -1,5 +1,56 @@
 # Preparación del despliegue de ORBILOQ
 
+## Preparación del 15 de octubre de 2026
+
+El último despliegue verificado corresponde al 13 de octubre: `gh-pages`
+`fef28bcae7ffe901e54861102104b87a6e1f6936`, confirmado con `git ls-remote`.
+El registro privado `D:\ORBILOQ-preparacion-20261013\despliegue-resultado.json`
+documenta migración aplicada, 82 tablas y 8.572 filas originales conservadas.
+Esto no sustituye el diagnóstico actual de producción.
+
+Preparados `010_diagnostico_20261015.sql` (solo lectura) y
+`scripts/preparar_respaldo_20261015.ps1` (contraseña oculta en terminal, exportación
+a D: y diagnóstico). Respaldo generado en
+`D:\ORBILOQ-respaldos\preparacion-20261015-173122\produccion-20261015-173123-3b7e015a`.
+Restauración local verificada: 81 tablas, 10.516 filas, contenido idéntico.
+El candidato `011_actualizacion_20261015.sql` reúne las versiones 095–100,
+verifica las funciones previas y exige conservar filas originales y consecutivos.
+El ensayo en `D:\ORBILOQ-restauracion-20261015-173646` confirmó conservación
+de las 81 tablas y 10.516 filas tras aplicarlo localmente.
+Pruebas funcionales locales de permisos y flujo importación/recepción/empaque/
+salida/seguimiento: correctas (datos de ensayo revertidos).
+Storage completo: 23 XLSX descargados, rutas y tamaños comparados con el respaldo,
+contenido comprimido legible y hashes locales guardados en `storage` dentro de la
+carpeta privada del respaldo. No se compararon hashes contra el servidor remoto.
+Compilación release preparada en `D:\ORBILOQ-preparacion-20261015\web-produccion`,
+con URL/clave pública del último despliegue y los tres lectores Excel en workers.
+Pruebas Flutter: 363 pasaron inicialmente; las otras dos buscaban la tarjeta
+retirada de estados de OP. Se actualizaron para verificar el snapshot y la
+revocación de acceso, y pasaron al repetirlas. Análisis de `lib` y `test`: limpio.
+El análisis de todo el repositorio informa tres avisos informativos preexistentes
+en utilidades de `outputs/ciclos_limpieza_20261014`, ajenos al build publicado.
+`012_verificar_actualizacion_20261015.sql` comprueba permisos, tablas privadas y
+consultas nuevas; pasó en `D:\ORBILOQ-restauracion-20261015-174956`, conservando
+81 tablas y 10.516 filas. `scripts/aplicar_produccion_20261015.ps1` exige pausa,
+credencial oculta, respaldo final y coincidencia de Storage antes de aplicar 011;
+después ejecuta 012 y compara contenido original. No publica el frontend.
+Pausa confirmada por el usuario. SQL 011 aplicado y 012 verificado en producción
+el 15 de octubre. NO volver a ejecutar 011.
+Respaldo final: `D:\ORBILOQ-respaldos\final-20261015-175302\produccion-20261015-175302-3d293bcb`.
+Comparación antes/después: 82 tablas, 10.374 filas originales idénticas, incluyendo
+Auth, Storage y Vault. El conteo difiere del ensayo porque corresponde al respaldo
+final, tomado después; no se eliminó ninguna fila durante la migración.
+Los 23 adjuntos también se verificaron contra el respaldo final.
+Web enviada a `gh-pages`, commit `31f9f8793bd8464b119ee638cb6bcdfb298ba810`.
+Pages terminó correctamente: ejecución `38820284943`. Se comparó el contenido
+servido de `main.dart.js`, `flutter_bootstrap.js` y los tres workers con el build
+preparado (normalizando saltos de línea de Git). Sesión de administrador abierta
+y sincronizada, kardex e indicadores consultados, sin errores de consola observados.
+Evidencia final: `D:\ORBILOQ-preparacion-20261015\despliegue-resultado.json`.
+
+Las secciones siguientes son registros históricos; no indican que deba volver
+a ejecutarse la migración 002.
+
 Estado actual: SQL aplicado manualmente en producción y conservación verificada.
 NO volver a ejecutar 002. Falta publicar el build y validar con sesiones reales.
 Las secciones siguientes conservan el registro de preparación y ensayos.

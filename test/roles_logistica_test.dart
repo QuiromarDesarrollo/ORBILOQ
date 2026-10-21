@@ -44,10 +44,19 @@ void main() {
         return;
       }
       final original = container.read(rolProvider);
+      if (cuenta == RolCuenta.conductor) {
+        expect(
+          find.text('Este perfil utiliza el portal del conductor.'),
+          findsOneWidget,
+        );
+        expect(find.text('Control de operaciones'), findsNothing);
+        return;
+      }
       expect(original, switch (cuenta) {
         RolCuenta.produccion ||
         RolCuenta.admin ||
-        RolCuenta.gerencia => Rol.produccion,
+        RolCuenta.gerencia ||
+        RolCuenta.conductor => Rol.produccion,
         RolCuenta.logistica => Rol.logistica,
         RolCuenta.despacho || RolCuenta.seguimiento => Rol.despacho,
       });
@@ -61,7 +70,7 @@ void main() {
           expect(find.text('FECHA DE RECIBIDO'), findsOneWidget);
           expect(find.text('Despacho por orden'), findsNothing);
           expect(find.text('Estantes y tickets'), findsNothing);
-          expect(find.text('Bandeja de Sobrantes'), findsOneWidget);
+          expect(find.text('Bandeja de Sobrantes'), findsNothing);
           expect(find.text('PENDIENTE POR DESPACHAR'), findsNothing);
           expect(columnas.containsKey(ColKardex.despachadas), isFalse);
           expect(columnas.containsKey(ColKardex.fechaRecibido), isTrue);

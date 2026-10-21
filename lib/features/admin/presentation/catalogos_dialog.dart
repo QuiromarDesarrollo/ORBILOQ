@@ -6,6 +6,7 @@ import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import '../../despacho/presentation/lista_empaque_dialog.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
+import '../../../core/conductor_entorno.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../application/providers.dart';
@@ -542,16 +543,17 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
           runSpacing: 8,
           children: [
             for (final r in RolCuenta.values)
-              FilterChip(
-                label: Text(r.etiqueta),
-                selected: _roles.contains(r),
-                onSelected:
-                    _ocupado
-                        ? null
-                        : (v) => setState(() {
-                          v ? _roles.add(r) : _roles.remove(r);
-                        }),
-              ),
+              if (r != RolCuenta.conductor || conductorHabilitado())
+                FilterChip(
+                  label: Text(r.etiqueta),
+                  selected: _roles.contains(r),
+                  onSelected:
+                      _ocupado
+                          ? null
+                          : (v) => setState(() {
+                            v ? _roles.add(r) : _roles.remove(r);
+                          }),
+                ),
           ],
         ),
         if (_roles.contains(RolCuenta.admin))

@@ -96,7 +96,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    final cliente = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Cliente',
+    );
+    // El formulario puede quedar debajo del pie fijo del asistente.
+    await tester.ensureVisible(cliente);
+    await tester.pumpAndSettle();
+    expect(cliente.hitTestable(), findsOneWidget);
+    await tester.tap(cliente);
     await tester.pumpAndSettle();
     await tester.tap(find.text('ENEL').last);
     await tester.pumpAndSettle();
@@ -114,6 +123,7 @@ void main() {
     expect(otra.text, contains('otra OC'));
     await tester.pumpAndSettle();
     expect((await campo.onCameraSubmitted!(qrS)).isError, false);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
 }

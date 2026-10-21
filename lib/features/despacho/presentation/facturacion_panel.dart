@@ -1,4 +1,5 @@
 import '../../../application/dashboard_despachos_mensuales.dart';
+import '../../../application/providers.dart' show historialDespachosProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/facturacion_le.dart';
@@ -151,6 +152,7 @@ class _FacturaCardState extends ConsumerState<_FacturaCard> {
       await repo.guardar(widget.fila, remision.text, idOc.text);
       if (!mounted) return;
       ref.invalidate(facturacionProvider);
+      ref.invalidate(historialDespachosProvider);
       ref.invalidate(facturacionSemanalProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -1,3 +1,4 @@
+import '../../../data/inventario_repository.dart';
 import '../../../domain/destinatario_internacional.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'historial_despachos_vista.dart';
@@ -33,7 +34,9 @@ Future<void> showDespachoDialog(BuildContext context) =>
     showWmsDialog<void>(context, (_) => const DespachoDialog());
 
 class DespachoDialog extends ConsumerStatefulWidget {
-  const DespachoDialog({super.key, this.correccion});
+  const DespachoDialog({super.key, this.correccion, this.inventario})
+    : assert(correccion == null || inventario == null);
+  final InventarioFila? inventario;
   final Map<String, dynamic>? correccion;
   @override
   ConsumerState<DespachoDialog> createState() => _DespachoState();
@@ -69,7 +72,6 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   final _pesosBrutos = <String, String>{};
   final _rotulosGenerados = <String, String>{};
   bool _generandoRotulo = false;
-  String _buscarDestino = '';
   Map<String, dynamic>? get _destino =>
       ref
           .read(destinatariosEmpaqueProvider)
@@ -181,6 +183,155 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     }
   }
 
+  Widget _selectorDestinoBuscable(
+    List<Map<String, dynamic>> datos,
+    bool congelado,
+  ) {
+    Future<void> elegir() async {
+      var consulta = '';
+      final id = await showDialog<String>(
+        context: context,
+        builder:
+            (ctx) => StatefulBuilder(
+              builder:
+                  (ctx, cambiar) => AlertDialog(
+                    title: const Text('Seleccionar destinatario o sede'),
+                    content: SizedBox(
+                      width: 560,
+                      height: MediaQuery.sizeOf(ctx).height * .5,
+                      child: Column(
+                        children: [
+                          TextField(
+                            autofocus: true,
+                            decoration: const InputDecoration(
+                              hintText: 'Buscar destinatario o sede',
+                              prefixIcon: Icon(Icons.search),
+                            ),
+                            onChanged:
+                                (v) => cambiar(
+                                  () => consulta = v.trim().toLowerCase(),
+                                ),
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: Builder(
+                              builder: (_) {
+                                final lista =
+                                    datos
+                                        .where(
+                                          (d) => '${d['datos']}'
+                                              .toLowerCase()
+                                              .contains(consulta),
+                                        )
+                                        .toList();
+                                if (lista.isEmpty) {
+                                  return const Center(
+                                    child: Text(
+                                      'No hay destinatarios que coincidan.',
+                                    ),
+                                  );
+                                }
+                                return ListView.builder(
+                                  itemCount: lista.length,
+                                  itemBuilder: (_, i) {
+                                    final d = lista[i];
+                                    final info = d['datos'] as Map;
+                                    return ListTile(
+                                      title: Text('${info['nombre']}'),
+                                      subtitle: Text(
+                                        '${info['sede'] ?? ''} · ${info['ciudad'] ?? ''} · ${info['direccion'] ?? ''}${esDestinatarioInternacional(info) ? ' · Internacional · ${info['pais_destino']}' : ''}',
+                                      ),
+                                      trailing:
+                                          d['id'] == _destinatarioId
+                                              ? const Icon(Icons.check_circle)
+                                              : null,
+                                      onTap:
+                                          () =>
+                                              Navigator.pop(ctx, '${d['id']}'),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Cancelar'),
+                      ),
+                    ],
+                  ),
+            ),
+      );
+      if (mounted && id != null) setState(() => _destinatarioId = id);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Destino del empaque',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Destinatario o sede *',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 16,
+                  ),
+                ),
+                onPressed: congelado ? null : elegir,
+                icon: const Icon(Icons.search, size: 20),
+                label: Text(
+                  _destino == null
+                      ? 'Buscar y seleccionar destinatario o sede'
+                      : _nombreDestino,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            IconButton.outlined(
+              tooltip: 'Actualizar destinatarios',
+              onPressed:
+                  congelado
+                      ? null
+                      : () => ref.invalidate(destinatariosEmpaqueProvider),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _destino == null
+              ? '¿No aparece? Actualiza para recargar la lista.'
+              : '${_destino!['datos']['direccion'] ?? ''}',
+          style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+        ),
+        if (datos.isEmpty)
+          const Text(
+            'Administración debe registrar un destinatario antes de empacar.',
+          ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
   Widget _selectorDestino(bool congelado) => ref
       .watch(destinatariosEmpaqueProvider)
       .when(
@@ -192,102 +343,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                 'No se pudieron cargar los destinatarios. Reintentar',
               ),
             ),
-        data: (datos) {
-          final opciones = [
-            ...datos.where((d) => d['id'] == _destinatarioId),
-            ...datos
-                .where(
-                  (d) =>
-                      d['id'] != _destinatarioId &&
-                      '${d['datos']}'.toLowerCase().contains(
-                        _buscarDestino.toLowerCase(),
-                      ),
-                )
-                .take(99),
-          ];
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Destino del empaque',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              TextField(
-                enabled: !congelado,
-                decoration: const InputDecoration(
-                  labelText: 'Buscar destinatario o sede',
-                ),
-                onChanged: (v) => setState(() => _buscarDestino = v),
-              ),
-              DropdownButtonFormField<String>(
-                key: ValueKey('destino-$_destinatarioId'),
-                initialValue:
-                    datos.any((d) => d['id'] == _destinatarioId)
-                        ? _destinatarioId
-                        : null,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Destinatario / sede (obligatorio)',
-                ),
-                items: [
-                  for (final d in opciones)
-                    DropdownMenuItem(
-                      value: '${d['id']}',
-                      child: Text(
-                        '${d['datos']['nombre']} · ${d['datos']['sede'] ?? ''} · ${d['datos']['ciudad'] ?? ''}${esDestinatarioInternacional(d['datos'] as Map) ? ' · Internacional · ${d['datos']['pais_destino']}' : ''}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged:
-                    congelado
-                        ? null
-                        : (v) => setState(() => _destinatarioId = v),
-              ),
-              if (_destino != null) ...[
-                const SizedBox(height: 12),
-                _panel(
-                  Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: _green, size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _nombreDestino,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '${_destino!['datos']['direccion'] ?? ''}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              TextButton.icon(
-                onPressed:
-                    congelado
-                        ? null
-                        : () => ref.invalidate(destinatariosEmpaqueProvider),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Actualizar destinatarios'),
-              ),
-              if (datos.isEmpty)
-                const Text(
-                  'Administración debe registrar un destinatario antes de empacar.',
-                ),
-              const SizedBox(height: 12),
-            ],
-          );
-        },
+        data: (datos) => _selectorDestinoBuscable(datos, congelado),
       );
   final _ops = <String>{};
   final _asignaciones = <String, Map<String, _EmpaqueAsignado>>{};
@@ -312,6 +368,12 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   @override
   void initState() {
     super.initState();
+    if (widget.inventario case final origen?) {
+      _cliente = origen['cliente'] as String;
+      for (final r in _origenesInventario) {
+        _ops.add('${r['numero_op']}');
+      }
+    }
     final d = widget.correccion;
     if (d == null) return;
     _paso = 2;
@@ -1060,42 +1122,115 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
             ),
       );
 
+  // Proyección exclusiva para empacar el saldo elegido; no altera el kardex.
+  List<InventarioFila> get _origenesInventario =>
+      widget.inventario?['origenes'] is List
+          ? (widget.inventario!['origenes'] as List).cast<InventarioFila>()
+          : [widget.inventario!];
+
+  List<ItemKardex> get _itemsInventario {
+    final grupos = <String, List<InventarioFila>>{};
+    for (final r in _origenesInventario) {
+      grupos.putIfAbsent('${r['item_id']}', () => []).add(r);
+    }
+    return grupos.entries.map((e) {
+      final r = e.value.first;
+      final ubicaciones = <String, int>{};
+      for (final f in e.value) {
+        final u = '${f['ubicacion']}';
+        ubicaciones[u] = (ubicaciones[u] ?? 0) + (f['libre'] as num).toInt();
+      }
+      final libre = ubicaciones.values.fold<int>(0, (a, b) => a + b);
+      return ItemKardex(
+        item: ItemOrden(
+          id: e.key,
+          op: '${r['numero_op']}',
+          cliente: '${widget.inventario!['cliente']}',
+          oc: _ocVisible,
+          codigo: '${r['codigo'] ?? ''}',
+          descripcion: '${r['producto']}',
+          talla: '${r['talla']}',
+          cantidadPedida: libre,
+        ),
+        producido: libre,
+        recibido: libre,
+        despachado: 0,
+        ubicaciones: ubicaciones,
+      );
+    }).toList();
+  }
+
+  List<InventarioFila> _asignacionesInventario() {
+    final usadas = <String, int>{};
+    for (final linea in _pendiente!) {
+      var falta = (linea['cantidad'] as num).toInt();
+      for (final r in _origenesInventario.where(
+        (r) =>
+            r['item_id'] == linea['item_id'] &&
+            r['ubicacion'] == linea['ubicacion'],
+      )) {
+        final id = '${r['id']}';
+        final libre = (r['libre'] as num).toInt() - (usadas[id] ?? 0);
+        final tomar = falta < libre ? falta : libre;
+        if (tomar > 0) {
+          usadas[id] = (usadas[id] ?? 0) + tomar;
+          falta -= tomar;
+        }
+        if (falta == 0) break;
+      }
+      if (falta != 0) {
+        throw StateError('Las cantidades superan la selección de inventario.');
+      }
+    }
+    return [
+      for (final e in usadas.entries)
+        {'transferencia': e.key, 'cantidad': e.value},
+    ];
+  }
+
   List<ItemKardex> get _items =>
-      (ref.read(wmsSnapshotProvider).value?.kardex ?? [])
-          .where((i) => !i.eliminada)
-          .map((i) {
-            final d = widget.correccion;
-            if (d == null || _correccionGuardada) return i;
-            final retiros = (d['detalle'] as List).where(
-              (e) => e['item_id'] == i.id,
-            );
-            final ubicaciones = {...i.ubicaciones};
-            final reservas = {...i.reservas};
-            final empacado = d['fase'] == 'empacado';
-            var cantidad = 0;
-            for (final e in retiros) {
-              final n = (e['cantidad'] as num).toInt();
-              cantidad += n;
-              final u = '${e['ubicacion']}';
-              if (empacado) {
-                reservas[u] = (reservas[u] ?? 0) - n;
-              } else {
-                ubicaciones[u] = (ubicaciones[u] ?? 0) + n;
-              }
-            }
-            return ItemKardex(
-              item: i.item,
-              producido: i.producido,
-              recibido: i.recibido,
-              despachado: i.despachado - (empacado ? 0 : cantidad),
-              ubicaciones: ubicaciones,
-              reservas: reservas,
-            );
-          })
-          .toList();
+      widget.inventario != null
+          ? _itemsInventario
+          : (ref.read(wmsSnapshotProvider).value?.kardex ?? [])
+              .where((i) => !i.eliminada)
+              .map((i) {
+                final d = widget.correccion;
+                if (d == null || _correccionGuardada) return i;
+                final retiros = (d['detalle'] as List).where(
+                  (e) => e['item_id'] == i.id,
+                );
+                final ubicaciones = {...i.ubicaciones};
+                final reservas = {...i.reservas};
+                final empacado = d['fase'] == 'empacado';
+                var cantidad = 0;
+                for (final e in retiros) {
+                  final n = (e['cantidad'] as num).toInt();
+                  cantidad += n;
+                  final u = '${e['ubicacion']}';
+                  if (empacado) {
+                    reservas[u] = (reservas[u] ?? 0) - n;
+                  } else {
+                    ubicaciones[u] = (ubicaciones[u] ?? 0) + n;
+                  }
+                }
+                return ItemKardex(
+                  item: i.item,
+                  producido: i.producido,
+                  recibido: i.recibido,
+                  despachado: i.despachado - (empacado ? 0 : cantidad),
+                  stockInventario: i.stockInventario,
+                  ubicaciones: ubicaciones,
+                  reservas: reservas,
+                );
+              })
+              .toList();
   List<ItemKardex> get _lineas =>
       _items
-          .where((i) => i.item.cliente == _cliente && i.item.oc == _oc)
+          .where(
+            (i) =>
+                i.item.cliente == _cliente &&
+                (widget.inventario != null || i.item.oc == _oc),
+          )
           .toList();
   void _seleccionar(String op, bool seleccionar) {
     setState(() {
@@ -1250,6 +1385,14 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
           cantidades[i.id] = (cantidades[i.id] ?? 0) + n;
         }
       }
+      if (widget.inventario?['origenes'] is List &&
+          _lineas.any(
+            (i) => cantidades[i.id] != i.pendienteDisponibleDespacho,
+          )) {
+        throw const FormatException(
+          'Distribuye todas las cantidades seleccionadas en los empaques para conservar el reparto de inventario.',
+        );
+      }
       if (completa &&
           _lineas.any(
             (i) =>
@@ -1326,7 +1469,28 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     setState(() => _ocupado = true);
 
     try {
-      if (widget.correccion != null) {
+      if (widget.inventario != null) {
+        final inventarioRepo = ref.read(inventarioRepositoryProvider);
+        if (inventarioRepo == null) {
+          throw StateError('Inventario no disponible');
+        }
+        await inventarioRepo.ejecutar(
+          widget.inventario!['origenes'] is List
+              ? 'inventario_empacar_multiple'
+              : 'inventario_empacar_flujo',
+          {
+            'p_solicitud': _solicitud!,
+            if (widget.inventario!['origenes'] is List)
+              'p_asignaciones': _asignacionesInventario()
+            else
+              'p_transferencia': widget.inventario!['id'],
+            'p_oc': _ocVisible,
+            'p_destinatario': _destinatarioId,
+            'p_destinatario_version': _destino?['version'],
+            'p_empaques': _empaquesPendientes,
+          },
+        );
+      } else if (widget.correccion != null) {
         await repo.corregir(
           '${widget.correccion!['id']}',
           '${widget.correccion!['version']}',
@@ -1574,7 +1738,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     builder: (context, c) {
       const nombres = ['Destino', 'Prendas', 'Empaques', 'Confirmar'];
       return Container(
-        color: _soft,
+        color: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         child: Row(
           children: [
@@ -1593,7 +1757,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(
-                      radius: 11,
+                      radius: 17,
                       backgroundColor:
                           n < _paso
                               ? _green
@@ -1635,6 +1799,104 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     },
   );
   Widget _destinoPaso(bool bloqueado) {
+    if (widget.inventario != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder:
+                (context, c) => Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  children: [
+                    for (final dato in [
+                      ('Cliente', '$_cliente'),
+                      (
+                        widget.inventario!['origenes'] is List
+                            ? 'Fichas técnicas'
+                            : 'Ficha técnica',
+                        widget.inventario!['origenes'] is List
+                            ? '${_origenesInventario.map((r) => r['ficha']).toSet().length}'
+                            : '${widget.inventario!['ficha']}',
+                      ),
+                      (
+                        widget.inventario!['origenes'] is List
+                            ? 'Prendas seleccionadas'
+                            : 'OP origen',
+                        widget.inventario!['origenes'] is List
+                            ? '${_itemsInventario.fold<int>(0, (a, i) => a + i.recibido)} unidades'
+                            : '${widget.inventario!['numero_op']}',
+                      ),
+                    ])
+                      Container(
+                        width:
+                            c.maxWidth < 550
+                                ? c.maxWidth
+                                : (c.maxWidth - 24) / 3,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F9FA),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              dato.$1,
+                              style: const TextStyle(
+                                color: Colors.blueGrey,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              dato.$2,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE5F0FF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, size: 20, color: Color(0xFF285D94)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Las prendas conservan su cliente y se asignan a la OC que indiques.',
+                    style: TextStyle(color: Color(0xFF285D94)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _selectorDestino(bloqueado),
+          TextField(
+            controller: _ocDocumento,
+            enabled: !bloqueado,
+            maxLength: 150,
+            decoration: const InputDecoration(
+              labelText: 'Orden de compra de destino',
+              hintText: 'Ej.: OC-2026-0458',
+            ),
+            onChanged: (v) => setState(() => _oc = v.trim()),
+          ),
+        ],
+      );
+    }
     final clientes =
         _items
             .where(
@@ -1651,52 +1913,120 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         !clientes.contains(_cliente)) {
       clientes.add(_cliente!);
     }
+    Widget tarjeta(List<Widget> contenido) => Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFDCE6EC)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: contenido,
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _titulo(
-          '¿A quién va el empaque?',
-          'El destinatario y su sede salen impresos en el rótulo.',
-        ),
-        if (ref.watch(usarSupabaseProvider)) ...[
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed:
-                  bloqueado ? null : () => mostrarListaEmpaque(context, ''),
-              icon: const Icon(Icons.contacts_outlined, size: 16),
-              label: const Text('Catálogo / consecutivo LE'),
+        tarjeta([
+          LayoutBuilder(
+            builder: (context, c) {
+              final titulo = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '¿A quién va el empaque?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                      color: _navy,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'El destinatario y su sede salen impresos en el rótulo.',
+                    style: TextStyle(color: Colors.blueGrey, fontSize: 13),
+                  ),
+                ],
+              );
+              final catalogo = OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: _navy,
+                ),
+                onPressed:
+                    bloqueado ? null : () => mostrarListaEmpaque(context, ''),
+                icon: const Icon(Icons.contacts_outlined, size: 18),
+                label: const Text('Catálogo / consecutivo LE'),
+              );
+              if (!ref.watch(usarSupabaseProvider)) return titulo;
+              return c.maxWidth < 650
+                  ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [titulo, const SizedBox(height: 10), catalogo],
+                  )
+                  : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: titulo),
+                      const SizedBox(width: 16),
+                      catalogo,
+                    ],
+                  );
+            },
+          ),
+          if (ref.watch(usarSupabaseProvider)) ...[
+            const SizedBox(height: 16),
+            _selectorDestino(bloqueado),
+          ],
+        ]),
+        const SizedBox(height: 16),
+        tarjeta([
+          const Text(
+            '¿De qué cliente son las prendas?',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              color: _navy,
             ),
           ),
-          _selectorDestino(bloqueado),
-        ],
-        _titulo(
-          '¿De qué cliente son las prendas?',
-          'En el siguiente paso verás sus órdenes de compra.',
-        ),
-        DropdownButtonFormField<String>(
-          key: ValueKey(_cliente),
-          initialValue: _cliente,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Cliente'),
-          items: [
-            for (final c in clientes)
-              DropdownMenuItem(
-                value: c,
-                child: Text(c, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged:
-              bloqueado
-                  ? null
-                  : (v) => setState(() {
-                    _limpiar();
-                    _cliente = v;
-                    _oc = null;
-                  }),
-        ),
-        if (clientes.isEmpty)
-          const Text('No hay prendas disponibles en bodega.'),
+          const SizedBox(height: 5),
+          const Text(
+            'En el siguiente paso verás sus órdenes de compra.',
+            style: TextStyle(color: Colors.blueGrey, fontSize: 13),
+          ),
+          const SizedBox(height: 18),
+          DropdownButtonFormField<String>(
+            key: ValueKey(_cliente),
+            initialValue: _cliente,
+            isExpanded: true,
+            menuMaxHeight: 260,
+            dropdownColor: Colors.white,
+            decoration: const InputDecoration(
+              labelText: 'Cliente',
+              hintText: 'Selecciona un cliente',
+              filled: true,
+              fillColor: Colors.white,
+            ),
+            items: [
+              for (final c in clientes)
+                DropdownMenuItem(
+                  value: c,
+                  child: Text(c, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged:
+                bloqueado
+                    ? null
+                    : (v) => setState(() {
+                      _limpiar();
+                      _cliente = v;
+                      _oc = null;
+                    }),
+          ),
+          if (clientes.isEmpty)
+            const Text('No hay prendas disponibles en bodega.'),
+        ]),
       ],
     );
   }
@@ -1782,7 +2112,9 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                           bloqueado
                               ? null
                               : () => setState(() {
-                                if (_oc != oc) _limpiar();
+                                if (_oc != oc && widget.inventario == null) {
+                                  _limpiar();
+                                }
                                 _oc = oc;
                                 _ops.addAll(
                                   items
@@ -2031,17 +2363,18 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
             spacing: 12,
             runSpacing: 12,
             children: [
-              OutlinedButton(
-                onPressed:
-                    () => setState(() {
-                      _limpiar();
-                      _exito = false;
-                      _paso = 0;
-                      _planRevisado = null;
-                      _oc = null;
-                    }),
-                child: const Text('Empacar otra OC'),
-              ),
+              if (widget.inventario == null)
+                OutlinedButton(
+                  onPressed:
+                      () => setState(() {
+                        _limpiar();
+                        _exito = false;
+                        _paso = 0;
+                        _planRevisado = null;
+                        _oc = null;
+                      }),
+                  child: const Text('Empacar otra OC'),
+                ),
               if (_puedeSeguimiento)
                 FilledButton(
                   onPressed:
@@ -2084,7 +2417,9 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         expand: true,
         maxWidth: 1100,
         title:
-            widget.correccion == null
+            widget.inventario != null
+                ? 'Despacho desde inventario'
+                : widget.correccion == null
                 ? 'Despachos por orden de compra'
                 : 'Corregir despacho · LE ${widget.correccion!['le_numero'] ?? ''}',
         subtitle: 'Empaca: ${ref.watch(nombreOperarioProvider)}',
@@ -2105,8 +2440,17 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                 (tabContext) => Column(
                   children: [
                     TabBar(
+                      indicator: const UnderlineTabIndicator(
+                        borderSide: BorderSide(
+                          color: Color(0xFFC8DB00),
+                          width: 3,
+                        ),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      labelColor: _navy,
+                      unselectedLabelColor: Colors.blueGrey,
                       isScrollable: MediaQuery.sizeOf(context).width < 650,
-                      labelPadding: EdgeInsets.zero,
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 12),
                       tabs: [
                         const Tab(text: 'Despacho'),
                         if (puedeSeguimiento) const Tab(text: 'Seguimiento'),
@@ -2170,7 +2514,11 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                                     _generandoRotulo ||
                                                     (_paso == 0 &&
                                                         (_cliente == null ||
-                                                            _faltaDestino)) ||
+                                                            _faltaDestino ||
+                                                            (widget.inventario !=
+                                                                    null &&
+                                                                _ocVisible
+                                                                    .isEmpty))) ||
                                                     (_paso == 1 &&
                                                         _ops.isEmpty) ||
                                                     (_paso == 2 &&
@@ -2202,6 +2550,16 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                                 'Confirmar empaque',
                                               ][_paso],
                                         ),
+                                      );
+                                      final cancelar = OutlinedButton(
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                        ),
+                                        onPressed:
+                                            congelado
+                                                ? null
+                                                : () => Navigator.pop(context),
+                                        child: const Text('Cancelar'),
                                       );
                                       final atras = OutlinedButton.icon(
                                         onPressed:
@@ -2256,6 +2614,10 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                                     atras,
                                                     const SizedBox(width: 8),
                                                   ],
+                                                  if (_paso == 0) ...[
+                                                    cancelar,
+                                                    const SizedBox(width: 8),
+                                                  ],
                                                   Expanded(child: siguiente),
                                                 ],
                                               ),
@@ -2265,6 +2627,10 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                             children: [
                                               if (_paso > 0) atras,
                                               Expanded(child: resumen),
+                                              if (_paso == 0) ...[
+                                                cancelar,
+                                                const SizedBox(width: 12),
+                                              ],
                                               siguiente,
                                             ],
                                           );
@@ -2353,12 +2719,12 @@ class _HistorialState extends ConsumerState<_Historial> {
                 filas:
                     todas
                         .where(
-                          (f) =>
-                              (f['fase'] == 'empacado') == widget.seguimiento,
+                          (f) => !widget.seguimiento || f['fase'] == 'empacado',
                         )
                         .toList(),
                 entregas: entregas,
                 mostrarEntregadas: puedeVerEntregas,
+                onActualizar: () => ref.invalidate(historialDespachosProvider),
                 pendientes: widget.seguimiento,
                 ocupado: _abriendoCorreccion,
                 onCorregir: conectado ? _corregir : null,

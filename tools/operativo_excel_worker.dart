@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/data/excel_inventario.dart';
 import 'dart:js_interop';
 import 'dart:typed_data';
 import 'package:web/web.dart';
@@ -13,7 +14,9 @@ void main() {
         try {
           final entrada = event.data.dartify() as Map;
           final bytes = entrada['bytes'] as Uint8List;
-          if (entrada['tipo'] == 'fechas') {
+          if (entrada['tipo'] == 'inventario') {
+            worker.postMessage(ExcelInventario.leer(bytes).jsify());
+          } else if (entrada['tipo'] == 'fechas') {
             worker.postMessage(
               {'filas': ExcelFechasParser.parsear(bytes)}.jsify(),
             );

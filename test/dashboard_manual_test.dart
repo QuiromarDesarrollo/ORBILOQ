@@ -1,4 +1,6 @@
 import 'package:orbiloq_wms/application/dashboard_periodo.dart';
+import 'package:orbiloq_wms/application/dashboard_snapshot.dart';
+import 'package:orbiloq_wms/features/admin/presentation/dashboard_resumen.dart';
 import 'package:orbiloq_wms/features/admin/presentation/dashboard_calendario.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -83,7 +85,11 @@ void main() {
         container.invalidate(usuarioSesionProvider);
         await tester.pump(const Duration(seconds: 30));
         expect(find.text('Consultando movimientos…'), findsNothing);
-        expect(find.text('4 activas · 1 completas'), findsOneWidget);
+        expect(find.byType(DashboardResumen), findsOneWidget);
+        expect(
+          container.read(dashboardSnapshotProvider).value?.kardex,
+          demoAtencion,
+        );
         pendiente.complete(
           UsuarioSesion(
             numeroUsuario: numero,
@@ -112,7 +118,7 @@ void main() {
         find.text('Acceso exclusivo de Administración y Gerencia.'),
         findsOneWidget,
       );
-      expect(find.text('4 activas · 1 completas'), findsNothing);
+      expect(find.byType(DashboardResumen), findsNothing);
       expect(reportes.llamadas, 12);
       expect(repo.lecturas, 3);
       expect(tester.takeException(), isNull);
@@ -144,11 +150,20 @@ void main() {
       expect(repo.lecturas, 1);
       expect(repo.suscripciones, 0);
       expect(reportes.llamadas, 4);
-      expect(find.text('4 activas · 1 completas'), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(DashboardResumen)),
+      );
+      expect(
+        container.read(dashboardSnapshotProvider).value?.kardex,
+        demoAtencion,
+      );
       repo.actual = WmsSnapshot(kardex: [], lotes: []);
       repo.eventos.add(repo.actual);
       await tester.pump(const Duration(minutes: 2));
-      expect(find.text('4 activas · 1 completas'), findsOneWidget);
+      expect(
+        container.read(dashboardSnapshotProvider).value?.kardex,
+        demoAtencion,
+      );
       tester
           .widget<DashboardCalendario>(find.byType(DashboardCalendario))
           .onChanged(
@@ -166,7 +181,7 @@ void main() {
       expect(repo.lecturas, 2);
       expect(reportes.llamadas, 8);
       expect(repo.suscripciones, 0);
-      expect(find.text('0 activas · 0 completas'), findsOneWidget);
+      expect(container.read(dashboardSnapshotProvider).value?.kardex, isEmpty);
       expect(tester.takeException(), isNull);
       expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
       await tester.pump(const Duration(minutes: 10));

@@ -5,6 +5,12 @@ import 'package:orbiloq_wms/data/seguimiento_entregas.dart';
 import 'package:orbiloq_wms/features/despacho/presentation/seguimiento_entregas_tabla.dart';
 
 void main() {
+  test('Correo comercial admite una dirección y rechaza múltiples o cabeceras', () {
+    expect(correoComercialValido('comercial+ventas@empresa.com'), isTrue);
+    for (final correo in ['sin-correo', 'a@b', 'a@b.com,b@c.com', 'a@b.com\nBcc:otra@b.com']) {
+      expect(correoComercialValido(correo), isFalse);
+    }
+  });
   test('Filtro recibido incluye extremos y excluye fechas vacías', () {
     final rango = DateTimeRange(
       start: DateTime(2026, 10, 8),
@@ -107,8 +113,20 @@ void main() {
     expect(find.text('QUIROMAR'), findsOneWidget);
     await tester.tap(find.text('En tránsito').last);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Entregado').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Correo de la comercial (opcional)'), findsOneWidget);
+    tester.view.physicalSize = const Size(390, 800);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    tester.view.physicalSize = const Size(1200, 800);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Entregado').last);
+    await tester.tap(find.text('Entregado').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Entregado con novedad').last);
     await tester.pumpAndSettle();
+    expect(find.text('Correo de la comercial (opcional)'), findsNothing);
     expect(find.text('Entregado con novedad'), findsWidgets);
     await tester.tap(find.text('Entregado con novedad').last);
     await tester.pumpAndSettle();

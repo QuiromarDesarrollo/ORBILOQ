@@ -9,6 +9,8 @@ import '../../../domain/ciclos_indicadores.dart';
 import '../../../core/utils/fecha.dart';
 import '../../admin/presentation/dashboard_ejecutivo_page.dart';
 import 'ciclos_page.dart';
+import '../../inventario/presentation/inventario_page.dart';
+import '../../../core/inventario_entorno.dart';
 
 final indicadoresResumenProvider = FutureProvider.autoDispose<FilaReporte>((
   ref,
@@ -200,6 +202,17 @@ class DashboardCatalogoPage extends ConsumerWidget {
         backgroundColor: _navy,
         foregroundColor: Colors.white,
         actions: [
+          if (inventarioEnPruebas)
+            IconButton(
+              tooltip: 'Inventario por ficha técnica',
+              icon: const Icon(Icons.inventory_2_outlined),
+              onPressed:
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const InventarioPage(),
+                    ),
+                  ),
+            ),
           PopupMenuButton<String>(
             tooltip: 'Más opciones',
             onSelected: (v) {

@@ -25,6 +25,7 @@ abstract final class ColKardex {
   static const produccion = 'produccion';
   static const pendienteProduccionBodega = 'pendienteProduccionBodega';
   static const bodega = 'bodega';
+  static const inventario = 'inventario';
   static const despachadas = 'despachadas';
   static const noConformeBodega = 'noConformeBodega';
   static const estadoBodega = 'estadoBodega';
@@ -38,7 +39,12 @@ abstract final class ColKardex {
 /// por cada una). Sirve para cualquiera de las dos vistas — cada vista solo
 /// usa las columnas que le aplican (ver los mapas de extractores).
 class KardexFilters {
-  const KardexFilters({this.busqueda = '', this.columnas = const {}, this.desde, this.hasta});
+  const KardexFilters({
+    this.busqueda = '',
+    this.columnas = const {},
+    this.desde,
+    this.hasta,
+  });
 
   final String busqueda;
   final Map<String, Set<String>> columnas;
@@ -46,15 +52,26 @@ class KardexFilters {
   final DateTime? hasta;
 
   bool get hayFiltros =>
-      desde != null || hasta != null || busqueda.trim().isNotEmpty || columnas.values.any((v) => v.isNotEmpty);
+      desde != null ||
+      hasta != null ||
+      busqueda.trim().isNotEmpty ||
+      columnas.values.any((v) => v.isNotEmpty);
 
   Set<String> valoresDe(String columna) => columnas[columna] ?? const {};
 
-  KardexFilters conBusqueda(String v) =>
-      KardexFilters(busqueda: v, columnas: columnas, desde: desde, hasta: hasta);
+  KardexFilters conBusqueda(String v) => KardexFilters(
+    busqueda: v,
+    columnas: columnas,
+    desde: desde,
+    hasta: hasta,
+  );
 
   KardexFilters conFechas(DateTime? inicio, DateTime? fin) => KardexFilters(
-    busqueda: busqueda, columnas: columnas, desde: inicio, hasta: fin);
+    busqueda: busqueda,
+    columnas: columnas,
+    desde: inicio,
+    hasta: fin,
+  );
 
   KardexFilters conColumna(String columna, Set<String> valores) {
     final nuevo = Map<String, Set<String>>.from(columnas);
@@ -63,7 +80,12 @@ class KardexFilters {
     } else {
       nuevo[columna] = valores;
     }
-    return KardexFilters(busqueda: busqueda, columnas: nuevo, desde: desde, hasta: hasta);
+    return KardexFilters(
+      busqueda: busqueda,
+      columnas: nuevo,
+      desde: desde,
+      hasta: hasta,
+    );
   }
 
   bool aplica(

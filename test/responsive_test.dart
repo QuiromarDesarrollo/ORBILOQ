@@ -15,7 +15,6 @@ import 'package:orbiloq_wms/features/recepcion/presentation/recepcion_dialog.dar
 import 'package:orbiloq_wms/features/despacho/presentation/despacho_dialog.dart';
 import 'package:orbiloq_wms/features/no_conforme/presentation/no_conforme_dialog.dart';
 import 'package:orbiloq_wms/features/reproceso/presentation/reproceso_dialog.dart';
-import 'package:orbiloq_wms/features/sobrantes/presentation/sobrantes_dialog.dart';
 import 'package:orbiloq_wms/features/ubicaciones/presentation/ubicaciones_dialog.dart';
 import 'package:orbiloq_wms/features/aliados_no_conforme/presentation/aliados_no_conforme_dialog.dart';
 import 'package:orbiloq_wms/features/importacion/presentation/importar_ordenes_dialog.dart';
@@ -57,15 +56,18 @@ void main() {
       await tester.pumpAndSettle();
       expect(scaffold.isDrawerOpen, isTrue);
       expect(find.text('Dashboard ejecutivo'), findsNothing);
-      expect(find.text('Dashboard'), findsOneWidget);
       for (final accion in [
+        'Conductores · Pruebas',
         'Administración',
         'Dashboard',
         'Importar tabla',
         'Exportar tabla',
         'Importar fechas',
       ]) {
-        await tester.ensureVisible(find.text(accion));
+        await tester.scrollUntilVisible(
+          find.text(accion), 80,
+          scrollable: find.descendant(of: find.byType(Drawer), matching: find.byType(Scrollable)).first,
+        );
         await tester.pumpAndSettle();
         expect(find.text(accion).hitTestable(), findsOneWidget);
       }
@@ -149,7 +151,6 @@ void main() {
     const DespachoDialog(),
     const NoConformeDialog(),
     const ReprocesoDialog(),
-    const SobrantesDialog(),
     const UbicacionesDialog(),
     const AliadosNoConformeDialog(),
     const ImportarOrdenesDialog(),

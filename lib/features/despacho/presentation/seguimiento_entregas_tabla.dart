@@ -1,4 +1,5 @@
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
+import '../../../application/providers.dart' show historialDespachosProvider;
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../../core/theme/app_theme.dart';
@@ -92,6 +93,12 @@ const estadosEntrega = {
   'devolucion_parcial': 'Devolución parcial',
 };
 
+bool correoComercialValido(String value) =>
+    value.length <= 254 &&
+    RegExp(
+      r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$",
+    ).hasMatch(value);
+
 Color colorEstadoEntrega(BuildContext context, String estado) {
   final oscuro = Theme.of(context).brightness == Brightness.dark;
   return switch (estado) {
@@ -115,6 +122,9 @@ class _Fila {
       guia = TextEditingController(text: '${d['numero_guia'] ?? ''}'),
       placa = TextEditingController(text: '${d['placa'] ?? ''}'),
       obs = TextEditingController(text: '${d['observaciones'] ?? ''}'),
+      correoComercial = TextEditingController(
+        text: '${(d['correo'] as Map?)?['destinatario'] ?? ''}',
+      ),
       recibido = DateTime.tryParse('${d['recibido']}'),
       estado =
           d['estado'] as String? ??
@@ -122,7 +132,8 @@ class _Fila {
       le = d['evidencia_le'] as Map?,
       evidenciaGuia = d['evidencia_guia'] as Map?;
   final Map<String, dynamic> d;
-  final TextEditingController transporte, guia, placa, obs;
+  final TextEditingController transporte, guia, placa, obs, correoComercial;
+  String? avisoCorreo;
   DateTime? recibido;
   String estado;
   Map? le, evidenciaGuia;
@@ -132,6 +143,7 @@ class _Fila {
     guia.dispose();
     placa.dispose();
     obs.dispose();
+    correoComercial.dispose();
   }
 }
 
@@ -240,9 +252,19 @@ class _TablaState extends ConsumerState<TablaEntregas> {
     }
   });
   Future<void> guardar(_Fila f) => tarea(f, () async {
-    final version = await Supabase.instance.client.rpc(
-      'seguimiento_entregas_guardar_v87',
+    final email = f.correoComercial.text.trim();
+    final notificar = f.estado == 'entregado' && email.isNotEmpty;
+    if (notificar && (!correoComercialValido(email) || f.recibido == null)) {
+      throw const FormatException(
+        'Ingresa un correo válido y la fecha de recibido antes de notificar.',
+      );
+    }
+    final resultado = await Supabase.instance.client.rpc(
+      notificar
+          ? 'seguimiento_entregas_guardar_v117'
+          : 'seguimiento_entregas_guardar_v87',
       params: {
+        if (notificar) 'p_correo': email,
         'p_id': f.d['id'],
         'p_revision': f.d['revision'],
         'p_version': f.d['version'],
@@ -259,18 +281,115 @@ class _TablaState extends ConsumerState<TablaEntregas> {
         },
       },
     );
-    f.d['version'] = version;
+    f.d['version'] = notificar ? (resultado as Map)['version'] : resultado;
+    if (notificar) f.d['correo'] = (resultado as Map)['correo'];
     f.cambiado = false;
+    if (notificar && (f.d['correo'] as Map?)?['estado'] != 'enviado') {
+      await enviarCorreo(f);
+    }
     ref.invalidate(entregasProvider);
     ref.invalidate(facturacionProvider);
+    ref.invalidate(historialDespachosProvider);
     if (mounted) {
       await mostrarAviso(
         context,
-        'Seguimiento de LE ${f.d['le']} guardado.',
+        'Seguimiento de LE ${f.d['le']} guardado.${f.avisoCorreo == null ? '' : '\n${f.avisoCorreo}'}',
         tipo: TipoAviso.exito,
       );
     }
   });
+  Future<void> enviarCorreo(_Fila f) async {
+    final correo = f.d['correo'] as Map?;
+    if (correo == null) return;
+    try {
+      final respuesta = await Supabase.instance.client.functions.invoke(
+        'entrega-correo',
+        body: {'id': correo['id']},
+      );
+      if (respuesta.status != 200 ||
+          respuesta.data is! Map ||
+          respuesta.data['estado'] != 'enviado') {
+        throw const FormatException('No se confirmó el correo');
+      }
+      correo['estado'] = 'enviado';
+      f.avisoCorreo = 'Correo aceptado por el servicio para su envío.';
+    } catch (_) {
+      // La transacción de entrega ya terminó: no presentar el correo como fallo del guardado.
+      f.avisoCorreo =
+          'Entrega guardada. Correo pendiente: comprueba la configuración del servicio y reintenta.';
+      try {
+        final actual = await Supabase.instance.client.rpc(
+          'entrega_correo_consultar',
+          params: {'p_id': correo['id']},
+        );
+        if (actual is Map) f.d['correo'] = Map<String, dynamic>.from(actual);
+      } catch (_) {
+        // Sin conexión se conserva el pendiente local; se recuperará al actualizar.
+      }
+    }
+    ref.invalidate(entregasProvider);
+    if (mounted) redibujar(() {});
+  }
+
+  Widget notificacionComercial(_Fila f) {
+    final correo = f.d['correo'] as Map?;
+    final estado = correo?['estado'] as String?;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'NOTIFICAR A LA COMERCIAL',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: f.correoComercial,
+            enabled:
+                !f.ocupado &&
+                correo == null &&
+                f.d['correo_disponible'] != false,
+            keyboardType: TextInputType.emailAddress,
+            maxLength: 254,
+            decoration: const InputDecoration(
+              labelText: 'Correo de la comercial (opcional)',
+              hintText: 'comercial@empresa.com',
+              prefixIcon: Icon(Icons.email_outlined),
+            ),
+            onChanged: (_) => redibujar(() => f.cambiado = true),
+          ),
+          Text(
+            f.d['correo_disponible'] == false
+                ? 'La notificación requiere actualizar el servidor. Puedes guardar la entrega sin correo.'
+                : 'Al guardar se enviará la confirmación con las OP, la LE y los documentos adjuntos disponibles. Si dejas el correo vacío, no se enviará aviso.',
+          ),
+          if (correo != null) ...[
+            const SizedBox(height: 8),
+            Text(switch (estado) {
+              'enviado' => 'Correo aceptado por el servicio para su envío.',
+              'enviando' =>
+                'Envío en proceso. Actualiza para consultar el resultado.',
+              'revision_manual' =>
+                'Requiere revisión: ${correo['error'] ?? 'verifica el envío con el proveedor.'}',
+              _ => 'Correo pendiente de envío.',
+            }),
+            if (estado != 'enviado' && estado != 'revision_manual')
+              OutlinedButton.icon(
+                onPressed:
+                    f.ocupado || f.cambiado
+                        ? null
+                        : () => tarea(f, () => enviarCorreo(f)),
+                icon: const Icon(Icons.mark_email_read_outlined),
+                label: const Text('Reintentar correo'),
+              ),
+          ],
+          if (f.avisoCorreo != null) Text(f.avisoCorreo!),
+        ],
+      ),
+    );
+  }
+
   Widget campo(
     _Fila f,
     TextEditingController c,
@@ -613,6 +732,9 @@ class _TablaState extends ConsumerState<TablaEntregas> {
                                   3000,
                                   lineas: 2,
                                 ),
+                                if (f.estado == 'entregado' ||
+                                    f.d['correo'] != null)
+                                  notificacionComercial(f),
                               ],
                             ),
                           ),

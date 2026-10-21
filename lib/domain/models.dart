@@ -285,6 +285,7 @@ class Lote {
 /// Fila del kardex: línea de orden + saldos derivados de los movimientos.
 class ItemKardex {
   const ItemKardex({
+    this.stockInventario = 0,
     this.reservas = const {},
     this.eliminada = false,
     required this.item,
@@ -307,6 +308,9 @@ class ItemKardex {
   final int producido;
   final int recibido;
   final int despachado;
+
+  /// Existencias físicas apartadas de la OP como inventario (libres o reservadas).
+  final int stockInventario;
 
   /// Stock por ubicación (solo cantidades > 0).
   final Map<String, int> ubicaciones;
@@ -340,7 +344,7 @@ class ItemKardex {
   String get id => item.id;
   int get cantidadPedida => item.cantidadPedida;
 
-  int get stockDisponible => recibido - despachado;
+  int get stockDisponible => recibido - despachado - stockInventario;
   int get pendienteProduccion => math.max(0, cantidadPedida - producido);
   int get pendienteRecibir => math.max(0, cantidadPedida - recibido);
   int get excedente => math.max(0, recibido - cantidadPedida);

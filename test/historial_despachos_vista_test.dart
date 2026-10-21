@@ -3,6 +3,73 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orbiloq_wms/features/despacho/presentation/historial_despachos_vista.dart';
 
 void main() {
+  testWidgets(
+    'Historial incluye reservas y cancelaciones con sus movimientos',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HistorialDespachosVista(
+              filas: const [
+                {
+                  'despacho_oc_id': 'cancelada',
+                  'le_numero': 113,
+                  'fase': 'cancelado',
+                  'cantidad': 4,
+                  'cliente': 'Cliente',
+                  'oc': 'OC 1',
+                  'fecha': '2026-10-20T10:00:00Z',
+                  'eventos': [
+                    {
+                      'accion': 'Reserva cancelada',
+                      'actor': 'Administrador',
+                      'fecha': '2026-10-20T12:00:00Z',
+                      'detalle': 'Cambio de destino',
+                    },
+                    {
+                      'accion': 'Empaque confirmado',
+                      'actor': 'Empacador',
+                      'fecha': '2026-10-20T10:00:00Z',
+                      'detalle': '',
+                    },
+                  ],
+                },
+                {
+                  'despacho_oc_id': 'pendiente',
+                  'le_numero': 114,
+                  'fase': 'empacado',
+                  'cantidad': 2,
+                  'cliente': 'Cliente',
+                  'oc': 'OC 2',
+                  'fecha': '2026-10-20T11:00:00Z',
+                },
+              ],
+              entregas: const [],
+              pendientes: false,
+              onCorregir: (_) {},
+              onDocumento: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Cancelado'), findsOneWidget);
+      expect(find.text('Por liberar'), findsOneWidget);
+      expect(find.text('2 · 2 movimientos registrados'), findsOneWidget);
+      await tester.tap(find.text('LE N° 113'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reserva cancelada'), findsOneWidget);
+      expect(find.text('Cambio de destino'), findsOneWidget);
+      expect(find.text('Corregir despacho'), findsNothing);
+      expect(find.text('Lista de empaque PDF'), findsNothing);
+      await tester.enterText(find.byType(TextField), 'Cambio de destino');
+      await tester.pumpAndSettle();
+      expect(find.text('LE N° 113'), findsOneWidget);
+      expect(find.text('LE N° 114'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Distingue entregas sin cargar de cero y de una entrega real', (
     tester,
   ) async {

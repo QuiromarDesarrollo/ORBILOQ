@@ -1,3 +1,4 @@
+import 'excel_inventario.dart';
 import 'package:flutter/foundation.dart';
 import '../domain/models.dart';
 import 'excel_fechas_parser.dart';
@@ -11,3 +12,6 @@ Future<ArchivoKardex> leerKardexAsync(Uint8List bytes, Rol vista) =>
 
 ArchivoKardex _leerKardex((Uint8List, Rol) entrada) =>
     ExcelKardex.leer(entrada.$1, entrada.$2);
+
+Future<Map<String, dynamic>> leerInventarioAsync(Uint8List bytes) =>
+    compute(ExcelInventario.leer, bytes);

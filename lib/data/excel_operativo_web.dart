@@ -10,7 +10,7 @@ Future<Map> _leer(Uint8List bytes, String tipo, [String? vista]) async {
   final worker = web.Worker(
     Uri.parse(
       web.document.baseURI,
-    ).resolve('operativo_excel_worker.js?v=20261015-1').toString().toJS,
+    ).resolve('operativo_excel_worker.js?v=20261019-3').toString().toJS,
   );
   final resultado = Completer<Map>();
   void fallar(String mensaje) {
@@ -72,3 +72,6 @@ Future<ArchivoKardex> leerKardexAsync(Uint8List bytes, Rol vista) async {
     for (final r in dato['filas'] as List) Map<String, dynamic>.from(r as Map),
   ]);
 }
+
+Future<Map<String, dynamic>> leerInventarioAsync(Uint8List bytes) async =>
+    Map<String, dynamic>.from(await _leer(bytes, 'inventario'));

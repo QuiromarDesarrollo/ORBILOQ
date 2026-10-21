@@ -38,6 +38,7 @@ class WmsDialogShell extends StatefulWidget {
     this.footer,
     this.mobileCatalog = false,
     this.showHeaderIcon = true,
+    this.compactHeader = false,
     this.fullscreen = false,
     this.onToggleFullscreen,
   });
@@ -54,6 +55,7 @@ class WmsDialogShell extends StatefulWidget {
   final Widget? footer;
   final bool mobileCatalog;
   final bool showHeaderIcon;
+  final bool compactHeader;
   final bool fullscreen;
   final VoidCallback? onToggleFullscreen;
 
@@ -125,7 +127,9 @@ class _WmsDialogShellState extends State<WmsDialogShell> {
           ),
           child: Padding(
             padding: EdgeInsets.all(
-              MediaQuery.sizeOf(context).width < 600 ? 12 : 24,
+              widget.compactHeader || MediaQuery.sizeOf(context).width < 600
+                  ? 12
+                  : 24,
             ),
             child: Column(
               mainAxisSize:
@@ -200,15 +204,15 @@ class _WmsDialogShellState extends State<WmsDialogShell> {
                     ),
                   ],
                 ),
-                const Divider(),
-                const SizedBox(height: 8),
+                Divider(height: widget.compactHeader ? 12 : 16),
+                if (!widget.compactHeader) const SizedBox(height: 8),
                 if (compact)
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, c) {
                         if (!expand) return SingleChildScrollView(child: child);
                         // Keep toolbar and list reachable when the keyboard reduces height.
-                        if (c.maxHeight < 430) {
+                        if (c.maxHeight < (widget.compactHeader ? 300 : 430)) {
                           return SingleChildScrollView(
                             child: SizedBox(height: 430, child: child),
                           );

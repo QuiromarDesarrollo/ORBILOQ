@@ -24,11 +24,14 @@ import '../../no_conforme/presentation/no_conforme_dialog.dart';
 import '../../produccion/presentation/entrega_produccion_dialog.dart';
 import '../../recepcion/presentation/recepcion_dialog.dart';
 import '../../reproceso/presentation/reproceso_dialog.dart';
-import '../../sobrantes/presentation/sobrantes_dialog.dart';
 import '../../ubicaciones/presentation/ubicaciones_dialog.dart';
 import 'kardex_filters_bar.dart';
 import 'kardex_summary_cards.dart';
 import 'kardex_table.dart';
+import '../../inventario/presentation/inventario_page.dart';
+import '../../../core/inventario_entorno.dart';
+import '../../../core/conductor_entorno.dart';
+import '../../conductor/presentation/conductor_page.dart';
 
 class KardexPage extends ConsumerStatefulWidget {
   const KardexPage({super.key});
@@ -103,10 +106,10 @@ class _KardexPageState extends ConsumerState<KardexPage> {
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (v) {
-        if (v.startsWith('tema-')) {
-          ref
-              .read(temaProvider.notifier)
-              .seleccionar(TemaModo.values.byName(v.substring(5)));
+        if (v == 'conductor') {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const ConductorPage()),
+          );
         }
         if (v == 'sync') _sincronizar();
         if (v == 'salir') ref.read(authRepositoryProvider)?.cerrarSesion();
@@ -114,6 +117,12 @@ class _KardexPageState extends ConsumerState<KardexPage> {
       },
       itemBuilder:
           (_) => [
+            if (conductorHabilitado() &&
+                (admin || sesion?.tieneRol(RolCuenta.conductor) == true))
+              const PopupMenuItem(
+                value: 'conductor',
+                child: Text('Portal del conductor'),
+              ),
             PopupMenuItem<String>(
               enabled: false,
               child: Column(
@@ -130,17 +139,6 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                 ],
               ),
             ),
-            const PopupMenuDivider(),
-            const PopupMenuItem<String>(
-              enabled: false,
-              height: 28,
-              child: Text('Tema', style: TextStyle(fontSize: 11)),
-            ),
-            for (final tema in TemaModo.values)
-              PopupMenuItem(
-                value: 'tema-${tema.name}',
-                child: Text(SelectorTema.nombres[tema]!),
-              ),
             const PopupMenuDivider(),
             PopupMenuItem(
               value: 'sync',
@@ -222,6 +220,14 @@ class _KardexPageState extends ConsumerState<KardexPage> {
     final nav = palNavegacion(context);
     final usarSupabase = ref.watch(usarSupabaseProvider);
     final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
+    if (sesion?.tieneRol(RolCuenta.conductor) == true &&
+        sesion!.areas.isEmpty) {
+      return const Scaffold(
+        body: Center(
+          child: Text('Este perfil utiliza el portal del conductor.'),
+        ),
+      );
+    }
     if (sesion?.soloGerencia == true) {
       return const DashboardCatalogoPage();
     }
@@ -492,12 +498,12 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     onSelected: (v) {
-                      if (v.startsWith('tema-')) {
-                        ref
-                            .read(temaProvider.notifier)
-                            .seleccionar(
-                              TemaModo.values.byName(v.substring(5)),
-                            );
+                      if (v == 'conductor') {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const ConductorPage(),
+                          ),
+                        );
                       }
                       if (v == 'area' && puedeCambiarArea) _cambiarArea();
                       if (v == 'indicadores' &&
@@ -524,6 +530,14 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                     },
                     itemBuilder:
                         (_) => [
+                          if (conductorHabilitado() &&
+                              (esAdmin ||
+                                  sesion?.tieneRol(RolCuenta.conductor) ==
+                                      true))
+                            const PopupMenuItem(
+                              value: 'conductor',
+                              child: Text('Portal del conductor'),
+                            ),
                           PopupMenuItem<String>(
                             enabled: false,
                             child: Row(
@@ -571,11 +585,6 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                               child: Text('Indicadores de gestión'),
                             ),
                           const PopupMenuDivider(),
-                          for (final tema in TemaModo.values)
-                            PopupMenuItem(
-                              value: 'tema-${tema.name}',
-                              child: Text(SelectorTema.nombres[tema]!),
-                            ),
                           if (esAdmin) ...[
                             const PopupMenuItem(
                               value: 'ordenes',
@@ -1108,6 +1117,18 @@ class _AdminDrawer extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 children: [
                   seccion('CONFIGURACIÓN'),
+                  if (conductorHabilitado())
+                    _enlace(
+                      context,
+                      Icons.local_shipping_outlined,
+                      'Conductores · Pruebas',
+                      'Jornadas, vehículos y mantenimiento',
+                      () => Navigator.of(pageContext).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const ConductorPage(),
+                        ),
+                      ),
+                    ),
                   _enlace(
                     context,
                     Icons.manage_accounts_outlined,
@@ -1322,11 +1343,16 @@ class _Cabecera extends ConsumerWidget {
                   texto: 'Estantes y tickets',
                   onPressed: () => showUbicacionesDialog(context),
                 ),
-              if (rol == Rol.logistica)
+              if (rol == Rol.logistica && inventarioEnPruebas)
                 _BotonAccion(
-                  icono: Icons.add_box_outlined,
-                  texto: 'Bandeja de Sobrantes',
-                  onPressed: () => showSobrantesDialog(context),
+                  icono: Icons.inventory_2_outlined,
+                  texto: 'Inventario',
+                  onPressed:
+                      () => Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const InventarioPage(),
+                        ),
+                      ),
                 ),
             ],
           ],

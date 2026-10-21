@@ -400,3 +400,52 @@ Aplicar `099_opciones_admin_le.sql` en DEV después de 092. Agrega confirmación
 ### 100 — Puntualidad mensual de salida de bodega
 
 Aplicar `100_dashboard_puntualidad_mensual.sql` en DEV. RPC de solo lectura con `puede_ver_dashboards()`. Agrupa LE liberadas por mes de salida, compara con todas las fechas esperadas de Logística, informa datos incompletos y respeta cliente, período y lunes a viernes Bogotá. Ensayo: `tools/test_puntualidad_mensual.mjs`. Pendiente de ejecución remota.
+
+### 101 — Inventario por ficha técnica y cliente
+
+Aplicar completo `101_inventario_ficha.sql` únicamente en ORBILOQ-DEV, después de 094/095/097/099 y del flujo previo de empaque/seguimiento. Instala transferencias y reversiones inmutables, reservas vinculadas a LE, recepción con destino/split atómica, saldos paginados y aviso Realtime. Mantiene las existencias físicas originales y descuenta inventario de la disponibilidad de la OP. Una LE de inventario cancelada conserva su número y no puede salir ni imprimirse como salida. Facturación no hereda ID OC del pedido de origen para la nueva OC.
+
+**Estado:** validado en PostgreSQL local; aplicación remota pendiente. No ejecuta limpieza ni carga de datos de ejemplo y no debe ejecutarse en producción. El cliente `master` habilita el módulo solo contra el proyecto DEV. Instalar la migración antes de recargar los clientes de pruebas.
+
+Ensayo: PowerShell 7, `tools/ensayar_trazabilidad_op.ps1`; aplica 101 dos veces y ejecuta `tools/test_inventario.sql` con rollback de datos sintéticos. Incluye regresión del flujo existente de empaques, seguimiento y roles. El ensayo usa `.dart_tool/` y no se conecta a Supabase.
+
+### 102 — Orígenes visibles en inventario
+
+Aplicar después de 101, solo en ORBILOQ-DEV. Corrige la consulta de stock por OP para no ocultar existencias por falta de ficha, saldo reservado o estante inactivo. No modifica prendas, cantidades ni fichas. La transferencia conserva sus validaciones. Pendiente de aplicación remota; el ensayo local verifica visibilidad sin ficha y rechazo de la transferencia.
+
+### 103 · Consulta de inventario agrupada
+
+`103_inventario_consulta_agrupada.sql` reemplaza únicamente `inventario_listar`, con los mismos permisos, campos, filtros y paginación. Agrupa los saldos una vez antes de unirlos al kardex. Requiere 101; aplicar después de 102 en ORBILOQ-DEV. Ensayo local validado; pendiente aplicar en DEV. No ejecutar en producción.
+
+### 104 · Despacho de inventario con el asistente habitual
+
+Agrega `inventario_empacar_flujo`: una transferencia y varios empaques en una sola LE. Reutiliza el guardado habitual, valida ítem, cantidad libre y permisos de Despacho/Administrador; conserva idempotencia y reserva atómica. Requiere 101; aplicar tras 102/103 solo en ORBILOQ-DEV. Aplicación remota pendiente.
+
+### 105 · Entrada de inventario por Excel
+
+`105_inventario_excel.sql` agrega importaciones auditadas e idempotentes. Permite artículos de inventario sin `orden_id`, con restricción que mantiene una OP obligatoria para los artículos normales. No crea OP ni movimientos de producción. Las vistas del kardex de producción siguen excluyendo estos artículos por su unión con OP; Inventario los incorpora mediante sus saldos. Conserva la validación de cliente, stock y roles en despacho. La vista previa y confirmación requieren Bodega/Administrador; no crea estantes automáticamente. Aplicar tras 104 exclusivamente en DEV. Ensayo local incluye importación, archivo renombrado, agrupación, no creación de OP, reserva y salida. Aplicación remota pendiente.
+
+### 106 · Solo fichas ingresadas
+
+Reemplaza `inventario_listar` para excluir cliente/ficha sin entradas reales antes de buscar, contar y paginar. Conserva grupos ya reservados, despachados o revertidos aunque no tengan stock libre. Requiere 105; solo DEV. No modifica stock ni movimientos. Aplicación remota pendiente.
+
+### Inventario por talla (107, solo pruebas)
+
+`107_inventario_por_talla.sql` separa el listado por ficha técnica completa, cliente y talla. Solo aparecen combinaciones con entradas reales desde OP o Excel; conserva históricos sin stock libre. Cada fila muestra sus propias cantidades y el detalle/despacho filtra la talla antes de paginar. Aplicar después de 106 en ORBILOQ-DEV antes de usar la nueva interfaz; no modifica cantidades ni datos de producción.
+
+### 108 · Estante de destino al enviar a inventario
+
+El formulario permite elegir un estante activo y conserva el origen de la OP. La migración `108_inventario_estante_destino.sql` registra la ubicación de origen en un ledger privado e inmutable y actualiza los saldos por estante, sin generar recepciones ni despachos ficticios. La reversión libre devuelve las prendas al estante original; las reservas y salidas usan el destino. Roles: Bodega/Administrador. Aplicar después de 107 exclusivamente en ORBILOQ-DEV; aplicación remota pendiente.
+
+### 109 · Historial de transferencias a inventario
+
+Nueva pestaña Historial junto a Disponibles, tanto en Transferir desde OP como en A inventario de Recepción. Reutiliza HistorialAgrupado (búsqueda por OP, fechas, tarjetas desplegables y totales separados de transferencias/reversiones). Carga al abrir la pestaña y vuelve a consultar al entrar de nuevo; incluye fecha, cantidad, motivo, responsable y estantes de origen/destino. Solo Bodega/Administrador. Requiere aplicar `109_inventario_historial.sql` después de 108 en DEV; aplicación remota pendiente.
+
+Inventario: `110_inventario_eliminar_excel.sql` habilita eliminar una entrada Excel completa exclusivamente para administradores, con motivo obligatorio. Rechaza reservas, despachos y ajustes posteriores. Archiva una copia inmutable de la entrada y sus movimientos antes de retirar la recepción del stock; conserva la importación original y su protección contra cargas duplicadas. El botón aparece en el detalle de una entrada Excel. Aplicar únicamente en ORBILOQ-DEV después de las migraciones de inventario anteriores.
+
+Despacho múltiple de inventario: `111_inventario_despacho_multiple.sql` (solo DEV, después de 110) permite marcar varias fichas/tallas del mismo cliente, conservar la selección entre filtros y páginas y revisar cantidades antes del asistente habitual. Preparación FIFO por fecha e ID, limitada a estantes activos, sin reservar hasta confirmar el empaque. Una OC, un destinatario y una LE; las asignaciones por entrada comparten solicitud y LE con clave `(solicitud, transferencia)`. El servidor bloquea y valida todas las existencias, compara empaques por artículo y guarda atómicamente. Cancelar libera todos los orígenes; confirmar salida mantiene trazabilidad por transferencia. Se exige distribuir toda la cantidad seleccionada para conservar el reparto FIFO propuesto. Reintentos son idempotentes. Ensayo local incluye clientes distintos, insuficiencia, roles, rollback, reserva, cancelación y salida múltiple.
+
+Despacho mixto OP/Excel: `112_inventario_cliente_despacho_mixto.sql`, solo DEV después de 111. Corrige la comparación exacta del cliente en `despachar_oc` únicamente cuando existen asignaciones privadas de inventario para la solicitud, actor y artículo. Compara tanto el cliente del artículo como el de todas sus transferencias con `inventario_clave`; permite la OC de destino y conserva intacta la original. El despacho normal mantiene sus restricciones de cliente y OC. Distingue errores por cliente, OC y asignación manual ausente, indicando código y talla. La migración es transaccional, repetible y rechaza definiciones inesperadas. Aplicación remota pendiente; el ensayo reproduce OP con espacios/mayúsculas distintos más Excel, ambos órdenes de selección, reserva, reintento, cancelación, salida y rollback por fallo tardío.
+
+
+Historial completo de despacho: `113_historial_despacho_completo.sql`, solo DEV después de 112. La pestaña Historial incluye empacados, salidas y cancelados; Seguimiento conserva solo los pendientes. Añade eventos inmutables de empaque, corrección, OC/destinatario/contenido, cancelación, salida, emisión o cambio de documento, seguimiento (incluidas novedades/devoluciones/evidencias), facturación y ajustes administrativos. Los eventos guardan fecha real, responsable y snapshots antes/después; se revierten si falla la operación. La lectura usa la RPC existente y sus permisos, sin acceso directo al ledger. Las consultas/PDF descargados sin cambios no generan movimientos. Se recuperan estados previos y revisiones disponibles con títulos explícitos, sin inventar cambios que no se auditaban. La vista muestra el historial por LE, búsqueda en eventos y fechas, actualización y cantidades despachadas separadas de reservas/cancelaciones. Aplicación remota pendiente.

@@ -1,8 +1,12 @@
+import '../../inventario/presentation/inventario_page.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
+import 'dart:convert';
 import 'historial_recepcion_vista.dart';
 import '../../../shared/widgets/wms_scan_field.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import '../../../application/auth_providers.dart';
+import '../../../data/inventario_repository.dart';
+import '../../../data/despachos_oc_repository.dart';
 import '../../../shared/widgets/wms_camera_scanner.dart';
 import '../../../shared/widgets/historial_agrupado.dart';
 import '../../../shared/widgets/catalogo_ubicacion_dropdown.dart';
@@ -23,36 +27,70 @@ import '../../../shared/widgets/wms_dialog.dart';
 Future<void> showRecepcionDialog(BuildContext context) =>
     showWmsDialog<void>(context, (_) => const RecepcionDialog());
 
-class RecepcionDialog extends ConsumerWidget {
+class RecepcionDialog extends ConsumerStatefulWidget {
   const RecepcionDialog({super.key});
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecepcionDialog> createState() => _RecepcionDialogState();
+}
+
+class _RecepcionDialogState extends ConsumerState<RecepcionDialog> {
+  bool _enEdicion = false;
+  @override
+  Widget build(BuildContext context) {
+    final conInventario = ref.watch(inventarioRepositoryProvider) != null;
     return WmsDialogShell(
       title: 'Recepción y novedades',
       subtitle: 'Recibe: ${ref.watch(nombreOperarioProvider)}',
       mobileCatalog: true,
+      compactHeader: true,
+      showHeaderIcon: true,
       icon: Icons.move_to_inbox,
       iconColor: AppColors.primaryNavy,
       expand: true,
       maxWidth: 1000,
       child: DefaultTabController(
-        length: 2,
+        length: conInventario ? 3 : 2,
         child: Column(
           children: [
-            const TabBar(
-              isScrollable: false,
-              labelColor: AppColors.primaryNavy,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: AppColors.primaryNavy,
-              labelPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-              labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-              unselectedLabelStyle: TextStyle(fontSize: 11),
-              tabs: [Tab(text: 'Pendientes'), Tab(text: 'Historial')],
-            ),
-            const SizedBox(height: 8),
-            const Expanded(
-              child: TabBarView(children: [_PendientesTab(), _HistorialTab()]),
+            if (!_enEdicion)
+              TabBar(
+                isScrollable: false,
+                labelColor: AppColors.primaryNavy,
+                unselectedLabelColor: Colors.grey,
+                indicator: const UnderlineTabIndicator(
+                  borderSide: BorderSide(color: Color(0xFFC8DB00), width: 3),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelPadding: EdgeInsets.symmetric(horizontal: 12),
+                labelStyle: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                unselectedLabelStyle: TextStyle(fontSize: 14),
+                tabs: [
+                  const Tab(height: 36, text: 'Pendientes'),
+                  if (conInventario)
+                    const Tab(height: 36, text: 'A inventario'),
+                  Tab(height: 36, text: 'Historial'),
+                ],
+              ),
+            if (!_enEdicion) const SizedBox(height: 8),
+            Expanded(
+              child: TabBarView(
+                physics:
+                    _enEdicion ? const NeverScrollableScrollPhysics() : null,
+                children: [
+                  _PendientesTab(
+                    onEdicion: (valor) {
+                      if (mounted && _enEdicion != valor) {
+                        setState(() => _enEdicion = valor);
+                      }
+                    },
+                  ),
+                  if (conInventario) const TransferirInventarioTab(),
+                  const _HistorialTab(),
+                ],
+              ),
             ),
           ],
         ),
@@ -69,7 +107,8 @@ extension _FirstOrNull<T> on Iterable<T> {
 // (flujo actual, sin cambios de comportamiento — solo se agrega "Recibido por")
 
 class _PendientesTab extends ConsumerStatefulWidget {
-  const _PendientesTab();
+  const _PendientesTab({required this.onEdicion});
+  final ValueChanged<bool> onEdicion;
 
   @override
   ConsumerState<_PendientesTab> createState() => _PendientesTabState();
@@ -82,6 +121,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   final _scrollController = ScrollController();
   final _cantidadCtrl = TextEditingController();
   final _notaCtrl = TextEditingController();
+  String? _solicitudRecepcion, _pedidoRecepcion;
 
   /// Ids de línea que se han escaneado/buscado, más reciente primero — así
   /// se arma el orden "la última que pistoleaste sube al tope".
@@ -100,6 +140,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   String? get _recibidoPor => ref.read(nombreOperarioProvider);
 
   bool _confirmando = false;
+  bool _notificoEdicion = false;
   FeedbackMessage? _msg;
 
   @override
@@ -308,6 +349,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
       return;
     }
     final repo = ref.read(wmsRepositoryProvider);
+    final inventario = ref.read(inventarioRepositoryProvider);
     final plan = grupo.distribuir(cantidad);
     final ubicacion = _ubicacion,
         operario = _recibidoPor!,
@@ -319,22 +361,48 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     var recibidas = 0;
     String? error;
     try {
-      for (final parte in plan) {
-        final res = await repo.recibirLoteLinea(
-          loteLineaId: parte.lineaId,
-          cantidad: parte.cantidad,
-          ubicacion: ubicacion,
-          recibidoPor: operario,
-          nota: nota,
-        );
-        if (res case Err(:final message)) {
-          error = message;
-          break;
+      if (inventario != null) {
+        final parametros = <String, dynamic>{
+          'p_plan': [
+            for (final parte in plan)
+              {'linea': parte.lineaId, 'cantidad': parte.cantidad},
+          ],
+          'p_ubicacion': ubicacion,
+          'p_recibido_por': operario,
+          'p_nota': nota,
+          'p_inventario': 0,
+        };
+        final firma = jsonEncode(parametros);
+        if (_pedidoRecepcion != firma) {
+          _pedidoRecepcion = firma;
+          _solicitudRecepcion = nuevaSolicitudDespacho();
         }
-        recibidas += parte.cantidad;
+        await inventario.ejecutar('inventario_recibir', {
+          ...parametros,
+          'p_solicitud': _solicitudRecepcion,
+        });
+        recibidas = cantidad;
+        await repo.refrescar();
+        _pedidoRecepcion = null;
+        _solicitudRecepcion = null;
+      } else {
+        for (final parte in plan) {
+          final res = await repo.recibirLoteLinea(
+            loteLineaId: parte.lineaId,
+            cantidad: parte.cantidad,
+            ubicacion: ubicacion,
+            recibidoPor: operario,
+            nota: nota,
+          );
+          if (res case Err(:final message)) {
+            error = message;
+            break;
+          }
+          recibidas += parte.cantidad;
+        }
       }
     } catch (e) {
-      error = 'No se pudo confirmar la respuesta del servidor.';
+      error = 'No se pudo completar o confirmar la recepción: $e';
     }
     if (error != null) {
       try {
@@ -344,8 +412,10 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     if (!mounted) return;
     setState(() {
       _confirmando = false;
-      _cantidadCtrl.text = '0';
-      _lineaAbiertaId = null;
+      if (error == null) {
+        _cantidadCtrl.text = '0';
+        _lineaAbiertaId = null;
+      }
       for (final e in grupo.lineas) {
         _conteos.remove(e.linea.id);
         _ordenManual.remove(e.linea.id);
@@ -418,83 +488,6 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
     });
   }
 
-  Future<void> _reportarSobrante(LoteLinea linea) async {
-    final ctrlCantidad = TextEditingController();
-    final ctrlNota = TextEditingController();
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder:
-          (dialogContext) => WmsExpandableAlertDialog(
-            title: const Text('Reportar sobrante'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '¿Cuántas unidades de más llegaron de ${linea.item.descripcion} (${linea.item.talla})?',
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: ctrlCantidad,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: wmsInput('Cantidad de sobra'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: ctrlNota,
-                  decoration: wmsInput('Nota (opcional)'),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('CANCELAR'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('REGISTRAR'),
-              ),
-            ],
-          ),
-    );
-    if (confirmado != true) return;
-    final cantidad = int.tryParse(ctrlCantidad.text.trim());
-    if (cantidad == null || cantidad <= 0) {
-      if (!mounted) return;
-      setState(
-        () =>
-            _msg = const FeedbackMessage.error(
-              'Ingresa una cantidad de sobrante mayor a 0.',
-            ),
-      );
-      return;
-    }
-    if (!mounted) return;
-
-    final res = await ref
-        .read(wmsRepositoryProvider)
-        .registrarSobrante(
-          itemId: linea.item.id,
-          loteLineaId: linea.id,
-          cantidad: cantidad,
-          operario: _recibidoPor ?? '',
-          nota: ctrlNota.text,
-        );
-    if (!mounted) return;
-    setState(() {
-      switch (res) {
-        case Ok():
-          _msg = FeedbackMessage.ok(
-            '$cantidad Uds de sobrante registradas — revísalas en la Bandeja de Sobrantes.',
-          );
-        case Err(:final message):
-          _msg = FeedbackMessage.error(message);
-      }
-    });
-  }
-
   Future<void> _camara() => showDialog<void>(
     context: context,
     builder: (_) => WmsCameraScanner(onRead: _leerCamara),
@@ -535,7 +528,13 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
         pendientes
             .where((g) => g.lineas.any((e) => e.linea.id == _lineaAbiertaId))
             .firstOrNull;
-    final enfocado = mobile && activo != null;
+    final enfocado = activo != null;
+    if (_notificoEdicion != enfocado) {
+      _notificoEdicion = enfocado;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onEdicion(enfocado);
+      });
+    }
     final visibles = enfocado ? [activo] : pendientes;
     return Stack(
       children: [
@@ -549,7 +548,16 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                 child: TextButton.icon(
                   onPressed: () => setState(() => _lineaAbiertaId = null),
                   icon: const Icon(Icons.arrow_back, size: 18),
-                  label: const Text('Validar entrega · Volver'),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                  ),
+                  label: const Text('Volver a entregas'),
                 ),
               )
             else ...[
@@ -597,10 +605,49 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Text(
-                  'Por recibir · ${pendientes.length} entregas · ${pendientes.fold<int>(0, (n, g) => n + g.cantidadPendiente)} uds',
-                  style: const TextStyle(fontSize: 12),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    for (final dato in [
+                      ('Entregas por recibir', pendientes.length),
+                      (
+                        'Unidades pendientes',
+                        pendientes.fold<int>(
+                          0,
+                          (n, g) => n + g.cantidadPendiente,
+                        ),
+                      ),
+                    ])
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7F9FA),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                dato.$1,
+                                style: const TextStyle(
+                                  color: Colors.blueGrey,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                '${dato.$2}',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -638,15 +685,13 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
                             onConfirmar: () => _confirmar(grupo),
                             onCerrarConFaltante:
                                 () => _cerrarConFaltante(grupo),
-                            onReportarSobrante:
-                                () => _reportarSobrante(e.linea),
                           );
                         },
                       ),
             ),
             if (enfocado)
               Padding(
-                padding: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.only(top: 4),
                 child: _AccionRecepcion(
                   cantidad: _cantidadCtrl,
                   pendiente: activo.cantidadPendiente,
@@ -684,7 +729,6 @@ class _TarjetaLinea extends StatelessWidget {
     required this.onUbicacion,
     required this.onConfirmar,
     required this.onCerrarConFaltante,
-    required this.onReportarSobrante,
   });
 
   final GrupoRecepcionPendiente grupo;
@@ -699,247 +743,390 @@ class _TarjetaLinea extends StatelessWidget {
   final ValueChanged<String> onUbicacion;
   final VoidCallback onConfirmar;
   final VoidCallback onCerrarConFaltante;
-  final VoidCallback onReportarSobrante;
 
   @override
   Widget build(BuildContext context) {
-    final mobile = MediaQuery.sizeOf(context).width < 600;
-    void ajustar(int delta) {
-      cantidadCtrl.text =
-          ((int.tryParse(cantidadCtrl.text) ?? 0) + delta)
-              .clamp(0, grupo.cantidadPendiente)
-              .toString();
-    }
-
-    final cantidad = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Cantidad que llegó · máx. ${grupo.cantidadPendiente}',
-          style: const TextStyle(fontSize: 11),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            IconButton.outlined(
-              tooltip: 'Reducir cantidad',
-              onPressed: () => ajustar(-1),
-              icon: const Icon(Icons.remove, size: 16),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: TextField(
-                controller: cantidadCtrl,
-                textAlign: TextAlign.center,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  _MaxValorFormatter(grupo.cantidadPendiente),
-                ],
-                decoration: const InputDecoration(
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 12,
-                  ),
-                ),
+    final compacto = MediaQuery.sizeOf(context).height < 700;
+    const navy = Color(0xFF14354A);
+    const muted = Color(0xFF647F94);
+    final secondary = OutlinedButton.styleFrom(
+      backgroundColor: Colors.white,
+      foregroundColor: navy,
+      side: const BorderSide(color: Color(0xFFCCDCE6)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    );
+    void ajustar(int delta) =>
+        cantidadCtrl.text =
+            ((int.tryParse(cantidadCtrl.text) ?? 0) + delta)
+                .clamp(0, grupo.cantidadPendiente)
+                .toString();
+    Widget badge(String texto, Color fondo, Color color, {IconData? icon}) =>
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: fondo,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: color),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                texto,
+                style: TextStyle(color: color, fontWeight: FontWeight.w600),
               ),
+            ],
+          ),
+        );
+    final control = Row(
+      children: [
+        IconButton.outlined(
+          tooltip: 'Reducir cantidad',
+          style: secondary.copyWith(
+            fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
+            minimumSize: const WidgetStatePropertyAll(Size(40, 40)),
+            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+          ),
+          onPressed: () => ajustar(-1),
+          icon: const Icon(Icons.remove, size: 18),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: TextField(
+            controller: cantidadCtrl,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 12),
             ),
-            const SizedBox(width: 4),
-            IconButton.outlined(
-              tooltip: 'Aumentar cantidad',
-              onPressed: () => ajustar(1),
-              icon: const Icon(Icons.add, size: 16),
-            ),
-            TextButton(
-              onPressed: () => cantidadCtrl.text = '${grupo.cantidadPendiente}',
-              child: const Text('Todo'),
-            ),
-          ],
+          ),
+        ),
+        const SizedBox(width: 4),
+        IconButton.outlined(
+          tooltip: 'Aumentar cantidad',
+          style: secondary.copyWith(
+            fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
+            minimumSize: const WidgetStatePropertyAll(Size(40, 40)),
+            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+          ),
+          onPressed: () => ajustar(1),
+          icon: const Icon(Icons.add, size: 18),
         ),
       ],
     );
-    final estante = CatalogoUbicacionDropdown(
-      label: 'Estante donde queda *',
-      value: ubicacion,
-      onChanged: onUbicacion,
-    );
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      color: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: abierta ? AppColors.primaryNavy : const Color(0xFFDCE6EC),
+    final todo = OutlinedButton(
+      style: secondary.copyWith(
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         ),
+        minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
+        foregroundColor: const WidgetStatePropertyAll(Color(0xFF16714C)),
+        backgroundColor: const WidgetStatePropertyAll(Color(0xFFF2F9F5)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      onPressed: () => cantidadCtrl.text = '${grupo.cantidadPendiente}',
+      child: const Text('Recibir todo', style: TextStyle(fontSize: 12)),
+    );
+    final cantidad = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          spacing: 8,
+          runSpacing: 2,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
+            const Text(
+              'Cantidad a recibir',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: navy,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              'Máximo: ${grupo.cantidadPendiente}',
+              style: const TextStyle(fontSize: 12, color: muted),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder:
+              (context, c) =>
+                  c.maxWidth < 280
+                      ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [control, const SizedBox(height: 6), todo],
+                      )
+                      : Row(
                         children: [
-                          Text(
-                            'OP ${linea.item.op}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                          Text(
-                            'Talla ${linea.item.talla}',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          if (linea.esReproceso)
-                            const Text(
-                              'Reprocesado',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFF9E6400),
-                              ),
-                            ),
+                          Expanded(child: control),
+                          const SizedBox(width: 8),
+                          todo,
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        linea.item.descripcion,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        linea.item.oc,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.blueGrey,
-                        ),
-                      ),
-                      if (grupo.cantidadRecibida > 0)
-                        Text(
-                          'Ya recibidas: ${grupo.cantidadRecibida}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.blueGrey,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
+        ),
+      ],
+    );
+    final estante = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Estante de destino *',
+          style: TextStyle(fontWeight: FontWeight.w600, color: navy),
+        ),
+        const SizedBox(height: 6),
+        CatalogoUbicacionDropdown(
+          label: 'Estante',
+          value: ubicacion,
+          onChanged: onUbicacion,
+        ),
+      ],
+    );
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDCE6EC)),
+        boxShadow: [
+          if (abierta)
+            const BoxShadow(
+              color: Color(0x0C14354A),
+              blurRadius: 18,
+              offset: Offset(0, 6),
+            ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.all(compacto ? 10 : 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${grupo.cantidadPendiente}',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (abierta && !compacto)
+                            const Text(
+                              'RECEPCIÓN DE PRODUCCIÓN',
+                              style: TextStyle(
+                                letterSpacing: 1.5,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: muted,
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 14,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                'OP ${linea.item.op}',
+                                style: TextStyle(
+                                  fontSize: abierta ? 24 : 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: navy,
+                                ),
+                              ),
+                              badge(
+                                'Talla ${linea.item.talla}',
+                                const Color(0xFFEAF2F8),
+                                muted,
+                              ),
+                              if (linea.esReproceso)
+                                badge(
+                                  'Reprocesado',
+                                  const Color(0xFFFFF2D1),
+                                  const Color(0xFF996000),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            linea.item.descripcion,
+                            style: const TextStyle(fontSize: 13, color: navy),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            linea.item.oc,
+                            style: const TextStyle(color: muted, fontSize: 13),
+                          ),
+                        ],
                       ),
                     ),
-                    const Text(
-                      'pendientes',
-                      style: TextStyle(fontSize: 10, color: Colors.blueGrey),
+                    if (abierta)
+                      IconButton(
+                        tooltip: 'Cerrar',
+                        onPressed: onCerrar,
+                        icon: const Icon(Icons.close, color: muted),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    badge(
+                      '${grupo.cantidadRecibida} recibidas',
+                      Colors.white,
+                      navy,
+                      icon: Icons.inventory_2_outlined,
+                    ),
+                    badge(
+                      '${grupo.cantidadPendiente} pendientes',
+                      const Color(0xFFFFF2CF),
+                      const Color(0xFFA76500),
+                      icon: Icons.schedule,
                     ),
                   ],
                 ),
-                if (abierta && !mobile)
-                  IconButton(
-                    tooltip: 'Cerrar',
-                    onPressed: onCerrar,
-                    icon: const Icon(Icons.close, size: 18),
+                if (!abierta) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Avance de recepción',
+                          style: TextStyle(color: muted),
+                        ),
+                      ),
+                      Text(
+                        '${grupo.cantidadRecibida} de ${grupo.cantidadRecibida + grupo.cantidadPendiente} uds',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value:
+                        grupo.cantidadRecibida /
+                        (grupo.cantidadRecibida + grupo.cantidadPendiente),
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(6),
+                    color: const Color(0xFF1B7550),
+                    backgroundColor: const Color(0xFFF1F4F5),
+                  ),
+                  const Divider(height: 28),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        style: secondary,
+                        onPressed: onValidar,
+                        icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                        label: const Text('Reportar novedad'),
+                      ),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF0B2C3C),
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: onValidar,
+                        icon: const Icon(Icons.fact_check_outlined, size: 18),
+                        label: const Text('Validar recepción'),
+                      ),
+                    ],
+                  ),
+                ],
+                if (abierta) ...[
+                  const Divider(height: 12, color: Color(0xFFDCE6EC)),
+                  if (linea.esReproceso)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text('Vuelve corregida de producto no conforme.'),
+                    ),
+                  LayoutBuilder(
+                    builder:
+                        (context, c) =>
+                            c.maxWidth < 650
+                                ? Column(
+                                  children: [
+                                    estante,
+                                    const SizedBox(height: 8),
+                                    cantidad,
+                                  ],
+                                )
+                                : Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(flex: 1, child: estante),
+                                    const SizedBox(width: 24),
+                                    Expanded(flex: 1, child: cantidad),
+                                  ],
+                                ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text(
+                        'Novedad para Producción',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: navy,
+                        ),
+                      ),
+                      const Text(
+                        'Opcional',
+                        style: TextStyle(fontSize: 12, color: muted),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: notaCtrl,
+                    decoration: const InputDecoration(
+                      hintText: 'Escribe una observación, si aplica...',
+                      prefixIcon: Icon(Icons.chat_bubble_outline),
+                      isDense: true,
+                    ),
+                  ),
+                  const Divider(height: 12, color: Color(0xFFDCE6EC)),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 10,
+                    children: [
+                      if (grupo.cantidadRecibida > 0)
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: AppColors.alertRed,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                          ),
+                          onPressed: onCerrarConFaltante,
+                          icon: const Icon(Icons.block, size: 20),
+                          label: const Text('Cerrar con faltante'),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
-            if (!abierta) ...[
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: onValidar,
-                icon: const Icon(Icons.check, size: 16),
-                label: const Text('Validar'),
-              ),
-            ],
-            if (abierta) ...[
-              const Divider(height: 24),
-              if (linea.esReproceso)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    'Vuelve corregida de producto no conforme.',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF9E6400)),
-                  ),
-                ),
-              LayoutBuilder(
-                builder:
-                    (context, c) =>
-                        c.maxWidth < 600
-                            ? Column(
-                              children: [
-                                estante,
-                                const SizedBox(height: 14),
-                                cantidad,
-                              ],
-                            )
-                            : Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Expanded(child: estante),
-                                const SizedBox(width: 16),
-                                SizedBox(width: 245, child: cantidad),
-                              ],
-                            ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: notaCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Novedad para Producción · opcional',
-                  hintText: 'Ej.: llegaron 2 cajas abiertas',
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: onReportarSobrante,
-                icon: const Icon(Icons.add_box_outlined, size: 16),
-                label: const Text(
-                  '¿Llegó de más? Reportar sobrante',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              if (grupo.cantidadRecibida > 0)
-                TextButton.icon(
-                  onPressed: onCerrarConFaltante,
-                  icon: const Icon(
-                    Icons.block,
-                    size: 16,
-                    color: AppColors.alertRed,
-                  ),
-                  label: const Text(
-                    'Cerrar con faltante',
-                    style: TextStyle(color: AppColors.alertRed),
-                  ),
-                ),
-              if (!mobile)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: _AccionRecepcion(
-                    cantidad: cantidadCtrl,
-                    pendiente: grupo.cantidadPendiente,
-                    ubicacion: ubicacion,
-                    confirmar: onConfirmar,
-                  ),
-                ),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -961,48 +1148,79 @@ class _AccionRecepcion extends StatelessWidget {
     animation: cantidad,
     builder: (_, __) {
       final n = int.tryParse(cantidad.text) ?? 0;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      final valido = n > 0 && n <= pendiente;
+      final completo = valido && n == pendiente;
+      final resumen = Row(
         children: [
-          Text(
-            'Quedan ${(pendiente - n).clamp(0, pendiente)} pendientes de esta entrega',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
+          Icon(
+            completo ? Icons.check_circle : Icons.info_outline,
+            color: const Color(0xFF18774F),
+            size: 28,
           ),
-          const SizedBox(height: 6),
-          FilledButton.icon(
-            onPressed: confirmar,
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF1B7048),
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.check_circle_outline, size: 18),
-            label: Text(
-              'Recibir $n${ubicacion.isEmpty ? '' : ' en $ubicacion'}',
-              textAlign: TextAlign.center,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  n > pendiente
+                      ? 'La cantidad supera el pendiente'
+                      : n < 0
+                      ? 'Ingresa una cantidad válida'
+                      : completo
+                      ? 'Con esta recepción no quedan unidades pendientes.'
+                      : 'Quedan ${pendiente - n} pendientes de esta entrega',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF14354A),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Destino: ${ubicacion.isEmpty ? 'Selecciona un estante' : ubicacion}',
+                  style: const TextStyle(color: Colors.blueGrey, fontSize: 12),
+                ),
+              ],
             ),
           ),
         ],
       );
+      final boton = FilledButton.icon(
+        onPressed: valido ? confirmar : null,
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF18724D),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        ),
+        icon: const Icon(Icons.check_circle),
+        label: Text(
+          'Confirmar recepción · $n unidades',
+          textAlign: TextAlign.center,
+        ),
+      );
+      return Container(
+        color: const Color(0xFFF0F8F3),
+        padding: const EdgeInsets.all(12),
+        child: LayoutBuilder(
+          builder:
+              (context, c) =>
+                  c.maxWidth < 650
+                      ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [resumen, const SizedBox(height: 8), boton],
+                      )
+                      : Row(
+                        children: [
+                          Expanded(child: resumen),
+                          const SizedBox(width: 20),
+                          boton,
+                        ],
+                      ),
+        ),
+      );
     },
   );
-}
-
-/// Impide que el campo acepte un número mayor al máximo permitido.
-class _MaxValorFormatter extends TextInputFormatter {
-  _MaxValorFormatter(this.maximo);
-  final int maximo;
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.isEmpty) return newValue;
-    final valor = int.tryParse(newValue.text);
-    if (valor == null || valor > maximo) return oldValue;
-    return newValue;
-  }
 }
 
 // ==================================================== pestaña 2: historial

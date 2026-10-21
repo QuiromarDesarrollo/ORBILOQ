@@ -1,0 +1,30 @@
+{
+  "baseline_fecha": "2026-10-15T22:32:25.880602+00:00",
+  "fuentes": [
+    {
+      "fuente": "sql/pruebas/095_admin_destinatarios.sql",
+      "sha256": "2be1a06a43795e32393f654b4c9a2c696650925192e12ec4930e672294c4d37a"
+    },
+    {
+      "fuente": "sql/pruebas/096_entregado_con_novedad_dashboard.sql",
+      "sha256": "1042d57aac5c19fde96724d3212a7883b25feec35de623254edf2ded1b5b1709"
+    },
+    {
+      "fuente": "sql/pruebas/097_facturacion_le.sql",
+      "sha256": "1439667573510a56e06b39f46834beae00e02945bdd7afcd2bd6dafefb924a72"
+    },
+    {
+      "fuente": "sql/pruebas/098_dashboard_facturacion_semanal.sql",
+      "sha256": "4eb2f0be77f40565001f065c15631ca23f5d6187d22b270608fc57a074a77004"
+    },
+    {
+      "fuente": "sql/pruebas/099_opciones_admin_le.sql",
+      "sha256": "61a224291db533503e023f511088dc18691c049f7b2bd9c736cf0eade7e9d4cf"
+    },
+    {
+      "fuente": "sql/pruebas/100_dashboard_puntualidad_mensual.sql",
+      "sha256": "ff22e753d958ee929fe6a93cdaa7c61eea7c3f6b3db4a8978ebf767be337a824"
+    }
+  ],
+  "sql_sha256": "2cd3ba453b1628c704baa029a4eafd3faaba9f4082846076d357e00313df2a89"
+}

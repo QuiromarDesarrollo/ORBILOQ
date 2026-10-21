@@ -7,6 +7,7 @@ const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE
 const comprobar = (res: { data: any; error: any }) => { if (res.error) throw res.error; return res.data; };
 
 Deno.serve(crearHandler({
+  permitirConductor: new URL(Deno.env.get('SUPABASE_URL')!).hostname === 'igfuafcekcpugpmsoqbe.supabase.co',
   async identificar(token: string) {
     const { data, error } = await admin.auth.getUser(token);
     return error ? null : data.user?.id;

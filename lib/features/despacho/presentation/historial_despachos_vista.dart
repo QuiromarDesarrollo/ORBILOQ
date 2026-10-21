@@ -14,11 +14,13 @@ class HistorialDespachosVista extends StatefulWidget {
     required this.onCorregir,
     required this.onDocumento,
     this.ocupado = false,
+    this.onActualizar,
     this.mostrarEntregadas = true,
   });
   final List<Map<String, dynamic>> filas;
   final List<Map<String, dynamic>>? entregas;
   final bool mostrarEntregadas;
+  final VoidCallback? onActualizar;
   final bool pendientes, ocupado;
   final ValueChanged<String>? onCorregir, onDocumento;
   @override
@@ -35,8 +37,17 @@ class _VistaState extends State<HistorialDespachosVista> {
   String id(Map f) => '${f['despacho_oc_id'] ?? f['registro']}';
   int cantidad(Iterable<Map<String, dynamic>> filas) =>
       filas.fold(0, (n, f) => n + ((f['cantidad'] as num?)?.toInt() ?? 0));
+  String ultimaFecha(Map<String, dynamic> f) {
+    final eventos = (f['eventos'] as List? ?? []).whereType<Map>();
+    return eventos.isEmpty
+        ? '${f['fecha'] ?? ''}'
+        : '${eventos.first['fecha']}';
+  }
+
   String estado(String clave) {
-    if (widget.pendientes) return 'Por liberar';
+    final fase = widget.filas.where((f) => id(f) == clave).firstOrNull?['fase'];
+    if (fase == 'cancelado') return 'Cancelado';
+    if (widget.pendientes || fase == 'empacado') return 'Por liberar';
     final e = widget.entregas?.where((e) => '${e['id']}' == clave).firstOrNull;
     return switch (e?['estado']) {
       'entregado' => 'Entregado',
@@ -115,25 +126,47 @@ class _VistaState extends State<HistorialDespachosVista> {
         grupos.entries
             .where(
               (g) => g.value.any((f) {
-                final fecha = DateTime.tryParse('${f['fecha']}')?.toLocal();
-                return '${f['le_numero'] ?? ''} ${f['oc_documento'] ?? ''} ${f['oc']} ${f['op']} ${f['cliente']}'
+                final fechas =
+                    [
+                          f['fecha'],
+                          for (final e
+                              in (f['eventos'] as List? ?? []).whereType<Map>())
+                            e['fecha'],
+                        ]
+                        .map((v) => DateTime.tryParse('$v')?.toLocal())
+                        .whereType<DateTime>();
+                return '${f['le_numero'] ?? ''} ${f['oc_documento'] ?? ''} ${f['oc']} ${f['op']} ${f['cliente']} ${f['eventos'] ?? ''}'
                         .toLowerCase()
                         .contains(buscar) &&
                     (rango == null ||
-                        fecha != null &&
-                            !fecha.isBefore(rango!.start) &&
-                            fecha.isBefore(
-                              rango!.end.add(const Duration(days: 1)),
-                            ));
+                        fechas.any(
+                          (fecha) =>
+                              !fecha.isBefore(rango!.start) &&
+                              fecha.isBefore(
+                                rango!.end.add(const Duration(days: 1)),
+                              ),
+                        ));
               }),
             )
             .toList()
           ..sort(
-            (a, b) => '${b.value.first['fecha']}'.compareTo(
-              '${a.value.first['fecha']}',
-            ),
+            (a, b) => ultimaFecha(
+              b.value.first,
+            ).compareTo(ultimaFecha(a.value.first)),
           );
-    final total = cantidad(visibles.expand((g) => g.value));
+    final total = cantidad(
+      visibles
+          .expand((g) => g.value)
+          .where(
+            (f) =>
+                widget.pendientes ||
+                (f['fase'] != 'empacado' && f['fase'] != 'cancelado'),
+          ),
+    );
+    final eventos = visibles.fold<int>(
+      0,
+      (n, g) => n + ((g.value.first['eventos'] as List?)?.length ?? 0),
+    );
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 12),
       children: [
@@ -150,6 +183,12 @@ class _VistaState extends State<HistorialDespachosVista> {
             final fecha = Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                if (widget.onActualizar != null)
+                  IconButton(
+                    tooltip: 'Actualizar historial',
+                    onPressed: widget.onActualizar,
+                    icon: const Icon(Icons.refresh),
+                  ),
                 OutlinedButton.icon(
                   onPressed: fechas,
                   icon: const Icon(Icons.calendar_today_outlined, size: 16),
@@ -200,7 +239,7 @@ class _VistaState extends State<HistorialDespachosVista> {
                       ('Prendas despachadas', '$total'),
                       (
                         'Listas de empaque',
-                        '${visibles.length} · ${visibles.expand((g) => g.value).length} movimientos',
+                        '${visibles.length} · $eventos movimientos registrados',
                       ),
                       if (widget.mostrarEntregadas)
                         (
@@ -448,6 +487,47 @@ class _VistaState extends State<HistorialDespachosVista> {
                             ),
                       ),
                     const SizedBox(height: 10),
+                    if (!widget.pendientes) ...[
+                      const Text(
+                        'Movimientos del despacho',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: navy,
+                        ),
+                      ),
+                      if ((f['eventos'] as List? ?? []).isEmpty)
+                        const Text(
+                          'No hay movimientos detallados disponibles para este registro.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      for (final evento
+                          in (f['eventos'] as List? ?? []).whereType<Map>())
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${evento['accion']}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                '${formatFechaHora(DateTime.tryParse('${evento['fecha']}')?.toLocal())} · ${evento['actor'] ?? 'Sin registrar'}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              if ('${evento['detalle'] ?? ''}'.isNotEmpty)
+                                Text(
+                                  '${evento['detalle']}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                    const SizedBox(height: 10),
                     if (widget.pendientes)
                       const Text(
                         'Las prendas siguen en bodega hasta que confirmes la salida.',
@@ -458,7 +538,8 @@ class _VistaState extends State<HistorialDespachosVista> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        if (f['despacho_oc_id'] != null &&
+                        if (f['fase'] != 'cancelado' &&
+                            f['despacho_oc_id'] != null &&
                             widget.onCorregir != null)
                           OutlinedButton.icon(
                             onPressed:
@@ -468,7 +549,8 @@ class _VistaState extends State<HistorialDespachosVista> {
                             icon: const Icon(Icons.edit_outlined, size: 16),
                             label: const Text('Corregir despacho'),
                           ),
-                        if (f['despacho_oc_id'] != null &&
+                        if (f['fase'] != 'cancelado' &&
+                            f['despacho_oc_id'] != null &&
                             widget.onDocumento != null)
                           FilledButton.icon(
                             style: FilledButton.styleFrom(
@@ -483,6 +565,8 @@ class _VistaState extends State<HistorialDespachosVista> {
                             label: Text(
                               widget.pendientes
                                   ? 'Confirmar salida'
+                                  : f['fase'] == 'empacado'
+                                  ? 'Ver empaque'
                                   : 'Lista de empaque PDF',
                             ),
                           ),
