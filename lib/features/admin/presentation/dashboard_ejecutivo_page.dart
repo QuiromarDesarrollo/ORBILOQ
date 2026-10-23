@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/bienvenida_usuario.dart';
 import '../../../application/dashboard_despachos_mensuales.dart';
 import '../../../shared/widgets/selector_tema.dart';
 import '../../../application/dashboard_periodo.dart';
@@ -281,6 +282,7 @@ class _DashboardState extends ConsumerState<DashboardEjecutivoPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      const BienvenidaUsuario(),
                       Wrap(
                         alignment: WrapAlignment.spaceBetween,
                         crossAxisAlignment: WrapCrossAlignment.center,

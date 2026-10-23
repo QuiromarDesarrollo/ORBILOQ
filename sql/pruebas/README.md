@@ -449,3 +449,97 @@ Despacho mixto OP/Excel: `112_inventario_cliente_despacho_mixto.sql`, solo DEV d
 
 
 Historial completo de despacho: `113_historial_despacho_completo.sql`, solo DEV después de 112. La pestaña Historial incluye empacados, salidas y cancelados; Seguimiento conserva solo los pendientes. Añade eventos inmutables de empaque, corrección, OC/destinatario/contenido, cancelación, salida, emisión o cambio de documento, seguimiento (incluidas novedades/devoluciones/evidencias), facturación y ajustes administrativos. Los eventos guardan fecha real, responsable y snapshots antes/después; se revierten si falla la operación. La lectura usa la RPC existente y sus permisos, sin acceso directo al ledger. Las consultas/PDF descargados sin cambios no generan movimientos. Se recuperan estados previos y revisiones disponibles con títulos explícitos, sin inventar cambios que no se auditaban. La vista muestra el historial por LE, búsqueda en eventos y fechas, actualización y cantidades despachadas separadas de reservas/cancelaciones. Aplicación remota pendiente.
+
+
+## 118 · Kit de carretera semanal
+
+Aplicar `118_conductor_kit_semanal.sql` exclusivamente en ORBILOQ-DEV antes de publicar el cliente actualizado. Requiere 114/115. El archivo verifica la marca de DEV, se ejecuta en una transacción y puede repetirse. No cambia inspecciones ni kilometrajes existentes.
+
+- Nuevo registro de 50 puntos, lunes a domingo (America/Bogota). Permite repetir revisiones para documentar correcciones; todas quedan en historial.
+- `conductor_registrar_kit` valida acceso, fecha, respuestas, detalles de novedades y vencimientos. Reutiliza el historial privado; solo el administrador puede consultar/exportar respuestas.
+- `conductor_resumen_kit` entrega únicamente fecha, cantidad de novedades y vencimientos de la última inspección. Se calcula desde registros, independiente de los documentos editables.
+- Avisos dentro del portal: revisión semanal pendiente, novedades, vencido/hoy y bandas de 7/15/30 días. No envía push, correo ni notificaciones con la aplicación cerrada.
+- Excel: hoja `Kit semanal`, solo columnas con datos.
+- Referencia: artículo 30 Ley 769 de 2002 (https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=5557). Los 50 puntos son el control interno solicitado; no se presentan como una lista textual de obligaciones legales.
+
+Ensayo local (sin Supabase): `powershell -File tools/ensayar_conductor.ps1`. Incluye ejecución repetida de 118 y verificaciones de permisos, validación, resúmenes e historial.
+
+Verificación de instalación (solo lectura):
+```sql
+SELECT
+ to_regprocedure('public.conductor_registrar_kit(uuid,jsonb)') AS guardar_kit,
+ to_regprocedure('public.conductor_resumen_kit(uuid[])') AS resumen_kit;
+```
+
+
+### 119 · Autorización de salida y actividades correctivas (solo DEV)
+Aplicar `119_conductor_autorizacion_salida.sql` después de 118 en `igfuafcekcpugpmsoqbe` antes de publicar el frontend. No se ha aplicado automáticamente en Supabase. Las salidas de hoy sin decisión aparecen pendientes, incluidos los checklists anteriores a la migración. Solo el administrador puede autorizar/rechazar el inicio de jornada de hoy; requiere observación y no permite autorizar con actividades abiertas del vehículo. Registrar un checklist o cerrar una actividad no autoriza por sí solo la salida.
+
+El administrador abre Checklist → Autorización de salida → Revisar checklists y actividades, revisa los últimos 100 checklists del vehículo seleccionado y crea una actividad por punto con novedad (incluido cierre y kit semanal). Crear una actividad retira una autorización vigente de hoy. El conductor informa solución, y el administrador verifica/cierra o devuelve a pendiente. Los cambios quedan auditados en `conductor_revision_eventos`; no se alteran los checklists originales.
+
+Las notificaciones se muestran dentro del portal, para el vehículo seleccionado, y se actualizan cada minuto mientras está visible, además de la recarga manual. No son notificaciones push con la aplicación cerrada. El resumen periódico no descarga respuestas del checklist. La vista del conductor no recibe esas respuestas. Si falta la migración, se muestra “Aprobación pendiente de activación”, nunca una autorización implícita.
+
+Validación local: `tools/ensayar_conductor.ps1` ejecuta migración repetida y `tools/test_revision_salida.sql` (permisos, privacidad, vehículo ajeno, actividades, bloqueo, auditoría y autorización).
+
+### 120 · LE manual sin perder el automático reservado
+Aplicar `120_consecutivo_le_manual.sql` en PRUEBAS después de 099. No está aplicado automáticamente en Supabase ni publicado en producción.
+
+Al liberar un empaque nuevo con una LE manual diferente, el número automático que tenía reservado queda disponible. El próximo empaque automático usa primero el menor de esos números libres. Ejemplo: último automático 2993 → reserva 2994 → confirmación manual 1054 → próximo automático 2994. El contador general no retrocede; esto protege otros empaques que ya tienen número reservado. Se conserva la exclusión de números ocupados, los bloqueos transaccionales, el rechazo de duplicados y la idempotencia de la confirmación.
+
+Solo recupera reservas sustituidas a partir de esta migración y en la primera emisión (`ediciones=0`). No recupera huecos históricos, no renumera documentos existentes y no recicla números de documentos corregidos que pudieron haberse emitido. Configurar explícitamente un nuevo consecutivo global descarta la cola de reservas recuperables y respeta el rango indicado por el administrador.
+
+Ensayo: `tools/ensayar_trazabilidad_op.ps1` instala 120 dos veces y ejecuta `tools/test_consecutivo_le_manual.sql`, además de repetir el flujo administrativo anterior. Incluye sustitución manual, reintento, siguiente automático, número ocupado, confirmación del mismo número, rollback y permisos del asignador interno.
+
+
+### 121 · Actividades agrupadas, plazo y evidencia
+Esta versión reemplaza la regla de bloqueo de 119: la autorización de salida es independiente de las actividades. El administrador puede autorizar con pendientes y crear una actividad seleccionando varios puntos con novedad del mismo checklist. La fecha es el plazo límite. La pantalla principal muestra autorización y pendientes.
+
+La entrega exige foto (cámara o archivo), subida automática a TRANSPORTE y descripción. La RPC registra `entregado_en` con reloj del servidor y `entregado_por`; un reintento idéntico no cambia la hora. El estado pasa a Por verificar; solo un administrador cierra o devuelve a Pendiente. El enlace, la solución y cada transición permanecen disponibles en la auditoría. Las tareas cerradas se muestran al administrador.
+
+Activación pendiente en Supabase: ejecutar `sql/diagnostico/activar_conductor_actividades_pruebas.sql` (incluye 119 y 121 en una sola transacción, exclusivo DEV). Alternativamente ejecutar 119 y luego 121. Publicar también el frontend. No basta con publicar la aplicación: sin RPC, se muestra configuración incompleta, sin afirmar que no existan actividades. No se aplicó remotamente en esta sesión.
+
+Pruebas: `tools/test_actividades_agrupadas.sql` dentro de `tools/ensayar_conductor.ps1`, y `test/revision_salida_test.dart`. Abarcan autorización con pendientes, selección, plazo, foto obligatoria, entrega idempotente, privacidad, aislamiento, permisos y vista adaptable.
+
+
+### 122 · Motivos atendidos y seguimiento en Asignar actividad
+Los motivos con una actividad asociada (Pendiente, Por verificar o Cerrada) desaparecen de la selección para ese mismo checklist. No se borran las respuestas originales. Una nueva inspección puede volver a generar una actividad por una nueva novedad del mismo elemento.
+
+Al crear, el formulario permanece abierto, limpia los campos y muestra la tarjeta con descripción, motivos, plazo, estado, foto/solución y fechas de entrega/cierre. Tiene actualización manual. El administrador sigue verificando la entrega desde Autorización y actividades; Cerrada se muestra como Completada en las tarjetas informativas.
+
+Aplicar `122_conductor_motivos_atendidos.sql` después de 121 en pruebas, o usar el SQL combinado de activación (119+121+122). Luego publicar frontend. No se aplicó remotamente. La RPC evita que una pantalla antigua reasigne un motivo ya atendido. Ensayo: `tools/test_motivos_atendidos.sql` y `test/revision_salida_test.dart`.
+
+### 123 · Panel administrativo de flota (solo DEV)
+Los administradores entran al panel de flota en lugar del inicio del conductor. El resumen muestra todos los vehículos y permite filtrar por autorizaciones pendientes, actividades pendientes/vencidas, entregas por verificar y avisos documentales. Cada vehículo tiene expediente con resumen, inspecciones/salida, actividades, mantenimiento, documentos e historial con exportación existente.
+
+El administrador puede registrar mantenimientos y actualizar documentos. Las inspecciones diarias se siguen diligenciando desde el rol conductor. La asignación por número de usuario conserva los actores e historial previos, desasigna el vehículo anterior del conductor y bloquea el cambio cuando hay una jornada abierta hoy en cualquiera de los vehículos afectados. Los vehículos sin conductor permanecen visibles en la flota. Se conserva la restricción existente de un inicio y un fin por vehículo por día.
+
+Activación: ejecutar `123_conductor_panel_flota.sql` después de 122 en Supabase PRUEBAS (`igfuafcekcpugpmsoqbe`) y publicar el frontend. No se ha aplicado remotamente ni se modifica producción. Sin la RPC, la interfaz informa la migración pendiente. La consulta resumen es exclusiva de administradores y no descarga las respuestas ni evidencias de todos los checklists.
+
+Validación: `tools/test_flota_admin.sql` (flota completa, permiso exclusivo, reasignación, historial conservado, bloqueo de jornada y acceso del conductor), migración repetida mediante `tools/ensayar_conductor.ps1`; `test/flota_admin_test.dart` valida navegación a expediente y tamaños 320, 390 y 1440 px.
+
+### 124 · Ficha del conductor, documentos y vistas previas
+La ficha incorpora documento y foto del conductor, vigencia desde/hasta, expedición, valor, observaciones y archivo por documento. Conserva las claves históricas de vencimiento. Las imágenes se consultan mediante la función conductor-evidencia autenticada; los PDF muestran miniatura cuando Drive la ofrece y permiten abrir el original. No se hacen públicos los archivos ni se guardan bytes en la base.
+
+Activación pendiente en PRUEBAS: aplicar 124_conductor_ficha_documentos.sql después de 123, desplegar conductor-evidencia actualizada y publicar el frontend. La migración limpia los datos personales y la licencia de la ficha al cambiar conductor, conservando los registros históricos y documentos del vehículo. No aplicada remotamente.
+
+Validación local: test/ficha_vehiculo_test.dart, test/vista_evidencia_drive_test.dart, tools/test_conductor_evidencia.mjs y tools/test_ficha_documentos.sql dentro del ensayo PostgreSQL temporal.
+
+Activación 2026-10-23: migración 124 ejecutada correctamente en ORBILOQ-DEV (igfuafcekcpugpmsoqbe), confirmada por SQL Editor. Función conductor-evidencia desplegada desde Dashboard con handler, preview e index consolidados en index.ts, sin cambiar secretos ni permisos. Incluye alternativa al original autenticado si falta la miniatura. Evidencias locales: .dart_tool/despliegue-preview-dev.png y .dart_tool/migracion124-dev.png. Pendiente comprobar la foto real con la sesión del usuario en la aplicación; el despliegue y la migración sí están confirmados. No se publicó frontend ni se modificó producción.
+
+
+### 125 · Periodicidad del mantenimiento (pendiente de aplicar)
+Ejecutar `125_conductor_periodicidad_mantenimiento.sql` después de 124, solo en ORBILOQ-DEV. Conserva inicio y fin en el registro y guarda por vehículo la última finalización de cada servicio. No modifica el acceso al historial privado. Calcula aceite a +8.000 km; el cliente calcula los controles de ocho días desde el fin. Los registros antiguos sin servicio estructurado se conservan, pero no se interpretan automáticamente como una periodicidad. No requiere columnas nuevas. Ensayo local: `tools/ensayar_conductor.ps1`.
+
+### 126 · Revisión preventiva trimestral (pendiente de aplicar)
+Ejecutar `126_conductor_revision_preventiva.sql` después de 125, solo en ORBILOQ-DEV. Admite el servicio `revision_preventiva` y conserva su última finalización por vehículo. El cliente calcula tres meses calendario; si el día no existe, usa el último del mes destino. No cambia las otras periodicidades.
+
+
+### 127 · Actividades vinculadas a mantenimiento (pendiente de aplicar en DEV)
+
+Aplicar `127_conductor_actividades_mantenimiento.sql` después de 126, antes de utilizar el formulario actualizado. Permite actividades desde checklist o independientes por vehículo. El administrador define preventivo/correctivo y el trabajo; el conductor recibe el formato precargado y bloqueado. La entrega guarda mantenimiento y actividad «Por verificar» en una transacción; únicamente el administrador valida o solicita corrección. Conserva el flujo anterior de las actividades existentes sin clasificación. Incluye las independientes en resumen, flota y notificaciones.
+
+Validación local: `tools/test_actividades_mantenimiento.sql` cubre permisos, ambos orígenes, selección inmutable, rechazo de duplicados, entrega, devolución y cierre. La migración se ensaya dos veces para comprobar idempotencia. No aplicada a Supabase desde este cambio.
+
+### 128 · Kit semanal administrativo y EPP diario
+
+`128_conductor_kit_admin_epp.sql`: aplicar en ORBILOQ-DEV después de 127. Restringe el registro semanal al administrador, añade Kit antiderrames obligatorio (51 puntos) y exige botas de lluvia, impermeable, guantes de trabajo y chaleco reflectivo en salida y regreso (31 puntos). No modifica registros anteriores. Pendiente de aplicación en DEV.

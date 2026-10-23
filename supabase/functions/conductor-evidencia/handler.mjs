@@ -3,7 +3,7 @@ const tipos = new Set(['Inicio de jornada', 'Fin de jornada', 'Registro diario',
   'Tanqueo', 'Lavado', 'Reposición de fluidos', 'Mantenimiento preventivo',
   'Mantenimiento correctivo', 'Siniestro vial', 'Novedad', 'Documentos']);
 const campos = new Set(['enlace', 'evidencia_siniestro', 'foto_frontal',
-  'foto_lateral', 'foto_lateral_derecho', 'foto_lateral_izquierdo', 'foto_trasera', 'foto_tablero']);
+  'foto_lateral', 'foto_lateral_derecho', 'foto_lateral_izquierdo', 'foto_trasera', 'foto_tablero', 'foto_conductor', 'doc_soat', 'doc_tecno', 'doc_licencia', 'doc_extintor']);
 const extensiones = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
   'application/pdf': 'pdf',
@@ -22,7 +22,7 @@ const json = (status, body) => new Response(JSON.stringify(body), {
 
 // No recibe bytes ni devuelve tokens de Google. La URL de sesión únicamente
 // permite completar esta carga, en la carpeta y con los metadatos fijados aquí.
-export function crearHandler({ habilitado, configurado, autorizar, iniciar }) {
+export function crearHandler({ habilitado, configurado, autorizar, iniciar, previsualizar }) {
   return async (request) => {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (request.method !== 'POST') return json(405, { code: 'METHOD_NOT_ALLOWED' });
@@ -46,6 +46,20 @@ export function crearHandler({ habilitado, configurado, autorizar, iniciar }) {
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
       input = JSON.parse(new TextDecoder().decode(bytes));
     } catch { return json(400, { code: 'INVALID_INPUT' }); }
+    if (input?.accion === 'preview') {
+      if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.vehiculo ?? '') ||
+          typeof input.enlace !== 'string' || !/^https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]+\/view$/.test(input.enlace)) {
+        return json(400, { code: 'INVALID_INPUT' });
+      }
+      try {
+        const acceso = await autorizar(token, input.vehiculo);
+        // Solo archivos actualmente vinculados a la ficha accesible por RLS.
+        if (!acceso || !Object.values(acceso.datos ?? {}).includes(input.enlace)) return json(403, { code: 'FORBIDDEN' });
+        if (!configurado || !previsualizar) return json(503, { code: 'DRIVE_NOT_CONFIGURED' });
+        const imagen = await previsualizar({ id: input.enlace.split('/')[5], vehiculo: input.vehiculo });
+        return imagen ? json(200, imagen) : json(404, { code: 'PREVIEW_UNAVAILABLE' });
+      } catch { return json(502, { code: 'DRIVE_UNAVAILABLE' }); }
+    }
     if (!input || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.vehiculo ?? '') ||
         !tipos.has(input.tipo) || !campos.has(input.campo) ||
         !Object.hasOwn(extensiones, input.mime ?? '') ||

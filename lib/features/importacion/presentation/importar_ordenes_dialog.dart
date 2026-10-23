@@ -154,7 +154,7 @@ class _ImportarOrdenesDialogState extends ConsumerState<ImportarOrdenesDialog> {
             const Text(
               'Sube el Excel exportado del ERP en formato .xlsx (hojas "Orden" y '
               '"Tallas"). Las Órdenes de Producción que ya existan en el sistema se '
-              'omiten automáticamente — nunca se sobrescriben.',
+              'omiten automáticamente — nunca se sobrescriben. Las líneas sin código reciben un identificador interno SIN-COD-ERP-.',
               style: TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),

@@ -1,3 +1,4 @@
+import '../../../application/historial_recepciones.dart';
 import '../../inventario/presentation/inventario_page.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'dart:convert';
@@ -21,7 +22,7 @@ import '../../../domain/models.dart';
 import '../../../domain/recepcion_agrupada.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/feedback_banner.dart';
-import '../../../shared/widgets/status_chip.dart';
+
 import '../../../shared/widgets/wms_dialog.dart';
 
 Future<void> showRecepcionDialog(BuildContext context) =>
@@ -1223,99 +1224,57 @@ class _AccionRecepcion extends StatelessWidget {
   );
 }
 
-// ==================================================== pestaña 2: historial
-// Reutiliza datos que YA están cargados en memoria (WmsSnapshot.lotes trae
-// todo, no solo lo pendiente) — no hace ninguna consulta nueva.
-
+// Recepciones individuales: cantidades y fechas del libro de movimientos.
 final _recepcionesHistorialProvider =
     FutureProvider.autoDispose<List<GrupoHistorial>>((ref) async {
-      final snapshot = ref.watch(wmsSnapshotProvider).value;
-      final items = <String, ItemOrden>{
-        for (final fila in snapshot?.kardex ?? <ItemKardex>[])
-          fila.item.id: fila.item,
-        for (final lote in snapshot?.lotes ?? <Lote>[])
-          for (final linea in lote.lineas) linea.item.id: linea.item,
-      };
+      final snapshot = await ref.watch(wmsSnapshotProvider.future);
       final movimientos =
           await ref.watch(wmsRepositoryProvider).cargarRecepciones();
-      if (movimientos.any((m) => !items.containsKey(m.itemId))) {
-        throw StateError(
-          'Faltan órdenes para calcular el total de recepciones.',
-        );
-      }
-      return agruparHistorial(
-        movimientos,
-        (m) => items[m.itemId]!,
-        (m) => EventoHistorial(
-          id: '${m.itemId}-${m.fecha}',
-          titulo: 'Recepción',
-          detalle: m.nota,
-          fecha: m.fecha,
-          cantidad: m.cantidad,
-        ),
-      );
+      return historialRecepcionesDiarias(movimientos, snapshot);
     });
 
 class _HistorialTab extends ConsumerWidget {
   const _HistorialTab();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final lotes = ref.watch(wmsSnapshotProvider).value?.lotes ?? const <Lote>[];
     final recepciones = ref.watch(_recepcionesHistorialProvider);
-    final registros = [
-      for (final lote in lotes)
-        for (final linea in lote.lineas)
-          if (!linea.enTransito ||
-              linea.fechaRecepcion != null ||
-              (linea.cantidadRecibida ?? 0) > 0)
-            (lote: lote, linea: linea),
-    ];
-    return Column(
-      children: [
-        if (recepciones.isLoading)
-          const WmsLoadingStrip(label: 'Calculando prendas recibidas…'),
-        if (recepciones.hasError)
-          TextButton.icon(
-            onPressed: () => ref.invalidate(_recepcionesHistorialProvider),
-            icon: const Icon(Icons.refresh),
-            label: const Text('No se pudo calcular el total. Reintentar'),
-          ),
-        Expanded(
-          child: HistorialRecepcionVista(
-            parciales: {
-              for (final e in registros)
-                if (e.linea.enTransito) e.linea.id,
-            },
-            novedades: {
-              for (final e in registros)
-                if (e.linea.estado == EstadoLineaLote.recibidoConNovedad ||
-                    e.linea.novedad.isNotEmpty)
-                  e.linea.id,
-            },
-            totales:
-                recepciones.isLoading || recepciones.hasError
-                    ? null
-                    : recepciones.value,
-            grupos: agruparHistorial(
-              registros,
-              (e) => e.linea.item,
-              (e) => EventoHistorial(
-                id: e.linea.id,
-                fecha: e.linea.fechaRecepcion,
-                cantidad: e.linea.cantidadRecibida ?? 0,
-                titulo:
-                    'Recepción acumulada · ${e.linea.cantidadRecibida ?? 0} Uds · ${e.linea.estado.etiqueta}',
-                detalle:
-                    'Lote: ${e.lote.id} | Operario: ${e.lote.operario}\n'
-                    'Enviadas: ${e.linea.cantidadEnviada} Uds | Recibidas: ${e.linea.cantidadRecibida ?? 0} Uds | Estante: ${e.linea.ubicacionDestino ?? '—'}\n'
-                    'Última recepción registrada por: ${e.linea.recibidoPor.isEmpty ? 'Sin registrar' : e.linea.recibidoPor}'
-                    '${e.linea.novedad.isEmpty ? '' : '\nNovedad: ${e.linea.novedad}'}',
-                color: colorDeEstadoLinea(e.linea.estado),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: recepciones.when(
+        loading:
+            () => const Center(
+              child: WmsLoadingStrip(
+                label: 'Cargando movimientos de recepción…',
               ),
             ),
-          ),
-        ),
-      ],
+        error:
+            (error, stack) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'No se pudieron cargar las recepciones del historial.',
+                  ),
+                  const Text(
+                    'No se muestran acumulados como si fueran movimientos del día.',
+                  ),
+                  TextButton.icon(
+                    onPressed:
+                        () => ref.invalidate(_recepcionesHistorialProvider),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            ),
+        data:
+            (grupos) => HistorialRecepcionVista(
+              grupos: grupos,
+              novedades: const {},
+              parciales: const {},
+              movimientosReales: true,
+            ),
+      ),
     );
   }
 }

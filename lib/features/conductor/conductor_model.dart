@@ -26,6 +26,12 @@ const checklistConductor = <String, List<String>>{
     'Puertas seguras',
   ],
   'Cabina y carrocería': ['Área de cargue', 'Interior cabina', 'Techos libres'],
+  'Elementos de protección personal': [
+    'Botas de lluvia',
+    'Impermeable',
+    'Guantes de trabajo',
+    'Chaleco reflectivo',
+  ],
   'Kit de carretera': [
     'Botiquín',
     'Herramientas',

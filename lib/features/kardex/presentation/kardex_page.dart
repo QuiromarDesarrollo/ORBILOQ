@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/bienvenida_usuario.dart';
 import '../../../shared/widgets/selector_tema.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_alert.dart';
 import '../../ciclos/presentation/dashboard_catalogo.dart';
@@ -33,6 +34,20 @@ import '../../../core/inventario_entorno.dart';
 import '../../../core/conductor_entorno.dart';
 import '../../conductor/presentation/conductor_page.dart';
 
+bool _puedeAbrirTransporte(WidgetRef ref) {
+  final sesion = ref.read(usuarioSesionProvider).value;
+  return conductorHabilitado() &&
+      (!ref.read(usarSupabaseProvider) ||
+          sesion?.tieneRol(RolCuenta.admin) == true ||
+          sesion?.tieneRol(RolCuenta.conductor) == true);
+}
+
+void _abrirTransporte(BuildContext context) {
+  Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const ConductorPage()));
+}
+
 class KardexPage extends ConsumerStatefulWidget {
   const KardexPage({super.key});
 
@@ -45,7 +60,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
   DateTime? _ultimaActualizacion;
 
   Future<void> _cambiarArea() async {
-    final area = await showModalBottomSheet<Rol>(
+    final area = await showModalBottomSheet<Object>(
       context: context,
       showDragHandle: true,
       builder:
@@ -75,11 +90,19 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                       title: Text(opcion.$2),
                       onTap: () => Navigator.pop(context, opcion.$1),
                     ),
+                if (_puedeAbrirTransporte(ref))
+                  ListTile(
+                    leading: const Icon(Icons.local_shipping_outlined),
+                    title: const Text('Transporte'),
+                    onTap: () => Navigator.pop(context, 'transporte'),
+                  ),
               ],
             ),
           ),
     );
-    if (mounted && area != null) ref.read(rolProvider.notifier).cambiar(area);
+    if (!mounted) return;
+    if (area is Rol) ref.read(rolProvider.notifier).cambiar(area);
+    if (area == 'transporte') _abrirTransporte(context);
   }
 
   Future<void> _sincronizar() async {
@@ -106,23 +129,12 @@ class _KardexPageState extends ConsumerState<KardexPage> {
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (v) {
-        if (v == 'conductor') {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const ConductorPage()),
-          );
-        }
         if (v == 'sync') _sincronizar();
         if (v == 'salir') ref.read(authRepositoryProvider)?.cerrarSesion();
         if (v == 'ordenes') showImportarOrdenesDialog(context);
       },
       itemBuilder:
           (_) => [
-            if (conductorHabilitado() &&
-                (admin || sesion?.tieneRol(RolCuenta.conductor) == true))
-              const PopupMenuItem(
-                value: 'conductor',
-                child: Text('Portal del conductor'),
-              ),
             PopupMenuItem<String>(
               enabled: false,
               child: Column(
@@ -253,7 +265,10 @@ class _KardexPageState extends ConsumerState<KardexPage> {
             ? 'Sincronizado'
             : 'Cargando datos';
     final esAdmin = !usarSupabase || sesion?.rolCuenta == RolCuenta.admin;
-    final puedeCambiarArea = !usarSupabase || (sesion?.areas.length ?? 0) > 1;
+    final puedeCambiarArea =
+        !usarSupabase ||
+        (sesion?.areas.length ?? 0) > 1 ||
+        _puedeAbrirTransporte(ref);
 
     final compacto = MediaQuery.sizeOf(context).width < 1200;
     return Scaffold(
@@ -498,13 +513,6 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     onSelected: (v) {
-                      if (v == 'conductor') {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const ConductorPage(),
-                          ),
-                        );
-                      }
                       if (v == 'area' && puedeCambiarArea) _cambiarArea();
                       if (v == 'indicadores' &&
                           sesion?.puedeVerDashboards == true) {
@@ -530,14 +538,6 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                     },
                     itemBuilder:
                         (_) => [
-                          if (conductorHabilitado() &&
-                              (esAdmin ||
-                                  sesion?.tieneRol(RolCuenta.conductor) ==
-                                      true))
-                            const PopupMenuItem(
-                              value: 'conductor',
-                              child: Text('Portal del conductor'),
-                            ),
                           PopupMenuItem<String>(
                             enabled: false,
                             child: Row(
@@ -714,6 +714,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                                             ),
                                           ),
                                           const SizedBox(height: 4),
+                                          const BienvenidaUsuario(),
                                           Text(
                                             'Control de operaciones',
                                             style:
@@ -847,7 +848,9 @@ class _SelectorPerfil extends ConsumerWidget {
 
     final pal = palNavegacion(context);
 
-    return (!usarSupabase || (sesion?.areas.length ?? 0) > 1)
+    return (!usarSupabase ||
+            (sesion?.areas.length ?? 0) > 1 ||
+            _puedeAbrirTransporte(ref))
         ? _pastillaDesplegable(context, ref, pal)
         : _pastillaFija(_etiqueta(rol), pal);
   }
@@ -885,17 +888,20 @@ class _SelectorPerfil extends ConsumerWidget {
     WidgetRef ref,
     AppPalette pal,
   ) {
-    return PopupMenuButton<Rol>(
+    return PopupMenuButton<Object>(
       color: pal.card,
       offset: const Offset(0, 44),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(color: pal.cardBorder),
       ),
-      onSelected: (r) => ref.read(rolProvider.notifier).cambiar(r),
+      onSelected: (r) {
+        if (r is Rol) ref.read(rolProvider.notifier).cambiar(r);
+        if (r == 'transporte') _abrirTransporte(context);
+      },
       itemBuilder:
           (context) => [
-            PopupMenuItem<Rol>(
+            PopupMenuItem<Object>(
               enabled: false,
               height: 32,
               child: Text(
@@ -912,7 +918,7 @@ class _SelectorPerfil extends ConsumerWidget {
               if (!ref.read(usarSupabaseProvider) ||
                   (ref.read(usuarioSesionProvider).value?.areas.contains(r) ??
                       false))
-                PopupMenuItem<Rol>(
+                PopupMenuItem<Object>(
                   value: r,
                   child: Row(
                     children: [
@@ -937,6 +943,24 @@ class _SelectorPerfil extends ConsumerWidget {
                     ],
                   ),
                 ),
+            if (_puedeAbrirTransporte(ref))
+              PopupMenuItem<Object>(
+                value: 'transporte',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.local_shipping_outlined,
+                      size: 18,
+                      color: pal.textSecondary,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Transporte',
+                      style: TextStyle(color: pal.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
           ],
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1117,18 +1141,6 @@ class _AdminDrawer extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 children: [
                   seccion('CONFIGURACIÓN'),
-                  if (conductorHabilitado())
-                    _enlace(
-                      context,
-                      Icons.local_shipping_outlined,
-                      'Conductores · Pruebas',
-                      'Jornadas, vehículos y mantenimiento',
-                      () => Navigator.of(pageContext).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const ConductorPage(),
-                        ),
-                      ),
-                    ),
                   _enlace(
                     context,
                     Icons.manage_accounts_outlined,

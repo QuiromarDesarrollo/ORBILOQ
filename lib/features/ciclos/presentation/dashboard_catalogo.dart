@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/bienvenida_usuario.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../application/auth_providers.dart';
@@ -240,6 +241,7 @@ class DashboardCatalogoPage extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                const BienvenidaUsuario(),
                 const Text(
                   'Indicadores de gestión',
                   style: TextStyle(

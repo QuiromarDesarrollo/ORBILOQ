@@ -12,6 +12,46 @@ Future<Uint8List> crearRotuloEmpaquePdf(
   required ByteData fuenteRegular,
   required ByteData fuenteNegrita,
 }) async {
+  return crearRotulosEmpaquePdf(
+    [rotulo],
+    logo: logo,
+    fuenteRegular: fuenteRegular,
+    fuenteNegrita: fuenteNegrita,
+  );
+}
+
+/// Un único documento, con cada rótulo en una página independiente.
+Future<Uint8List> crearRotulosEmpaquePdf(
+  List<RotuloEmpaque> rotulos, {
+  required Uint8List logo,
+  required ByteData fuenteRegular,
+  required ByteData fuenteNegrita,
+}) async {
+  if (rotulos.isEmpty) {
+    throw const FormatException(
+      'Agrega al menos un empaque para generar los rótulos.',
+    );
+  }
+  final doc = pw.Document();
+  for (final rotulo in rotulos) {
+    _agregarRotulo(
+      doc,
+      rotulo,
+      logo: logo,
+      fuenteRegular: fuenteRegular,
+      fuenteNegrita: fuenteNegrita,
+    );
+  }
+  return doc.save();
+}
+
+void _agregarRotulo(
+  pw.Document doc,
+  RotuloEmpaque rotulo, {
+  required Uint8List logo,
+  required ByteData fuenteRegular,
+  required ByteData fuenteNegrita,
+}) {
   if (rotulo.numero < 1 ||
       rotulo.productos.isEmpty ||
       rotulo.productos.any((p) => p.cantidad <= 0)) {
@@ -25,7 +65,6 @@ Future<Uint8List> crearRotuloEmpaquePdf(
     );
   }
   final logoVector = utf8.decode(logo);
-  final doc = pw.Document();
   final font = PdfTtfFont(doc.document, fuenteRegular);
   const mm = PdfPageFormat.mm;
   const alto = 100 * mm;
@@ -418,5 +457,4 @@ Future<Uint8List> crearRotuloEmpaquePdf(
       ),
     );
   }
-  return doc.save();
 }

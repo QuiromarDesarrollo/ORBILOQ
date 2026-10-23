@@ -11,6 +11,9 @@ const catalogosAdministrables = {
 };
 
 abstract class CatalogosRepository {
+  Future<void> cambiarContrasena(String usuarioId, String contrasena) async =>
+      throw UnsupportedError('Cambio de contraseña no disponible.');
+
   Future<List<Map<String, dynamic>>> listar(String tipo);
   Future<void> guardar(
     String tipo,
@@ -61,6 +64,35 @@ class SupabaseCatalogosRepository implements CatalogosRepository {
           'p_roles': roles ?? (anterior?['roles'] as List?) ?? [rol],
       },
     );
+  }
+
+  @override
+  Future<void> cambiarContrasena(String usuarioId, String contrasena) async {
+    try {
+      final res = await client.functions.invoke(
+        'admin-restablecer-contrasena',
+        body: {'usuario_id': usuarioId, 'contrasena': contrasena},
+      );
+      if (res.status != 200 ||
+          res.data is! Map ||
+          res.data['actualizada'] != true) {
+        throw const FormatException(
+          'No se pudo confirmar el cambio de contraseña.',
+        );
+      }
+    } on FunctionException catch (e) {
+      if (e.status == 404) {
+        throw const FormatException(
+          'La función de cambio de contraseña todavía no está disponible en este proyecto.',
+        );
+      }
+      throw FormatException(
+        e.details is Map
+            ? e.details['error']?.toString() ??
+                'No se pudo confirmar el cambio de contraseña.'
+            : 'No se pudo confirmar el cambio de contraseña. Revisa la conexión e inténtalo nuevamente.',
+      );
+    }
   }
 
   @override

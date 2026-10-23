@@ -30,6 +30,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Revisar kit de carretera'), findsNothing);
+    expect(find.text('Kit de carretera · revisión semanal'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -61,16 +63,32 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      // La identidad aparece una sola vez: barra superior unida al menú.
+      expect(find.text('ORBILOQ'), findsOneWidget);
+      expect(find.text('GRUPO QUIROMAR'), findsNothing);
+      expect(find.text('TRANSPORTE'), findsNothing);
+      await tester.runAsync(() async {
+        await precacheImage(
+          const AssetImage('assets/images/logo_orbiloq.png'),
+          tester.element(find.byType(ConductorPage)),
+        );
+      });
+      await tester.pumpAndSettle();
       if (width >= 900) {
         final sidebar = tester.getRect(
           find.byKey(const ValueKey('conductor-sidebar')),
         );
         final appbar = tester.getRect(find.byType(AppBar));
         expect(sidebar.top, closeTo(appbar.bottom, 1));
+        final inicio = find.descendant(
+          of: find.byKey(const ValueKey('conductor-sidebar')),
+          matching: find.text('Inicio'),
+        );
+        expect(tester.getTopLeft(inicio).dy - appbar.bottom, lessThan(55));
         expect(sidebar.bottom, closeTo(tester.view.physicalSize.height, 1));
         if (width == 1536) {
           expect(
-            tester.getBottomLeft(find.text('Licencia de conducción')).dy,
+            tester.getBottomLeft(find.text('Actividades pendientes')).dy,
             lessThan(tester.view.physicalSize.height),
           );
         }

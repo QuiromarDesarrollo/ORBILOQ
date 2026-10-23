@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../evidencia_conductor.dart';
 import 'conductor_design.dart';
 
@@ -20,11 +19,13 @@ class ObservacionesEvidenciaConductor extends StatelessWidget {
     required this.observaciones,
     required this.adicional,
     this.tituloAdicional = 'Evidencia adicional',
+    this.adicionalObligatorio = false,
   });
   final List<EvidenciaSeleccionada> fotos;
   final Widget Function(String lado, String titulo, String ayuda) fotoBuilder;
   final Widget observaciones, adicional;
   final String tituloAdicional;
+  final bool adicionalObligatorio;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -170,7 +171,9 @@ class ObservacionesEvidenciaConductor extends StatelessWidget {
                   final evidencia = Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _label('$tituloAdicional (opcional)'),
+                      _label(
+                        '$tituloAdicional (${adicionalObligatorio ? 'obligatoria' : 'opcional'})',
+                      ),
                       const SizedBox(height: 10),
                       adicional,
                     ],
@@ -194,56 +197,6 @@ class ObservacionesEvidenciaConductor extends StatelessWidget {
                     ],
                   );
                 },
-              ),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: ConductorDesign.background,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.cloud_upload_outlined,
-                      size: 20,
-                      color: ConductorDesign.muted,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Al guardar el registro, las fotos y archivos se suben automáticamente a TRANSPORTE. La base de datos conserva únicamente sus enlaces.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              height: 1.5,
-                              color: ConductorDesign.muted,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                            ),
-                            onPressed:
-                                () => launchUrl(
-                                  Uri.parse(carpetaEvidenciasConductor),
-                                  mode: LaunchMode.externalApplication,
-                                ),
-                            icon: const Icon(
-                              Icons.folder_open_outlined,
-                              size: 18,
-                            ),
-                            label: const Text('Abrir carpeta TRANSPORTE'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),

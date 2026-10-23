@@ -18,7 +18,7 @@ class PlantillasExcel {
       PlantillaExcel.ordenes => [
         'Orden: una fila por OP. Identificador es el número de OP; completa Cliente y No. OC.',
         'Tallas: una fila por OP, código y talla. Identificador orden debe coincidir con Identificador de Orden.',
-        'Completa Código, Descripción, Tallas nombre y Cantidad (entero positivo). Las OP existentes se omiten.',
+        'Completa Descripción, Tallas nombre y Cantidad (entero positivo). Código es opcional: si falta se genera un identificador interno SIN-COD-ERP-. Las OP existentes se omiten.',
       ],
       PlantillaExcel.fechas => [
         'Una fila por OP existente. N° DE ORDEN identifica la OP.',

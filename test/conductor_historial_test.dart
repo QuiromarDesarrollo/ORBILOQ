@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orbiloq_wms/features/conductor/conductor_model.dart';
 import 'package:orbiloq_wms/features/conductor/conductor_repository.dart';
 import 'package:orbiloq_wms/features/conductor/historial_conductor.dart';
+import 'package:orbiloq_wms/features/conductor/kit_semanal.dart';
 import 'package:orbiloq_wms/features/conductor/presentation/conductor_design.dart';
 import 'package:orbiloq_wms/features/conductor/presentation/historial_conductor_view.dart';
 
@@ -77,12 +78,19 @@ final registros = [
 
 class _Repo extends ConductorRepository {
   _Repo() : super(null);
+  DateTime? desdeConsultado, hastaConsultado;
+  int consultas = 0;
   @override
   Future<List<Map<String, dynamic>>> historialPeriodo(
     String id,
     DateTime desde,
     DateTime hasta,
-  ) async => registros;
+  ) async {
+    desdeConsultado = desde;
+    hastaConsultado = hasta;
+    consultas++;
+    return registros;
+  }
 }
 
 void main() {
@@ -308,6 +316,92 @@ void main() {
       expect(libro.tables.containsKey('Mantenimiento preventivo'), true);
     },
   );
+  testWidgets(
+    'Filtros, orden, refresco y selección solo de jornadas visibles',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repo = _Repo();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [conductorRepositoryProvider.overrideWithValue(repo)],
+          child: MaterialApp(
+            theme: ConductorDesign.theme(),
+            home: const Scaffold(
+              body: SingleChildScrollView(
+                child: HistorialConductorView(
+                  vehiculo: vehiculo,
+                  administrador: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Future<void> estado(String actual, String nuevo) async {
+        await tester.tap(find.byKey(ValueKey('estado-$actual')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(nuevo).last);
+        await tester.pumpAndSettle();
+      }
+
+      await tester.tap(find.text('Seleccionar todos'));
+      await tester.pumpAndSettle();
+      expect(find.text('Exportar Excel (2)'), findsOneWidget);
+      await estado('Todas', 'Completas');
+      expect(find.text('Exportar Excel (0)'), findsOneWidget);
+      expect(
+        find.text('Mostrando 1 de 2 jornadas del período'),
+        findsOneWidget,
+      );
+      expect(find.text('20/10/2026'), findsNothing);
+      await tester.tap(find.text('Seleccionar todos'));
+      await tester.pumpAndSettle();
+      expect(find.text('Exportar Excel (1)'), findsOneWidget);
+      await tester.tap(find.text('Actualizar'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Mostrando 1 de 2 jornadas del período'),
+        findsOneWidget,
+      );
+      expect(find.text('Exportar Excel (0)'), findsOneWidget);
+      await estado('Completas', 'Cierre pendiente');
+      expect(find.text('21/10/2026'), findsNothing);
+      expect(find.text('20/10/2026'), findsOneWidget);
+      await estado('Cierre pendiente', 'Sin inspecciones');
+      expect(find.text('Sin coincidencias con estos filtros'), findsOneWidget);
+      await tester.tap(find.text('Ver todos los estados'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('orden-true')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Más antiguas primero').last);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('20/10/2026')).dx,
+        lessThan(tester.getTopLeft(find.text('21/10/2026')).dx),
+      );
+      await tester.tap(find.text('Últimos 7 días'));
+      await tester.pumpAndSettle();
+      expect(
+        repo.desdeConsultado,
+        hoyColombia().subtract(const Duration(days: 6)),
+      );
+      expect(repo.hastaConsultado, hoyColombia());
+      await tester.tap(find.text('Mes anterior'));
+      await tester.pumpAndSettle();
+      final hoy = hoyColombia();
+      expect(repo.desdeConsultado, DateTime(hoy.year, hoy.month - 1));
+      expect(repo.hastaConsultado, DateTime(hoy.year, hoy.month, 0));
+      await tester.tap(find.text('Limpiar filtros'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('orden-true')), findsOneWidget);
+      expect(repo.desdeConsultado, DateTime(hoy.year, hoy.month));
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final admin in [false, true]) {
     testWidgets(
       'Historial ${admin ? 'administrador selecciona días' : 'conductor sin detalle'} a 320 px',
@@ -356,6 +450,7 @@ void main() {
         expect(find.text('1 de 2 inspecciones completadas'), findsOneWidget);
         if (admin) {
           expect(find.byType(CheckboxListTile), findsNWidgets(2));
+          await tester.ensureVisible(find.text('Seleccionar todos'));
           await tester.tap(find.text('Seleccionar todos'));
           await tester.pumpAndSettle();
           expect(find.text('Exportar Excel (2)'), findsOneWidget);

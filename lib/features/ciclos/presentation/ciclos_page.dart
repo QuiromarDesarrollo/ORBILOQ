@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/bienvenida_usuario.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'package:orbiloq_wms/shared/descargar_excel.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
@@ -342,6 +343,7 @@ class _CiclosState extends ConsumerState<CiclosPage> {
                       final titulo = Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const BienvenidaUsuario(),
                           Text(
                             _vista == 0
                                 ? 'Tiempos y cumplimiento'

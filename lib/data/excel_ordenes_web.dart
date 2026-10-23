@@ -8,7 +8,7 @@ Future<ExcelOrdenesParseado> leerOrdenesAsync(Uint8List bytes) async {
   final worker = web.Worker(
     Uri.parse(
       web.document.baseURI,
-    ).resolve('ordenes_excel_worker.js?v=20261015-1').toString().toJS,
+    ).resolve('ordenes_excel_worker.js?v=20261022-sin-codigo-1').toString().toJS,
   );
   final resultado = Completer<ExcelOrdenesParseado>();
   void fallar(String mensaje) {

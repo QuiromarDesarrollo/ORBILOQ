@@ -5,10 +5,10 @@ abstract final class ConductorDesign {
   static const navy = Color(0xFF0B3A4F);
   static const lime = Color(0xFFC5D900);
   static const cyan = Color(0xFF3A9AD0);
-  static const ink = Color(0xFF163A49);
-  static const muted = Color(0xFF56717D);
-  static const line = Color(0xFFDCE6E8);
-  static const background = Color(0xFFF2F6F6);
+  static const ink = Color(0xFF173B49);
+  static const muted = Color(0xFF66808C);
+  static const line = Color(0xFFDFE8EB);
+  static const background = Color(0xFFF3F6F7);
   static ThemeData theme() {
     final base = ThemeData(
       useMaterial3: true,
@@ -19,7 +19,7 @@ abstract final class ConductorDesign {
       ).copyWith(primary: navy, secondary: cyan, surface: Colors.white),
     );
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
     );
     return base.copyWith(
       scaffoldBackgroundColor: background,
@@ -46,11 +46,17 @@ abstract final class ConductorDesign {
             ),
           ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: navy,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: navy,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        toolbarHeight: 60,
+        toolbarHeight: 64,
+        titleTextStyle: TextStyle(
+          fontFamily: 'ConductorSans',
+          fontSize: 16,
+          color: navy,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       cardTheme: CardThemeData(
         color: Colors.white,
@@ -58,7 +64,7 @@ abstract final class ConductorDesign {
         elevation: 0,
         margin: const EdgeInsets.only(bottom: 12),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           side: const BorderSide(color: line),
         ),
       ),
@@ -151,7 +157,7 @@ class ConductorHeading extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            fontSize: 22,
+            fontSize: 27,
             fontWeight: FontWeight.w700,
             letterSpacing: -.5,
             color: ConductorDesign.ink,
@@ -173,33 +179,36 @@ class ConductorPanel extends StatelessWidget {
     required this.title,
     required this.children,
     this.icon,
+    this.trailing,
   });
   final String title;
   final List<Widget> children;
   final IconData? icon;
+  final Widget? trailing;
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 17 : 21),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 21, color: ConductorDesign.cyan),
+                Icon(icon, size: 21, color: ConductorDesign.navy),
                 const SizedBox(width: 10),
               ],
               Expanded(
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                     color: ConductorDesign.ink,
                   ),
                 ),
               ),
+              if (trailing != null) ...[const SizedBox(width: 12), trailing!],
             ],
           ),
           const SizedBox(height: 10),
@@ -220,31 +229,57 @@ class ConductorBadge extends StatelessWidget {
   final String text;
   final bool warning, error;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-    decoration: BoxDecoration(
-      color:
-          error
-              ? const Color(0xFFFDE9E7)
-              : warning
-              ? const Color(0xFFFFF0D4)
-              : const Color(0xFFE7F2F7),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Text(
-      text,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) {
+    final normalized = text.toLowerCase();
+    final bad =
+        error ||
+        normalized.contains('no autorizado') ||
+        normalized.contains('vencido');
+    final warn =
+        warning ||
+        normalized.contains('pendiente') ||
+        normalized.contains('sin checklist') ||
+        normalized.contains('con novedad');
+    final good =
+        !bad &&
+        !warn &&
+        (normalized.contains('autorizado') ||
+            normalized.contains('completad') ||
+            normalized.contains('registrado') ||
+            normalized.contains('vigente') ||
+            normalized.contains('buen estado') ||
+            normalized == 'cerrada');
+    final color =
+        bad
+            ? const Color(0xFFB84948)
+            : warn
+            ? const Color(0xFFA16416)
+            : good
+            ? const Color(0xFF208361)
+            : const Color(0xFF277997);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
         color:
-            error
-                ? const Color(0xFFA13732)
-                : warning
-                ? const Color(0xFF805100)
-                : const Color(0xFF165F7B),
+            bad
+                ? const Color(0xFFFCECEB)
+                : warn
+                ? const Color(0xFFFFF3DF)
+                : good
+                ? const Color(0xFFE7F4ED)
+                : const Color(0xFFE7F3F9),
+        borderRadius: BorderRadius.circular(6),
       ),
-    ),
-  );
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
 }
 
 class ConductorGrid extends StatelessWidget {

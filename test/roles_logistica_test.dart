@@ -67,7 +67,7 @@ void main() {
         expect(container.read(rolProvider), efectiva);
         final columnas = container.read(extractoresColumnaProvider);
         if (efectiva == Rol.logistica) {
-          expect(find.text('FECHA DE RECIBIDO'), findsOneWidget);
+          expect(find.text('ÚLTIMA RECEPCIÓN'), findsOneWidget);
           expect(find.text('Despacho por orden'), findsNothing);
           expect(find.text('Estantes y tickets'), findsNothing);
           expect(find.text('Bandeja de Sobrantes'), findsNothing);

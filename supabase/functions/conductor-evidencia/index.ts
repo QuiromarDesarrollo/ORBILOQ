@@ -1,6 +1,7 @@
+import { obtenerVistaPrevia } from './preview.mjs';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { OAuth2Client } from 'npm:google-auth-library@9.15.1';
-import { crearHandler } from './handler.mjs';
+import { crearHandler, DRIVE_FOLDER_ID } from './handler.mjs';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const clientId = Deno.env.get('CONDUCTOR_GOOGLE_CLIENT_ID');
@@ -21,8 +22,13 @@ Deno.serve(crearHandler({
     const { data: auth, error } = await client.auth.getUser(token);
     if (error || !auth.user) return null;
     const { data: v, error: denied } = await client.from('conductor_vehiculos')
-      .select('placa').eq('id', vehiculo).maybeSingle();
-    return denied || !v ? null : { placa: v.placa, actor: auth.user.id };
+      .select('placa,datos').eq('id', vehiculo).maybeSingle();
+    return denied || !v ? null : { placa: v.placa, actor: auth.user.id, datos: v.datos };
+  },
+  async previsualizar({ id, vehiculo }: { id: string; vehiculo: string }) {
+    const { token } = await oauth.getAccessToken();
+    if (!token) throw new Error('Unavailable');
+    return obtenerVistaPrevia({ token, id, vehiculo, carpeta: DRIVE_FOLDER_ID });
   },
   async iniciar({ metadata, mime, bytes, origin }: {
     metadata: Record<string, unknown>; mime: string; bytes: number; origin: string | null;

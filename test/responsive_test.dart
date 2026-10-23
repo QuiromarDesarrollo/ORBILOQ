@@ -57,7 +57,6 @@ void main() {
       expect(scaffold.isDrawerOpen, isTrue);
       expect(find.text('Dashboard ejecutivo'), findsNothing);
       for (final accion in [
-        'Conductores · Pruebas',
         'Administración',
         'Dashboard',
         'Importar tabla',

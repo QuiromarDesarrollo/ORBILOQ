@@ -1,3 +1,4 @@
+import 'package:orbiloq_wms/shared/widgets/bienvenida_usuario.dart';
 import '../../../shared/widgets/wms_loader.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -510,6 +511,7 @@ class InventarioVista extends StatelessWidget {
                       final titulo = Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const BienvenidaUsuario(),
                           const Text(
                             'OPERACIONES / INVENTARIO',
                             style: TextStyle(

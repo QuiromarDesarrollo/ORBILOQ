@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:image/image.dart' as img;
+import 'optimizar_foto_native.dart'
+    if (dart.library.js_interop) 'optimizar_foto_web.dart'
+    as fotos;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const carpetaEvidenciasConductor =
@@ -105,7 +107,7 @@ Future<ArchivoEvidencia> prepararEvidencia(
   if (!mime.startsWith('image/')) return ArchivoEvidencia(nombre, mime, bytes);
   Uint8List foto;
   try {
-    foto = await compute(_optimizarFoto, bytes);
+    foto = await fotos.optimizarFoto(bytes);
   } on FormatException {
     rethrow;
   } catch (_) {
@@ -118,27 +120,6 @@ Future<ArchivoEvidencia> prepararEvidencia(
     'image/jpeg',
     foto,
   );
-}
-
-Uint8List _optimizarFoto(Uint8List bytes) {
-  final decoder = img.findDecoderForData(bytes);
-  final info = decoder?.startDecode(bytes);
-  if (info == null || info.width * info.height > 40000000) {
-    throw const FormatException(
-      'Foto no compatible o demasiado grande (máximo 40 megapíxeles).',
-    );
-  }
-  var foto = decoder!.decodeFrame(0)!;
-  foto = img.bakeOrientation(foto);
-  if (foto.width > 1600 || foto.height > 1600) {
-    foto = img.copyResize(
-      foto,
-      width: foto.width >= foto.height ? 1600 : null,
-      height: foto.height > foto.width ? 1600 : null,
-    );
-  }
-  foto.exif.clear();
-  return Uint8List.fromList(img.encodeJpg(foto, quality: 82));
 }
 
 /// Solo metadatos pasan por Supabase. Los bytes viajan directamente a Google.
@@ -163,6 +144,7 @@ class SubidaEvidencia {
         'La demostración permite tomar fotos, pero no subirlas. Entra al ambiente de pruebas con tu usuario.',
       );
     }
+    final nuevaSesion = _sesion == null;
     if (_sesion == null) {
       try {
         final r = await client.functions.invoke(
@@ -202,37 +184,43 @@ class SubidaEvidencia {
       }
     }
     final total = archivo.bytes.length;
-    // Consultar antes de enviar también recupera una subida interrumpida.
-    var r = await _http
-        .put(_sesion!, headers: {'Content-Range': 'bytes */$total'})
-        .timeout(const Duration(seconds: 30));
-    if (r.statusCode == 200 || r.statusCode == 201) return _enlace(r);
-    if (r.statusCode == 404 || r.statusCode == 410) {
-      _sesion = null;
-      throw const FormatException(
-        'La sesión de subida venció. Pulsa Guardar registro para reintentar.',
-      );
+    var inicio = 0;
+    // Una sesión nueva está vacía. Consultar solo al reintentar conserva
+    // la recuperación tras respuesta perdida sin añadir un viaje de red inicial.
+    if (!nuevaSesion) {
+      final estado = await _http
+          .put(_sesion!, headers: {'Content-Range': 'bytes */$total'})
+          .timeout(const Duration(seconds: 30));
+      if (estado.statusCode == 200 || estado.statusCode == 201) {
+        return _enlace(estado);
+      }
+      if (estado.statusCode == 404 || estado.statusCode == 410) {
+        _sesion = null;
+        throw const FormatException(
+          'La sesión de subida venció. Pulsa Guardar registro para reintentar.',
+        );
+      }
+      if (estado.statusCode != 308) {
+        throw const FormatException(
+          'No se pudo consultar la subida. Puedes reintentar sin perder la foto.',
+        );
+      }
+      final range = estado.headers['range'];
+      final match =
+          range == null ? null : RegExp(r'^bytes=0-(\d+)$').firstMatch(range);
+      if (range != null && match == null) {
+        throw const FormatException(
+          'Drive devolvió un estado de subida no válido.',
+        );
+      }
+      inicio = match == null ? 0 : int.parse(match[1]!) + 1;
+      if (inicio >= total) {
+        throw const FormatException(
+          'Drive está finalizando el archivo. Reintenta en unos segundos.',
+        );
+      }
     }
-    if (r.statusCode != 308) {
-      throw const FormatException(
-        'No se pudo consultar la subida. Puedes reintentar sin perder la foto.',
-      );
-    }
-    final range = r.headers['range'];
-    final match =
-        range == null ? null : RegExp(r'^bytes=0-(\d+)$').firstMatch(range);
-    if (range != null && match == null) {
-      throw const FormatException(
-        'Drive devolvió un estado de subida no válido.',
-      );
-    }
-    final inicio = match == null ? 0 : int.parse(match[1]!) + 1;
-    if (inicio >= total) {
-      throw const FormatException(
-        'Drive está finalizando el archivo. Reintenta en unos segundos.',
-      );
-    }
-    r = await _http
+    final r = await _http
         .put(
           _sesion!,
           headers: {

@@ -112,9 +112,15 @@ class WmsLoadingStrip extends StatelessWidget {
 }
 
 class WmsLoadingPanel extends StatelessWidget {
-  const WmsLoadingPanel({super.key, this.label = 'Cargando…', this.value});
+  const WmsLoadingPanel({
+    super.key,
+    this.label = 'Cargando…',
+    this.value,
+    this.maxWidth = 260,
+  });
   final String label;
   final double? value;
+  final double maxWidth;
   @override
   Widget build(BuildContext context) => Center(
     child: SingleChildScrollView(
@@ -126,13 +132,54 @@ class WmsLoadingPanel extends StatelessWidget {
                 value == null
                     ? OrbiloqLoaderMode.orbit
                     : OrbiloqLoaderMode.progress,
-            width: math.min(260, MediaQuery.sizeOf(context).width * .6),
+            width: math.min(maxWidth, MediaQuery.sizeOf(context).width * .6),
             value: value,
           ),
           const SizedBox(height: 12),
-          Text(label, textAlign: TextAlign.center),
+          Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(label, textAlign: TextAlign.center),
+            ),
+          ),
         ],
       ),
+    ),
+  );
+}
+
+/// Operación bloqueante: conserva el formulario y muestra un único loader grande.
+class WmsActionLoadingOverlay extends StatelessWidget {
+  const WmsActionLoadingOverlay({super.key, required this.child, this.label});
+  final Widget child;
+  final String? label;
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: label == null,
+    child: Stack(
+      children: [
+        ExcludeFocus(
+          excluding: label != null,
+          child: ExcludeSemantics(
+            excluding: label != null,
+            child: TickerMode(enabled: label == null, child: child),
+          ),
+        ),
+        if (label != null)
+          Positioned.fill(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const ModalBarrier(
+                  dismissible: false,
+                  color: Color(0xF5FFFFFF),
+                ),
+                SafeArea(child: WmsLoadingPanel(label: label!)),
+              ],
+            ),
+          ),
+      ],
     ),
   );
 }

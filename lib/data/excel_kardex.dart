@@ -30,8 +30,8 @@ class ExcelKardex {
     'pendiente_reproceso': 'PRODUCTO NO CONFORME',
     'estado': 'ESTADO (calculado)',
     'fecha_ultima_entrega': 'FECHA DE ENTREGA',
-    if (vista == Rol.produccion) 'fecha_esperada_produccion': 'FECHA ESPERADA',
-    if (vista != Rol.produccion) 'fecha_esperada_logistica': 'FECHA ESPERADA',
+    if (vista == Rol.produccion) 'fecha_esperada_produccion': 'FECHA PACTADA',
+    if (vista != Rol.produccion) 'fecha_esperada_logistica': 'FECHA PACTADA',
     'dias': 'DÍAS FALTANTES (calculado)',
     'ubicacion_ajuste': 'UBICACIÓN DEL AJUSTE',
   };

@@ -38,8 +38,8 @@ const List<String> kEtiquetasProduccion = [
   'PENDIENTE',
   'PRODUCTO NO CONFORME',
   'ESTADOS',
-  'FECHA DE ENTREGA',
-  'FECHA ESPERADA',
+  'ÚLTIMA ENTREGA',
+  'FECHA PACTADA',
   'CUMPLIMIENTO',
 ];
 // A qué columna de filtro corresponde cada encabezado de Producción (por
@@ -87,7 +87,7 @@ const List<String> kEtiquetasBodega = [
   'PRODUCTO NO CONFORME',
   'ESTADOS',
   'FECHA DE DESPACHO',
-  'FECHA ESPERADA',
+  'FECHA PACTADA',
   'CUMPLIMIENTO',
   'INVENTARIO',
 ];
@@ -221,7 +221,7 @@ class _KardexTableState extends ConsumerState<KardexTable> {
       indices.insert(indices.indexOf(6) + 1, 13);
     }
     if (rol == Rol.logistica) {
-      etiquetasCompletas[10] = 'FECHA DE RECIBIDO';
+      etiquetasCompletas[10] = 'ÚLTIMA RECEPCIÓN';
       columnasCompletas[10] = ColKardex.fechaRecibido;
     }
     final anchoDisponible = constraints.maxWidth - (widget.integrada ? 0 : 2);

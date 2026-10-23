@@ -1,3 +1,7 @@
+import '../../../shared/widgets/wms_alert.dart';
+import '../mantenimiento_preventivo.dart';
+import '../ficha_vehiculo.dart';
+import 'transporte_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -13,9 +17,13 @@ class RegistroConductorPage extends ConsumerStatefulWidget {
     super.key,
     required this.vehiculo,
     required this.tipo,
+    this.servicioPreventivo,
+    this.actividad,
   });
   final VehiculoConductor vehiculo;
   final String tipo;
+  final String? servicioPreventivo;
+  final Map<String, dynamic>? actividad;
   @override
   ConsumerState<RegistroConductorPage> createState() =>
       _RegistroConductorPageState();
@@ -26,6 +34,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
   final _campos = <String, TextEditingController>{};
   final _respuestas = <String, String>{};
   bool _guardando = false;
+  int _categoria = 0;
   final _evidenciasOcupadas = <String>{};
   final _evidencias = <String, EvidenciaSeleccionada>{};
   String? _progresoSubida;
@@ -33,6 +42,28 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
   bool _siniestro = false;
   String? _error;
   DateTime _fecha = DateTime.now();
+  TimeOfDay _horaMantenimiento = TimeOfDay.now();
+  DateTime _fechaFin = DateTime.now();
+  TimeOfDay _horaFin = TimeOfDay.now();
+  ServicioPreventivo? _servicio;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.actividad != null) {
+      _ctrl('servicio', widget.actividad!['mantenimiento_trabajo'].toString());
+    }
+    for (final s in serviciosPreventivos) {
+      if (s.id == widget.servicioPreventivo) _servicio = s;
+    }
+  }
+
+  bool get _preventivo => widget.tipo == 'Mantenimiento preventivo';
+  bool get _tanqueoPreventivo => _preventivo && _servicio?.id == 'combustible';
+  String _horaTexto(TimeOfDay h) =>
+      '${h.hour.toString().padLeft(2, '0')}:${h.minute.toString().padLeft(2, '0')}';
+  DateTime _instante(DateTime d, TimeOfDay h) =>
+      DateTime(d.year, d.month, d.day, h.hour, h.minute);
+
   bool get _check =>
       widget.tipo == 'Inicio de jornada' || widget.tipo == 'Fin de jornada';
   bool get _documentos => widget.tipo == 'Documentos';
@@ -101,8 +132,10 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
         Semantics(
           label: etiqueta,
           child: TextFormField(
+            key: ValueKey('campo-$key'),
             controller: _ctrl(key, valor),
             enabled: !_guardando,
+            readOnly: key == 'servicio' && widget.actividad != null,
             keyboardType:
                 numero
                     ? const TextInputType.numberWithOptions(decimal: true)
@@ -111,19 +144,137 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
             maxLines: lineas,
             decoration: InputDecoration(hintText: placeholder),
             validator: (v) {
+              if (key == 'galones') {
+                final cantidad = double.tryParse(
+                  (v ?? '').trim().replaceAll(',', '.'),
+                );
+                if (cantidad == null || !cantidad.isFinite || cantidad <= 0) {
+                  return 'Ingresa una cantidad de galones mayor que cero';
+                }
+              }
               if (obligatorio && (v == null || v.trim().isEmpty)) {
                 return 'Campo obligatorio';
               }
               if (numero &&
                   v != null &&
                   v.isNotEmpty &&
-                  (double.tryParse(v) == null ||
-                      !double.parse(v).isFinite ||
-                      double.parse(v) < 0)) {
+                  (double.tryParse(
+                            key == 'galones' ? v.replaceAll(',', '.') : v,
+                          ) ==
+                          null ||
+                      !double.parse(
+                        key == 'galones' ? v.replaceAll(',', '.') : v,
+                      ).isFinite ||
+                      double.parse(
+                            key == 'galones' ? v.replaceAll(',', '.') : v,
+                          ) <
+                          0)) {
                 return 'Ingresa un número válido';
               }
               return null;
             },
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _fechaHoraMantenimiento() => TransporteCampos(
+    children: [
+      for (final fin in [false, true]) ...[
+        TextFormField(
+          key: ValueKey(
+            'fecha-${fin ? 'fin' : 'inicio'}-${fin ? _fechaFin : _fecha}',
+          ),
+          initialValue: DateFormat(
+            'dd/MM/yyyy',
+          ).format(fin ? _fechaFin : _fecha),
+          readOnly: true,
+          enabled: !_ocupado,
+          decoration: InputDecoration(
+            labelText: fin ? 'Fecha fin' : 'Fecha de inicio',
+            suffixIcon: const Icon(Icons.calendar_month_outlined),
+          ),
+          onTap: () async {
+            final fecha = await showDatePicker(
+              context: context,
+              initialDate: fin ? _fechaFin : _fecha,
+              firstDate: DateTime(2020),
+              lastDate: DateTime.now(),
+            );
+            if (fecha != null && mounted) {
+              setState(() {
+                if (fin) {
+                  _fechaFin = fecha;
+                } else {
+                  _fecha = fecha;
+                }
+              });
+            }
+          },
+        ),
+        TextFormField(
+          key: ValueKey(
+            'hora-${fin ? 'fin' : 'inicio'}-${fin ? _horaFin : _horaMantenimiento}',
+          ),
+          initialValue: (fin ? _horaFin : _horaMantenimiento).format(context),
+          readOnly: true,
+          enabled: !_ocupado,
+          decoration: InputDecoration(
+            labelText: fin ? 'Hora fin' : 'Hora de inicio',
+            suffixIcon: const Icon(Icons.schedule_outlined),
+          ),
+          onTap: () async {
+            final hora = await showTimePicker(
+              context: context,
+              initialTime: fin ? _horaFin : _horaMantenimiento,
+            );
+            if (hora != null && mounted) {
+              setState(() {
+                if (fin) {
+                  _horaFin = hora;
+                } else {
+                  _horaMantenimiento = hora;
+                }
+              });
+            }
+          },
+        ),
+      ],
+    ],
+  );
+
+  Widget _selectorServicio() => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Mantenimiento realizado *',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: ConductorDesign.ink,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Semantics(
+          label: 'Mantenimiento realizado',
+          child: DropdownButtonFormField<ServicioPreventivo>(
+            initialValue: _servicio,
+            isExpanded: true,
+            decoration: const InputDecoration(),
+            items: [
+              for (final s in serviciosPreventivos)
+                DropdownMenuItem(
+                  value: s,
+                  child: Text(s.nombre, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: _ocupado ? null : (s) => setState(() => _servicio = s),
+            validator:
+                (s) =>
+                    s == null ? 'Selecciona el mantenimiento realizado' : null,
           ),
         ),
       ],
@@ -163,6 +314,30 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
     );
   }
 
+  Widget _campoFicha(CampoFichaVehiculo campo) {
+    final actual = widget.vehiculo.datos[campo.key]?.toString() ?? '';
+    if (campo.fecha) return _fechaDocumento(campo.key, campo.label);
+    if (campo.opciones.isNotEmpty) {
+      final controller = _ctrl(campo.key, actual);
+      return DropdownButtonFormField<String>(
+        key: ValueKey('ficha-${campo.key}'),
+        isExpanded: true,
+        initialValue: controller.text.isEmpty ? null : controller.text,
+        decoration: InputDecoration(
+          labelText: campo.label,
+          hintText: 'Sin registrar',
+        ),
+        items:
+            {
+              ...campo.opciones,
+              if (actual.isNotEmpty) actual,
+            }.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+        onChanged: _ocupado ? null : (value) => controller.text = value ?? '',
+      );
+    }
+    return _campo(campo.key, campo.label, numero: campo.numero, valor: actual);
+  }
+
   Widget _seccion(String titulo, List<Widget> campos) => ConductorPanel(
     title: titulo,
     icon: switch (titulo) {
@@ -180,6 +355,17 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
   Future<void> _guardar() async {
     if (_ocupado) return;
     if (!_form.currentState!.validate()) return;
+    if (_mantenimiento &&
+        _instante(
+          _fechaFin,
+          _horaFin,
+        ).isBefore(_instante(_fecha, _horaMantenimiento))) {
+      setState(
+        () =>
+            _error = 'La fecha y hora fin no pueden ser anteriores al inicio.',
+      );
+      return;
+    }
     final km = int.tryParse(_ctrl('km', widget.vehiculo.km.toString()).text);
     if (km == null) {
       setState(() => _error = 'El kilometraje debe ser entero.');
@@ -196,7 +382,15 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
       enlace: enlace,
     );
     if (fallo != null) {
-      setState(() => _error = fallo);
+      setState(() {
+        _error = fallo;
+        if (_check) {
+          final faltante = checklistConductor.entries.toList().indexWhere(
+            (g) => g.value.any((p) => !_respuestas.containsKey(p)),
+          );
+          if (faltante >= 0) _categoria = faltante;
+        }
+      });
       return;
     }
     if (_siniestro && _ctrl('hecho').text.trim().isEmpty) {
@@ -207,8 +401,20 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
       setState(() => _error = 'Agrega la evidencia del siniestro.');
       return;
     }
+    if (widget.actividad != null &&
+        _evidencias['enlace']?.archivo == null &&
+        _evidencias['enlace']?.enlace == null) {
+      setState(
+        () => _error = 'Adjunta una evidencia del mantenimiento realizado.',
+      );
+      return;
+    }
     setState(() {
       _guardando = true;
+      _progresoSubida =
+          _evidencias.values.any((e) => e.archivo != null)
+              ? 'Preparando la subida de evidencias…'
+              : null;
       _error = null;
     });
     var subiendo = true;
@@ -229,22 +435,41 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
       subiendo = false;
       if (!mounted) return;
       setState(() => _progresoSubida = null);
-      await ref
-          .read(conductorRepositoryProvider)
-          .guardar(widget.vehiculo.id, widget.tipo, km, {
-            for (final e in _campos.entries)
-              if (e.key != 'km') e.key: e.value.text.trim(),
-            for (final e in _evidencias.entries)
-              if (e.value.enlace != null) e.key: e.value.enlace!,
-            'fecha': DateFormat('yyyy-MM-dd').format(_fecha),
-            if (_check) 'respuestas': _respuestas,
-            if (widget.tipo == 'Fin de jornada') 'siniestro': _siniestro,
-            if (_check)
-              'resultado':
-                  _respuestas.containsValue('Con novedad')
-                      ? 'Requiere revisión'
-                      : 'Sin novedades',
-          });
+      await ref.read(conductorRepositoryProvider).guardar(
+        widget.vehiculo.id,
+        widget.tipo,
+        km,
+        {
+          for (final e in _campos.entries)
+            if (e.key != 'km' && e.key != 'galones') e.key: e.value.text.trim(),
+          if (_tanqueoPreventivo)
+            'galones': _ctrl('galones').text.trim().replaceAll(',', '.'),
+          for (final e in _evidencias.entries)
+            if (e.value.enlace != null) e.key: e.value.enlace!,
+          if (widget.actividad != null) 'actividad_id': widget.actividad!['id'],
+          'fecha': DateFormat('yyyy-MM-dd').format(_fecha),
+          if (_mantenimiento)
+            'hora_mantenimiento':
+                '${_horaMantenimiento.hour.toString().padLeft(2, '0')}:${_horaMantenimiento.minute.toString().padLeft(2, '0')}',
+          if (_mantenimiento) ...{
+            'fecha_inicio': DateFormat('yyyy-MM-dd').format(_fecha),
+            'hora_inicio': _horaTexto(_horaMantenimiento),
+            'fecha_fin': DateFormat('yyyy-MM-dd').format(_fechaFin),
+            'hora_fin': _horaTexto(_horaFin),
+          },
+          if (_preventivo && _servicio != null) ...{
+            'servicio_id': _servicio!.id,
+            'servicio': _servicio!.nombre,
+          },
+          if (_check) 'respuestas': _respuestas,
+          if (widget.tipo == 'Fin de jornada') 'siniestro': _siniestro,
+          if (_check)
+            'resultado':
+                _respuestas.containsValue('Con novedad')
+                    ? 'Requiere revisión'
+                    : 'Sin novedades',
+        },
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
@@ -267,23 +492,37 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
       builder:
           (context) => PopScope(
             canPop: !_ocupado,
-            child: Scaffold(
+            child: TransporteScaffold(
+              loadingLabel:
+                  _guardando
+                      ? (_progresoSubida ??
+                          (widget.actividad != null
+                              ? 'Enviando mantenimiento para validación…'
+                              : _check
+                              ? 'Guardando inspección del vehículo…'
+                              : _documentos
+                              ? 'Guardando documentos del vehículo…'
+                              : _mantenimiento
+                              ? 'Guardando mantenimiento…'
+                              : 'Guardando ${widget.tipo.toLowerCase()}…'))
+                      : null,
               appBar: AppBar(
-                title: const Column(
+                title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'ORBILOQ',
-                      style: TextStyle(
+                      widget.tipo,
+                      style: const TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    SizedBox(height: 4),
                     Text(
-                      'Grupo Quiromar · Portal del conductor',
-                      style: TextStyle(fontSize: 11, color: Color(0xFFC0D7E0)),
+                      widget.vehiculo.placa,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: ConductorDesign.muted,
+                      ),
                     ),
                   ],
                 ),
@@ -314,6 +553,8 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                                   ? (_progresoSubida ?? 'Guardando…')
                                   : _evidenciasOcupadas.isNotEmpty
                                   ? 'Procesando evidencia…'
+                                  : widget.actividad != null
+                                  ? 'Enviar para validación'
                                   : 'Guardar registro',
                             ),
                           ),
@@ -326,9 +567,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
               body: SafeArea(
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: widget.tipo == 'Registro diario' ? 1160 : 850,
-                    ),
+                    constraints: const BoxConstraints(maxWidth: 1160),
                     child: Form(
                       key: _form,
                       child: ListView(
@@ -350,10 +589,13 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                           ),
                           const SizedBox(height: 18),
                           _seccion('Datos del registro', [
-                            Text(
-                              'Fecha: ${DateFormat("dd/MM/yyyy").format(_fecha)}',
-                            ),
-                            if (!_check && !_documentos)
+                            if (_mantenimiento)
+                              _fechaHoraMantenimiento()
+                            else
+                              Text(
+                                'Fecha: ${DateFormat("dd/MM/yyyy").format(_fecha)}',
+                              ),
+                            if (!_check && !_documentos && !_mantenimiento)
                               TextButton.icon(
                                 onPressed:
                                     _ocupado
@@ -388,29 +630,121 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                               'Conductor, placa y hora de registro se guardan automáticamente.',
                             ),
                           ]),
-                          if (_documentos)
-                            _seccion('Documentos y programación', [
-                              for (final doc in documentosConductor)
-                                _fechaDocumento(doc, '$doc · Vencimiento'),
+                          if (_documentos) ...[
+                            for (final grupo in fichaVehiculoCampos.entries)
+                              _seccion(grupo.key, [
+                                TransporteCampos(
+                                  children: [
+                                    for (final campo in grupo.value)
+                                      _campoFicha(campo),
+                                  ],
+                                ),
+                              ]),
+                            _seccion('Foto del vehículo', [
+                              const Text(
+                                'Puedes tomar una foto o elegirla. Se sube a Drive al guardar; se conserva únicamente el enlace.',
+                              ),
+                              const SizedBox(height: 12),
+                              _evidencia(
+                                'foto_frontal',
+                                'Foto del vehículo',
+                                soloFoto: true,
+                              ),
+                            ]),
+                          ],
+                          if (_documentos) ...[
+                            _seccion('Datos del conductor', [
                               _campo(
-                                'licencia_transito',
-                                'Número de licencia de tránsito',
+                                'conductor_documento',
+                                'Número de documento del conductor',
                                 valor:
-                                    widget.vehiculo.datos['licencia_transito']
+                                    widget.vehiculo.datos['conductor_documento']
                                         ?.toString() ??
                                     '',
                               ),
-                              _campo(
-                                'proximo_aceite',
-                                'Próximo cambio de aceite · km',
-                                numero: true,
-                                valor:
-                                    widget.vehiculo.datos['proximo_aceite']
-                                        ?.toString() ??
-                                    '',
+                              _evidencia(
+                                'foto_conductor',
+                                'Foto del conductor',
+                                soloFoto: true,
+                              ),
+                            ]),
+                            for (final d in documentosFicha.entries)
+                              _seccion(d.value, [
+                                TransporteCampos(
+                                  children: [
+                                    _fechaDocumento(
+                                      '${d.key}_desde',
+                                      'Vigencia desde',
+                                    ),
+                                    _fechaDocumento(d.value, 'Vigencia hasta'),
+                                    _fechaDocumento(
+                                      '${d.key}_expedido',
+                                      'Fecha de expedición',
+                                    ),
+                                    _campo(
+                                      '${d.key}_valor',
+                                      'Valor · COP',
+                                      numero: true,
+                                      valor:
+                                          widget
+                                              .vehiculo
+                                              .datos['${d.key}_valor']
+                                              ?.toString() ??
+                                          '',
+                                    ),
+                                  ],
+                                ),
+                                _campo(
+                                  '${d.key}_observaciones',
+                                  'Observaciones',
+                                  lineas: 2,
+                                  valor:
+                                      widget
+                                          .vehiculo
+                                          .datos['${d.key}_observaciones']
+                                          ?.toString() ??
+                                      '',
+                                ),
+                                _evidencia(
+                                  'doc_${d.key}',
+                                  'Archivo de ${d.value}',
+                                ),
+                              ]),
+                          ],
+                          if (_documentos)
+                            _seccion('Documentos y programación', [
+                              TransporteCampos(
+                                children: [
+                                  _campo(
+                                    'licencia_transito',
+                                    'Número de licencia de tránsito',
+                                    valor:
+                                        widget
+                                            .vehiculo
+                                            .datos['licencia_transito']
+                                            ?.toString() ??
+                                        '',
+                                  ),
+                                  _campo(
+                                    'proximo_aceite',
+                                    'Próximo cambio de aceite · km',
+                                    numero: true,
+                                    valor:
+                                        widget.vehiculo.datos['proximo_aceite']
+                                            ?.toString() ??
+                                        '',
+                                  ),
+                                ],
                               ),
                             ]),
                           if (_check) ...[
+                            if (widget.tipo == 'Inicio de jornada')
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 16),
+                                child: Text(
+                                  'Al guardar, la salida quedará pendiente de aprobación del administrador. Espera su confirmación antes de salir a ruta.',
+                                ),
+                              ),
                             LinearProgressIndicator(
                               value:
                                   _respuestas.length /
@@ -424,41 +758,97 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                                 '${_respuestas.length} de ${checklistConductor.values.expand((p) => p).length} puntos revisados',
                               ),
                             ),
-                            for (final grupo in checklistConductor.entries)
-                              _seccion(grupo.key, [
-                                for (final pregunta in grupo.value)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: DropdownButtonFormField<String>(
-                                      isExpanded: true,
-                                      initialValue: _respuestas[pregunta],
-                                      decoration: InputDecoration(
-                                        labelText: pregunta,
+                            TransporteCategorias(
+                              labels: checklistConductor.keys.toList(),
+                              selected: _categoria,
+                              enabled: !_ocupado,
+                              onSelected: (i) => setState(() => _categoria = i),
+                              child: _seccion(
+                                checklistConductor.keys.elementAt(_categoria),
+                                [
+                                  for (final pregunta in checklistConductor
+                                      .values
+                                      .elementAt(_categoria))
+                                    Container(
+                                      key: ValueKey('punto-$pregunta'),
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: ConductorDesign.line,
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
-                                      items:
-                                          const ['Buen estado', 'Con novedad']
-                                              .map(
-                                                (r) => DropdownMenuItem(
-                                                  value: r,
-                                                  child: Text(r),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            pregunta,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: [
+                                              for (final estado in const [
+                                                'Buen estado',
+                                                'Con novedad',
+                                              ])
+                                                ChoiceChip(
+                                                  label: Text(estado),
+                                                  selected:
+                                                      _respuestas[pregunta] ==
+                                                      estado,
+                                                  onSelected:
+                                                      _ocupado
+                                                          ? null
+                                                          : (_) => setState(
+                                                            () =>
+                                                                _respuestas[pregunta] =
+                                                                    estado,
+                                                          ),
                                                 ),
-                                              )
-                                              .toList(),
-                                      onChanged:
-                                          _guardando
-                                              ? null
-                                              : (r) => setState(
-                                                () =>
-                                                    _respuestas[pregunta] = r!,
-                                              ),
-                                      validator:
-                                          (r) =>
-                                              r == null
-                                                  ? 'Revisa este punto'
-                                                  : null,
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
+                                  Wrap(
+                                    alignment: WrapAlignment.spaceBetween,
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      TextButton(
+                                        onPressed:
+                                            _categoria > 0 && !_ocupado
+                                                ? () =>
+                                                    setState(() => _categoria--)
+                                                : null,
+                                        child: const Text('Anterior'),
+                                      ),
+                                      TextButton(
+                                        onPressed:
+                                            _categoria <
+                                                        checklistConductor
+                                                                .length -
+                                                            1 &&
+                                                    !_ocupado
+                                                ? () =>
+                                                    setState(() => _categoria++)
+                                                : null,
+                                        child: const Text(
+                                          'Siguiente categoría',
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                              ]),
+                                ],
+                              ),
+                            ),
                             if (_respuestas.containsValue('Con novedad'))
                               const Padding(
                                 padding: EdgeInsets.only(bottom: 16),
@@ -507,53 +897,83 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                             ]),
                           if (widget.tipo == 'Tanqueo')
                             _seccion('Combustible', [
-                              _campo(
-                                'km_tanqueo',
-                                'Kilometraje del tanqueo',
-                                numero: true,
-                                obligatorio: true,
-                                valor: widget.vehiculo.km.toString(),
+                              TransporteCampos(
+                                children: [
+                                  _campo(
+                                    'km_tanqueo',
+                                    'Kilometraje del tanqueo',
+                                    numero: true,
+                                    obligatorio: true,
+                                    valor: widget.vehiculo.km.toString(),
+                                  ),
+                                  _campo(
+                                    'cantidad',
+                                    'Cantidad de combustible · litros',
+                                    numero: true,
+                                    obligatorio: true,
+                                  ),
+                                  _campo(
+                                    'valor',
+                                    'Valor del tanqueo · COP',
+                                    numero: true,
+                                    obligatorio: true,
+                                  ),
+                                  _campo('estacion', 'Estación de servicio'),
+                                ],
                               ),
-                              _campo(
-                                'cantidad',
-                                'Cantidad de combustible · litros',
-                                numero: true,
-                                obligatorio: true,
-                              ),
-                              _campo(
-                                'valor',
-                                'Valor del tanqueo · COP',
-                                numero: true,
-                                obligatorio: true,
-                              ),
-                              _campo('estacion', 'Estación de servicio'),
                             ]),
                           if (_mantenimiento)
                             _seccion('Servicio realizado', [
-                              _campo(
-                                'servicio',
-                                'Mantenimiento realizado',
-                                obligatorio: true,
-                              ),
-                              _campo(
-                                'taller',
-                                'Taller o responsable',
-                                obligatorio: true,
-                              ),
-                              _campo(
-                                'valor',
-                                'Valor total mantenimientos · COP',
-                                obligatorio: true,
-                                numero: true,
-                              ),
-                              _campo(
-                                'proximo_km',
-                                'Próximo control · km',
-                                numero: true,
-                              ),
-                              _fechaDocumento(
-                                'proxima_fecha',
-                                'Próximo control · Fecha',
+                              if (widget.actividad != null) ...[
+                                Text(
+                                  'Asignado por el administrador: ${widget.actividad!['descripcion']}',
+                                ),
+                                const Text(
+                                  'El mantenimiento asignado no se puede modificar. La entrega quedará pendiente de validación.',
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                              TransporteCampos(
+                                children: [
+                                  if (_preventivo && widget.actividad == null)
+                                    _selectorServicio()
+                                  else
+                                    _campo(
+                                      'servicio',
+                                      'Mantenimiento realizado',
+                                      obligatorio: true,
+                                    ),
+                                  _campo(
+                                    'taller',
+                                    'Taller o responsable',
+                                    obligatorio: true,
+                                  ),
+                                  _campo(
+                                    'valor',
+                                    'Valor total mantenimientos · COP',
+                                    obligatorio: true,
+                                    numero: true,
+                                  ),
+                                  if (_tanqueoPreventivo)
+                                    _campo(
+                                      'galones',
+                                      'Galones del tanqueo',
+                                      obligatorio: true,
+                                      numero: true,
+                                      placeholder: 'Ej. 12,5',
+                                    ),
+                                  if (!_preventivo)
+                                    _campo(
+                                      'proximo_km',
+                                      'Próximo control · km',
+                                      numero: true,
+                                    ),
+                                  if (!_preventivo)
+                                    _fechaDocumento(
+                                      'proxima_fecha',
+                                      'Próximo control · Fecha',
+                                    ),
+                                ],
                               ),
                             ]),
                           if (widget.tipo == 'Reposición de fluidos')
@@ -607,6 +1027,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                               placeholder:
                                   'Describe daños, faltantes o cualquier novedad del vehículo…',
                             ),
+                            adicionalObligatorio: widget.actividad != null,
                             tituloAdicional:
                                 widget.tipo == 'Tanqueo'
                                     ? 'Factura del tanqueo'
@@ -620,6 +1041,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                                   : _mantenimiento
                                   ? 'Evidencia de mantenimiento'
                                   : 'Fotos o documento de evidencia',
+                              obligatorio: widget.actividad != null,
                               estilo: EstiloEvidencia.adicional,
                               ayuda:
                                   'Fotos o documentos que respalden el registro',
@@ -628,11 +1050,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                           if (_error != null)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 16),
-                              child: Text(
-                                _error!,
-                                semanticsLabel: _error,
-                                style: const TextStyle(color: Colors.red),
-                              ),
+                              child: AvisoFormulario(_error!),
                             ),
                           const SizedBox(height: 24),
                         ],

@@ -8,6 +8,8 @@ import 'package:orbiloq_wms/features/admin/presentation/catalogos_dialog.dart';
 
 class _Repo implements CatalogosRepository {
   @override
+  Future<void> cambiarContrasena(String usuarioId, String contrasena) async {}
+  @override
   Future<List<Map<String, dynamic>>> listar(String tipo) async => [
     {
       'id': '1',

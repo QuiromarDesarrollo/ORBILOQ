@@ -48,7 +48,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _ingresar() async {
     final repo = ref.read(authRepositoryProvider);
     if (repo == null) {
-      setState(() => _error = 'No hay conexión a la base de datos configurada.');
+      setState(
+        () => _error = 'No hay conexión a la base de datos configurada.',
+      );
       return;
     }
 
@@ -57,7 +59,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _error = null;
     });
 
-    final res = await repo.iniciarSesion(_usuarioCtrl.text, _contrasenaCtrl.text);
+    final res = await repo.iniciarSesion(
+      _usuarioCtrl.text,
+      _contrasenaCtrl.text,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -75,7 +80,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final ancho = constraints.maxWidth >= 900;
-          final panelMarca = _PanelMarca(navyDeep: _navyDeep, navyMid: _navyMid, tealBright: _tealBright);
+          final panelMarca = _PanelMarca(
+            navyDeep: _navyDeep,
+            navyMid: _navyMid,
+            tealBright: _tealBright,
+          );
           final panelForm = _PanelFormulario(
             tealPrimary: _tealPrimary,
             slate900: _slate900,
@@ -86,7 +95,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             cargando: _cargando,
             verContrasena: _verContrasena,
             error: _error,
-            onVerContrasena: () => setState(() => _verContrasena = !_verContrasena),
+            onVerContrasena:
+                () => setState(() => _verContrasena = !_verContrasena),
             onIngresar: _ingresar,
           );
 
@@ -94,7 +104,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             return Row(
               children: [
                 Expanded(flex: 5, child: panelMarca),
-                Expanded(flex: 6, child: SingleChildScrollView(child: Center(child: panelForm))),
+                Expanded(
+                  flex: 6,
+                  child: SingleChildScrollView(child: Center(child: panelForm)),
+                ),
               ],
             );
           }
@@ -115,7 +128,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
 /// Panel oscuro con el logo y el mensaje de marca.
 class _PanelMarca extends StatelessWidget {
-  const _PanelMarca({required this.navyDeep, required this.navyMid, required this.tealBright});
+  const _PanelMarca({
+    required this.navyDeep,
+    required this.navyMid,
+    required this.tealBright,
+  });
 
   final Color navyDeep;
   final Color navyMid;
@@ -150,11 +167,15 @@ class _PanelMarca extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
                     ),
                     child: Center(
                       child: Theme(
-                        data: Theme.of(context).copyWith(brightness: Brightness.light),
+                        data: Theme.of(
+                          context,
+                        ).copyWith(brightness: Brightness.light),
                         child: WmsLoader(
                           key: const ValueKey('login-logo-animado'),
                           mode: OrbiloqLoaderMode.orbit,
@@ -169,19 +190,34 @@ class _PanelMarca extends StatelessWidget {
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1.2),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                  ),
                   children: [
-                    const TextSpan(text: 'Eficiencia en\n', style: TextStyle(color: Colors.white)),
-                    TextSpan(text: 'movimiento', style: TextStyle(color: tealBright)),
+                    const TextSpan(
+                      text: 'Eficiencia en\n',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    TextSpan(
+                      text: 'movimiento',
+                      style: TextStyle(color: tealBright),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
-              if (!compacto) const Text(
-                'Sistema de gestión de almacenes para una operación\nlogística precisa.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.5),
-              ),
+              if (!compacto)
+                const Text(
+                  'Sistema de gestión de almacenes para una operación\nlogística precisa.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
             ],
           ),
         ),
@@ -230,12 +266,21 @@ class _PanelFormulario extends StatelessWidget {
           children: [
             Text(
               'ACCESO SEGURO',
-              style: TextStyle(color: tealPrimary, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2),
+              style: TextStyle(
+                color: tealPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                letterSpacing: 1.2,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               'Bienvenido de nuevo',
-              style: TextStyle(color: slate900, fontSize: 28, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: slate900,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -254,11 +299,13 @@ class _PanelFormulario extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: AvisoFormulario(error!),
+                    const Icon(
+                      Icons.error_outline,
+                      color: Color(0xFFDC2626),
+                      size: 18,
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(child: AvisoFormulario(error!)),
                   ],
                 ),
               ),
@@ -271,7 +318,12 @@ class _PanelFormulario extends StatelessWidget {
               keyboardType: TextInputType.number,
               autofillHints: const [AutofillHints.username],
               style: TextStyle(color: slate900),
-              decoration: _decoracion('Ingresa tu usuario', Icons.person_outline, slate200, slate500),
+              decoration: _decoracion(
+                'Ingresa tu usuario',
+                Icons.person_outline,
+                slate200,
+                slate500,
+              ),
               onSubmitted: (_) => onIngresar(),
             ),
             const SizedBox(height: 18),
@@ -282,10 +334,20 @@ class _PanelFormulario extends StatelessWidget {
               obscureText: !verContrasena,
               autofillHints: const [AutofillHints.password],
               style: TextStyle(color: slate900),
-              decoration: _decoracion('Ingresa tu contraseña', Icons.lock_outline, slate200, slate500).copyWith(
+              decoration: _decoracion(
+                'Ingresa tu contraseña',
+                Icons.lock_outline,
+                slate200,
+                slate500,
+              ).copyWith(
                 suffixIcon: IconButton(
-                  icon: Icon(verContrasena ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                      size: 20, color: slate500),
+                  icon: Icon(
+                    verContrasena
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 20,
+                    color: slate500,
+                  ),
                   onPressed: onVerContrasena,
                 ),
               ),
@@ -300,20 +362,34 @@ class _PanelFormulario extends StatelessWidget {
                   backgroundColor: slate900,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   elevation: 0,
                 ),
-                child: cargando
-                    ? const SizedBox(
-                        width: 48, height: 30, child: WmsLoader(strokeWidth: 2, color: Colors.white))
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Flexible(child: Text('Iniciar sesión', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15))),
-                          SizedBox(width: 8),
-                          Icon(Icons.arrow_forward, size: 18),
-                        ],
-                      ),
+                child:
+                    cargando
+                        ? const SizedBox(
+                          width: 48,
+                          height: 30,
+                          child: WmsLoader(strokeWidth: 2, color: Colors.white),
+                        )
+                        : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Iniciar sesión',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(Icons.arrow_forward, size: 18),
+                          ],
+                        ),
               ),
             ),
             const SizedBox(height: 24),
@@ -321,20 +397,45 @@ class _PanelFormulario extends StatelessWidget {
             const SizedBox(height: 16),
             Wrap(
               alignment: WrapAlignment.spaceBetween,
-              spacing: 12, runSpacing: 12,
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 Row(
                   children: [
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(color: Color(0xFF22C55E), shape: BoxShape.circle),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF22C55E),
+                        shape: BoxShape.circle,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    Text('ORBILOQ WMS', style: TextStyle(color: slate500, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(
+                      'ORBILOQ WMS',
+                      style: TextStyle(
+                        color: slate500,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
-                Text('¿Olvidaste tu clave?', style: TextStyle(color: tealPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+                TextButton(
+                  onPressed:
+                      () => mostrarAviso(
+                        context,
+                        'Comunícate con el administrador de ORBILOQ para que te asigne una nueva contraseña.',
+                      ),
+                  child: Text(
+                    '¿Olvidaste tu contraseña?',
+                    style: TextStyle(
+                      color: tealPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
@@ -343,21 +444,39 @@ class _PanelFormulario extends StatelessWidget {
     );
   }
 
-  Widget _etiqueta(String texto, Color color) =>
-      Text(texto, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.6));
+  Widget _etiqueta(String texto, Color color) => Text(
+    texto,
+    style: TextStyle(
+      color: color,
+      fontSize: 11,
+      fontWeight: FontWeight.bold,
+      letterSpacing: 0.6,
+    ),
+  );
 
-  InputDecoration _decoracion(String hint, IconData icono, Color borde, Color iconColor) => InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: iconColor.withValues(alpha: 0.7), fontSize: 14),
-        prefixIcon: Icon(icono, color: iconColor, size: 20),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: borde)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: borde)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF0F766E), width: 1.5),
-        ),
-      );
+  InputDecoration _decoracion(
+    String hint,
+    IconData icono,
+    Color borde,
+    Color iconColor,
+  ) => InputDecoration(
+    hintText: hint,
+    hintStyle: TextStyle(color: iconColor.withValues(alpha: 0.7), fontSize: 14),
+    prefixIcon: Icon(icono, color: iconColor, size: 20),
+    filled: true,
+    fillColor: Colors.white,
+    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: borde),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: borde),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: Color(0xFF0F766E), width: 1.5),
+    ),
+  );
 }

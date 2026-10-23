@@ -16,6 +16,8 @@ Future<void> mostrarAvisoContenido(
   bool error = false,
   TipoAviso tipo = TipoAviso.informacion,
   SnackBarAction? accion,
+  String? tituloPersonalizado,
+  String cerrarEtiqueta = 'Cerrar aviso',
 }) async {
   if (!context.mounted) return;
   final efectivo = error ? TipoAviso.error : tipo;
@@ -76,7 +78,7 @@ Future<void> mostrarAvisoContenido(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          titulo,
+                          tituloPersonalizado ?? titulo,
                           textAlign: TextAlign.center,
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w700,
@@ -116,7 +118,7 @@ Future<void> mostrarAvisoContenido(
                                 ),
                               ),
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Cerrar aviso'),
+                              child: Text(cerrarEtiqueta),
                             ),
                           ],
                         ),
@@ -201,7 +203,8 @@ class _AvisoFormularioState extends State<AvisoFormulario> {
   @override
   void didUpdateWidget(AvisoFormulario oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mensaje != widget.mensaje || oldWidget.error != widget.error) {
+    if (oldWidget.mensaje != widget.mensaje ||
+        oldWidget.error != widget.error) {
       _mostrar();
     }
   }
@@ -220,4 +223,24 @@ class _AvisoFormularioState extends State<AvisoFormulario> {
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+/// Confirmación con la misma presentación que los avisos globales.
+Future<bool> confirmarAviso(
+  BuildContext context,
+  String mensaje, {
+  required String titulo,
+  required String confirmar,
+  String cancelar = 'Cancelar',
+}) async {
+  var aceptado = false;
+  await mostrarAvisoContenido(
+    context,
+    Text(mensaje),
+    tipo: TipoAviso.advertencia,
+    tituloPersonalizado: titulo,
+    cerrarEtiqueta: cancelar,
+    accion: SnackBarAction(label: confirmar, onPressed: () => aceptado = true),
+  );
+  return aceptado;
 }

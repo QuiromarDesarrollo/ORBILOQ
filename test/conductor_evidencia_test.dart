@@ -208,9 +208,7 @@ void main() {
           expect(r.headers.containsKey('Authorization'), false);
           if (r.headers['Content-Range'] == 'bytes */3') {
             consultas++;
-            return consultas == 1
-                ? http.Response('', 308)
-                : http.Response('{"id":"drive-file"}', 200);
+            return http.Response('{"id":"drive-file"}', 200);
           }
           puts++;
           expect(r.bodyBytes, [1, 2, 3]);
@@ -221,11 +219,13 @@ void main() {
         upload.subir(client, 'vehiculo', 'enlace', 'Tanqueo'),
         throwsA(isA<http.ClientException>()),
       );
+      expect(consultas, 0); // No consulta Drive antes del primer envío.
       expect(
         await upload.subir(client, 'vehiculo', 'enlace', 'Tanqueo'),
         'https://drive.google.com/file/d/drive-file/view',
       );
       expect(sesiones, 1);
+      expect(consultas, 1);
       expect(puts, 1);
       upload.dispose();
       await client.dispose();

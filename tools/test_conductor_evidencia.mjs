@@ -70,3 +70,29 @@ test('Documentos y preflight admitidos sin conceder acceso público a archivos',
   assert.equal((await handler(new Request('https://example.test',{method:'OPTIONS'}))).status,204);
   assert.equal((await handler(new Request('https://example.test'))).status,405);
 });
+
+test('Ficha admite foto personal y archivos de documentos', async () => {
+  const handler = crearHandler(options);
+  for (const campo of ['foto_conductor', 'doc_soat', 'doc_tecno', 'doc_licencia', 'doc_extintor']) {
+    assert.equal((await handler(req({...input, campo}))).status, 200);
+  }
+  assert.equal((await handler(req({...input, campo: 'foto_conductor', mime: 'application/pdf'}))).status, 400);
+});
+
+test('Preview exige acceso al vehículo y enlace actualmente guardado', async () => {
+  const enlace = 'https://drive.google.com/file/d/FILE_123/view';
+  const preview = { accion: 'preview', vehiculo: input.vehiculo, enlace };
+  let calls = 0;
+  const handler = crearHandler({...options,
+    autorizar: async () => ({placa:'ABC123',actor:'actor',datos:{foto_frontal:enlace}}),
+    previsualizar: async (p) => {calls++; assert.equal(p.id,'FILE_123'); assert.equal(p.vehiculo,input.vehiculo); return {mime:'image/png',base64:'example'};},
+  });
+  assert.equal((await handler(req(preview))).status,200);
+  assert.equal(calls,1);
+  assert.equal((await handler(req({...preview,enlace:'https://drive.google.com/file/d/OTRO/view'}))).status,403);
+  assert.equal((await handler(req({...preview,enlace:'https://malicioso.example/image'}))).status,400);
+  assert.equal((await handler(req(preview,''))).status,401);
+  assert.equal(calls,1);
+  const denied = crearHandler({...options,autorizar:async()=>null, previsualizar:async()=>{throw new Error('No debe llamarse');}});
+  assert.equal((await denied(req(preview))).status,403);
+});

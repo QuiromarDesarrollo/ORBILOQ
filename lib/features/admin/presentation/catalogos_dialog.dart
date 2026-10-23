@@ -1,3 +1,4 @@
+import 'cambiar_contrasena_dialog.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'catalogo_tarjetas.dart';
 import 'catalogo_form_widgets.dart';
@@ -414,6 +415,7 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
       RolCuenta.prioridad.where(_roles.contains).map((r) => r.valorBd).toList();
   String get _rol => _valoresRoles.firstOrNull ?? 'produccion';
   bool _ocupado = false;
+  bool _verContrasena = false;
   String? _error;
   bool get _usuario => widget.tipo == 'usuarios';
   @override
@@ -597,12 +599,28 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
             TextField(
               controller: _clave,
               enabled: !_ocupado,
-              obscureText: true,
+              obscureText: !_verContrasena,
               enableSuggestions: false,
               autocorrect: false,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Contraseña inicial *',
                 helperText: 'Entre 12 y 128 caracteres.',
+                suffixIcon: IconButton(
+                  tooltip:
+                      _verContrasena
+                          ? 'Ocultar contraseña'
+                          : 'Mostrar contraseña',
+                  onPressed:
+                      _ocupado
+                          ? null
+                          : () =>
+                              setState(() => _verContrasena = !_verContrasena),
+                  icon: Icon(
+                    _verContrasena
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                  ),
+                ),
               ),
             ),
           ],
@@ -646,6 +664,28 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
             ),
           ),
           if (!nuevo) ...[
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.password_outlined),
+                label: const Text('Establecer nueva contraseña'),
+                onPressed:
+                    _ocupado || widget.fila?['auth_id'] == null
+                        ? null
+                        : () => showWmsDialog<bool>(
+                          context,
+                          (_) => CambiarContrasenaDialog(
+                            usuarioId: widget.fila!['id'].toString(),
+                            nombre: widget.fila!['nombre'].toString(),
+                          ),
+                        ),
+              ),
+            ),
+            if (widget.fila?['auth_id'] == null)
+              const Text(
+                'Este usuario no tiene una cuenta de acceso vinculada.',
+              ),
             const SizedBox(height: 24),
             CatalogoEstado(
               value: _activo,

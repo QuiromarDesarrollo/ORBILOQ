@@ -10,3 +10,7 @@ verify_jwt = false
 [functions.entrega-correo]
 # Auth.getUser valida el token y entrega_correo_consultar exige admin/seguimiento activo.
 verify_jwt = false
+
+[functions.admin-restablecer-contrasena]
+# Valida JWT con Auth.getUser y administrador activo dentro del handler.
+verify_jwt = false

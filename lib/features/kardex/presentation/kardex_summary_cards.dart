@@ -28,8 +28,8 @@ class KardexSummaryCards extends ConsumerWidget {
         _SummaryCard(
           titulo:
               esProduccion
-                  ? 'ENTREGADO A LOGÍSTICA'
-                  : 'ENTREGADO POR PRODUCCIÓN',
+                  ? 'ENTREGADO ACUMULADO A LOGÍSTICA'
+                  : 'ENTREGADO ACUMULADO POR PRODUCCIÓN',
           valor: '${r.enProduccion}',
           subtitulo: '${r.porcentajeProduccion.toStringAsFixed(1)}% del total',
           subtituloColor: pal.textSecondary,
@@ -52,7 +52,7 @@ class KardexSummaryCards extends ConsumerWidget {
         ),
       if (rol != Rol.despacho)
         _SummaryCard(
-          titulo: 'PRODUCTO NO CONFORME',
+          titulo: 'NO CONFORME PENDIENTE',
           valor: '${r.totalNoConforme}',
           subtitulo:
               r.totalNoConforme > 0 ? 'Pendiente por reprocesar' : 'Al día',
@@ -62,7 +62,7 @@ class KardexSummaryCards extends ConsumerWidget {
         ),
       if (!esProduccion) ...[
         _SummaryCard(
-          titulo: 'RECIBIDO EN BODEGA',
+          titulo: 'RECIBIDO ACUMULADO EN BODEGA',
           valor: '${r.recibidoEnBodega}',
           subtitulo: '${r.porcentajeBodega.toStringAsFixed(1)}% del total',
           subtituloColor: pal.textSecondary,
@@ -95,11 +95,24 @@ class KardexSummaryCards extends ConsumerWidget {
                 ? (constraints.maxWidth - 16) / 2
                 : constraints.maxWidth;
 
-        return Wrap(
-          spacing: 16,
-          runSpacing: 16,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final t in tarjetas) SizedBox(width: anchoTarjeta, child: t),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Acumulado de las órdenes filtradas · Puede incluir movimientos de otras fechas. Consulta el historial para ver lo ocurrido en un día.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                for (final t in tarjetas)
+                  SizedBox(width: anchoTarjeta, child: t),
+              ],
+            ),
           ],
         );
       },

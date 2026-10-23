@@ -142,12 +142,18 @@ class _HistorialProduccionState extends ConsumerState<HistorialProduccion> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Movimientos de producción · La fecha filtra la entrega a logística. Lo recibido muestra el avance actual de esas entregas, aunque se haya recibido otro día.',
+              ),
+            ),
             if (!mobile) ...[
               Row(
                 children: [
                   for (final m in [
-                    ('Prendas entregadas', '$enviadas'),
-                    ('Recibidas en logística', '$recibidas'),
+                    ('Entregadas en el período', '$enviadas'),
+                    ('Recibidas de esas entregas', '$recibidas'),
                     ('Por recibir', '$pendientes'),
                     ('OP · movimientos', '$ops · ${visibles.length}'),
                   ])
@@ -175,7 +181,7 @@ class _HistorialProduccionState extends ConsumerState<HistorialProduccion> {
                                 fontSize: 21,
                                 fontWeight: FontWeight.w600,
                                 color:
-                                    m.$1 == 'Recibidas en logística'
+                                    m.$1 == 'Recibidas de esas entregas'
                                         ? _verde
                                         : m.$1 == 'Por recibir'
                                         ? _ambar

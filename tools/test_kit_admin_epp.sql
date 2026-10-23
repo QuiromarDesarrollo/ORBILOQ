@@ -1,0 +1,31 @@
+BEGIN;
+RESET ROLE;
+INSERT INTO public.conductor_vehiculos(placa,descripcion,conductor_id,km) SELECT 'EPP128','Prueba aislada',conductor_id,1000 FROM public.conductor_vehiculos WHERE placa='TEST02';
+SELECT set_config('test.v',(SELECT id::text FROM public.conductor_vehiculos WHERE placa='EPP128'),true);
+SELECT set_config('test.kit',jsonb_build_object('inspector','Administrador','fecha',to_char(now() AT TIME ZONE 'America/Bogota','YYYY-MM-DD'),'respuestas',$json${"Gato para elevar el vehículo": {"estado": "Buen estado"}, "Manivela o mecanismo de accionamiento": {"estado": "Buen estado"}, "Cruceta para las tuercas de las ruedas": {"estado": "Buen estado"}, "Triángulo reflectivo N.º 1": {"estado": "Buen estado"}, "Triángulo reflectivo N.º 2": {"estado": "Buen estado"}, "Soportes de los triángulos": {"estado": "Buen estado"}, "Lámparas amarillas intermitentes": {"estado": "Buen estado"}, "Guantes desechables de nitrilo": {"estado": "Buen estado"}, "Mascarilla de barrera para RCP": {"estado": "Buen estado"}, "Gasas estériles": {"estado": "Buen estado"}, "Apósitos estériles": {"estado": "Buen estado"}, "Vendas de gasa": {"estado": "Buen estado"}, "Venda elástica": {"estado": "Buen estado"}, "Esparadrapo o cinta médica": {"estado": "Buen estado"}, "Apósitos adhesivos": {"estado": "Buen estado"}, "Solución salina estéril": {"estado": "Buen estado"}, "Toallitas antisépticas": {"estado": "Buen estado"}, "Compresa estéril para quemaduras": {"estado": "Buen estado"}, "Tijeras de punta roma": {"estado": "Buen estado"}, "Pinzas de punta roma": {"estado": "Buen estado"}, "Manta térmica de emergencia": {"estado": "Buen estado"}, "Bolsas para material contaminado": {"estado": "Buen estado"}, "Estuche del botiquín": {"estado": "Buen estado"}, "Extintor adecuado para el vehículo": {"estado": "Buen estado"}, "Carga y mantenimiento del extintor": {"estado": "Buen estado"}, "Manómetro, seguro y sello": {"estado": "Buen estado"}, "Soporte de fijación del extintor": {"estado": "Buen estado"}, "Taco de bloqueo N.º 1": {"estado": "Buen estado"}, "Taco de bloqueo N.º 2": {"estado": "Buen estado"}, "Alicate": {"estado": "Buen estado"}, "Destornillador de pala": {"estado": "Buen estado"}, "Destornillador de estrella": {"estado": "Buen estado"}, "Llave de expansión": {"estado": "Buen estado"}, "Juego de llaves fijas": {"estado": "Buen estado"}, "Caja o bolso de herramientas": {"estado": "Buen estado"}, "Llanta de repuesto compatible": {"estado": "Buen estado"}, "Presión y estado de la llanta": {"estado": "Buen estado"}, "Fijación de la llanta": {"estado": "Buen estado"}, "Linterna funcional": {"estado": "Buen estado"}, "Pilas o batería con carga": {"estado": "Buen estado"}, "Chaleco reflectivo": {"estado": "Buen estado"}, "Cables de arranque o arrancador portátil": {"estado": "Buen estado"}, "Compresor o medidor de presión": {"estado": "Buen estado"}, "Sellador de pinchazos": {"estado": "Buen estado"}, "Guantes de trabajo": {"estado": "Buen estado"}, "Agua potable": {"estado": "Buen estado"}, "Impermeable": {"estado": "Buen estado"}, "Cargador portátil para celular": {"estado": "Buen estado"}, "Cuerda de remolque compatible": {"estado": "Buen estado"}, "Contactos de emergencia": {"estado": "Buen estado"}, "Kit antiderrames": {"estado": "Buen estado"}}$json$::jsonb)::text,true);
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',true);
+DO $$ BEGIN
+ BEGIN PERFORM public.conductor_registrar_kit(current_setting('test.v')::uuid,current_setting('test.kit')::jsonb); RAISE EXCEPTION 'ERROR conductor revisa kit'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN PERFORM public.conductor_registrar(current_setting('test.v')::uuid,'Checklist semanal de carretera',1000,current_setting('test.kit')::jsonb); RAISE EXCEPTION 'ERROR bypass kit'; EXCEPTION WHEN raise_exception THEN IF SQLERRM LIKE 'ERROR%' THEN RAISE; END IF; END;
+END $$;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',true);
+DO $$ BEGIN
+ BEGIN PERFORM public.conductor_registrar_kit(current_setting('test.v')::uuid,current_setting('test.kit')::jsonb #- '{respuestas,Kit antiderrames}'); RAISE EXCEPTION 'ERROR permite omitir antiderrames'; EXCEPTION WHEN raise_exception THEN IF SQLERRM LIKE 'ERROR%' THEN RAISE; END IF; END;
+END $$;
+SELECT public.conductor_registrar_kit(current_setting('test.v')::uuid,current_setting('test.kit')::jsonb);
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',true);
+DO $$ DECLARE respuestas jsonb:=$json${"Estado frenos": "Buen estado", "Nivel de aceite": "Buen estado", "Nivel de refrigerante": "Buen estado", "Direccionales delanteras": "Buen estado", "Direccionales traseras": "Buen estado", "Luces altas": "Buen estado", "Luces bajas": "Buen estado", "Luces stop": "Buen estado", "Luces de parqueo": "Buen estado", "Llantas delanteras": "Buen estado", "Llantas traseras": "Buen estado", "Llanta de repuesto": "Buen estado", "Limpiabrisas": "Buen estado", "Espejo lateral izquierdo": "Buen estado", "Espejo lateral derecho": "Buen estado", "Vidrio panorámico": "Buen estado", "Pito": "Buen estado", "Pito reversa": "Buen estado", "Cinturón de seguridad": "Buen estado", "Puertas seguras": "Buen estado", "Área de cargue": "Buen estado", "Interior cabina": "Buen estado", "Techos libres": "Buen estado", "Botiquín": "Buen estado", "Herramientas": "Buen estado", "Kit de derrames": "Buen estado", "Extintor": "Buen estado", "Botas de lluvia": "Buen estado", "Impermeable": "Buen estado", "Guantes de trabajo": "Buen estado", "Chaleco reflectivo": "Buen estado"}$json$::jsonb; punto text; tipo text; BEGIN
+ FOREACH tipo IN ARRAY ARRAY['Inicio de jornada','Fin de jornada'] LOOP
+  FOREACH punto IN ARRAY ARRAY['Botas de lluvia','Impermeable','Guantes de trabajo','Chaleco reflectivo'] LOOP
+   BEGIN
+    PERFORM public.conductor_registrar(current_setting('test.v')::uuid,tipo,1000,jsonb_build_object('respuestas',respuestas-punto));
+    RAISE EXCEPTION 'ERROR permite omitir EPP';
+   EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM NOT LIKE 'Punto pendiente:%' THEN RAISE; END IF;
+   END;
+  END LOOP;
+  PERFORM public.conductor_registrar(current_setting('test.v')::uuid,tipo,1000,jsonb_build_object('respuestas',respuestas));
+ END LOOP;
+END $$;
+ROLLBACK;

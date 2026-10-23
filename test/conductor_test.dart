@@ -28,6 +28,34 @@ void main() {
     expect(usuario.puedeVerDashboards, isFalse);
     expect(RolCuenta.deFila({'rol': 'conductor'}), [RolCuenta.conductor]);
   });
+  test('EPP obligatorio en salida y regreso', () {
+    final epp = checklistConductor['Elementos de protección personal']!;
+    expect(epp, [
+      'Botas de lluvia',
+      'Impermeable',
+      'Guantes de trabajo',
+      'Chaleco reflectivo',
+    ]);
+    for (final tipo in ['Inicio de jornada', 'Fin de jornada']) {
+      for (final punto in epp) {
+        final respuestas = {
+          for (final p in checklistConductor.values.expand((v) => v))
+            p: 'Buen estado',
+        }..remove(punto);
+        expect(
+          validarRegistroConductor(
+            tipo: tipo,
+            km: 10,
+            ultimoKm: 10,
+            respuestas: respuestas,
+            notas: '',
+            enlace: '',
+          ),
+          isNotNull,
+        );
+      }
+    }
+  });
   test('Inspecciones completas, kilometraje y evidencias', () {
     final respuestas = {
       for (final p in checklistConductor.values.expand((e) => e))
@@ -115,7 +143,7 @@ void main() {
         const ProviderScope(child: MaterialApp(home: ConductorPage())),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Hola, conductor'), findsOneWidget);
+      expect(find.text('Tu jornada de hoy'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('Checklist').last);
       await tester.pumpAndSettle();
@@ -135,7 +163,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Nuevo registro'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('Alertas'));
+      if (width < 900) {
+        await tester.tap(find.text('Más').last);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Alertas').last);
       await tester.pumpAndSettle();
       expect(find.text('Próximos vencimientos y tareas'), findsOneWidget);
       expect(tester.takeException(), isNull);

@@ -1,3 +1,5 @@
+import '../../../shared/widgets/wms_alert.dart';
+import '../../../shared/widgets/wms_loader.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -178,17 +180,12 @@ class _EvidenciaConductorFieldState extends State<EvidenciaConductorField>
           if (_ocupado)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: LinearProgressIndicator(
-                semanticsLabel: 'Preparando evidencia',
-              ),
+              child: WmsLoadingStrip(label: 'Preparando foto o archivo…'),
             ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+              child: AvisoFormulario(_error!),
             ),
           const SizedBox(height: 10),
           FormField<bool>(
@@ -427,17 +424,12 @@ class _EvidenciaConductorFieldState extends State<EvidenciaConductorField>
           if (_ocupado)
             const Padding(
               padding: EdgeInsets.only(top: 12),
-              child: LinearProgressIndicator(
-                semanticsLabel: 'Preparando evidencia',
-              ),
+              child: WmsLoadingStrip(label: 'Preparando foto o archivo…'),
             ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+              child: AvisoFormulario(_error!),
             ),
           FormField<bool>(
             validator:

@@ -1,3 +1,5 @@
+import '../../../shared/widgets/wms_alert.dart';
+import '../../../shared/widgets/wms_loader.dart';
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:typed_data';
@@ -111,7 +113,7 @@ class _CamaraState extends State<_Camara> {
       width: 640,
       child:
           _error != null
-              ? Text(_error!)
+              ? AvisoFormulario(_error!)
               : AspectRatio(
                 aspectRatio: 4 / 3,
                 child: Stack(
@@ -125,7 +127,7 @@ class _CamaraState extends State<_Camara> {
                       ),
                     ),
                     if (!_lista)
-                      const Center(child: CircularProgressIndicator()),
+                      const WmsLoadingPanel(label: 'Abriendo cámara…'),
                   ],
                 ),
               ),

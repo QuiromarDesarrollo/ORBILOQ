@@ -183,6 +183,49 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     }
   }
 
+  Future<void> _generarTodosLosRotulos() async {
+    if (_generandoRotulo) return;
+    setState(() => _generandoRotulo = true);
+    try {
+      // Capturar y validar todos los empaques antes de iniciar la descarga.
+      final piezas =
+          _bultos.keys.toList()
+            ..sort((a, b) => _numeros[a]!.compareTo(_numeros[b]!));
+      final rotulos = [for (final pieza in piezas) _rotulo(pieza)];
+      final firmas = {
+        for (var i = 0; i < piezas.length; i++)
+          piezas[i]: '${_bultos[piezas[i]]}:${rotulos[i].firma}',
+      };
+      final bytes = await crearRotulosEmpaquePdf(
+        rotulos,
+        logo:
+            (await rootBundle.load(
+              'assets/images/logo_quiromar_vector_bn.svg',
+            )).buffer.asUint8List(),
+        fuenteRegular: await rootBundle.load(
+          'assets/fonts/LiberationSans-Regular.ttf',
+        ),
+        fuenteNegrita: await rootBundle.load(
+          'assets/fonts/LiberationSans-Bold.ttf',
+        ),
+      );
+      await descargarPdf(bytes, 'Rotulos_despacho.pdf');
+      if (mounted) setState(() => _rotulosGenerados.addAll(firmas));
+    } catch (e) {
+      if (mounted) {
+        await mostrarAviso(
+          context,
+          e is FormatException
+              ? e.message.toString()
+              : 'No se pudieron generar los rótulos: $e',
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generandoRotulo = false);
+    }
+  }
+
   Widget _selectorDestinoBuscable(
     List<Map<String, dynamic>> datos,
     bool congelado,
@@ -1069,14 +1112,11 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                       (key) => _prendasBulto(key) <= 0,
                                     )
                                 ? null
-                                : () async {
-                                  for (final b in _bultos.keys.toList()) {
-                                    await _generarRotulo(b);
-                                    if (!mounted) break;
-                                  }
-                                },
+                                : _generarTodosLosRotulos,
                         icon: const Icon(Icons.print_outlined, size: 16),
-                        label: const Text('Generar todos los rótulos'),
+                        label: const Text(
+                          'Generar todos los rótulos en un PDF',
+                        ),
                       ),
                       const Text(
                         'Rótulos de 10 × 10 cm. Imprime al 100 %. Generarlos no guarda ni confirma la salida.',

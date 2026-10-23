@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
@@ -118,7 +120,7 @@ class ExcelOrdenesParser {
     final tallas = _leerHoja(
       libro.tables[nombreHojaTallas]!,
       _columnasTallas,
-      requeridas: const ['identificador_orden', 'codigo', 'talla', 'cantidad'],
+      requeridas: const ['identificador_orden', 'talla', 'cantidad'],
       nombreHoja: 'Tallas',
     );
 
@@ -139,7 +141,28 @@ class ExcelOrdenesParser {
       }
       porOp[id] = orden;
     }
+    // Estable entre cargas; el sufijo conserva unidades de filas repetidas.
+    final repeticiones = <String, int>{};
+    final codigosErp = tallas.map((t) => t['codigo']?.trim() ?? '').toSet();
     for (final talla in tallas) {
+      if ((talla['codigo']?.trim() ?? '').isEmpty) {
+        final identidad = jsonEncode([
+          talla['identificador_orden']?.trim() ?? '',
+          talla['talla']?.trim() ?? '',
+          talla['descripcion']?.trim() ?? '',
+          talla['observacion']?.trim() ?? '',
+        ]);
+        final base = 'SIN-COD-ERP-${sha256.convert(utf8.encode(identidad))}';
+        final numero = (repeticiones[base] ?? 0) + 1;
+        repeticiones[base] = numero;
+        final codigo = '$base-$numero';
+        if (codigosErp.contains(codigo)) {
+          throw ExcelOrdenesParseException(
+            'Un código ERP coincide con un código interno generado. Revisa la OP ${talla['identificador_orden']}.',
+          );
+        }
+        talla['codigo'] = codigo;
+      }
       final oc =
           porOp[talla['identificador_orden']?.trim()]?['oc_cabecera']?.trim();
       if (oc != null && oc.isNotEmpty) talla['oc'] = oc;

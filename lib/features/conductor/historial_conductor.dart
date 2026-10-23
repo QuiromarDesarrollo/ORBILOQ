@@ -1,3 +1,4 @@
+import 'ficha_vehiculo.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:excel/excel.dart';
@@ -40,12 +41,33 @@ List<JornadaConductor> agruparJornadasConductor(
       .toList();
 }
 
-const etiquetasDatosConductor = <String, String>{
+final etiquetasDatosConductor = <String, String>{
+  'origen_mantenimiento': 'Origen del mantenimiento',
+  'checklist_origen_id': 'Checklist de origen',
+  'novedades_origen': 'Novedades del checklist',
+  for (final grupo in fichaVehiculoCampos.values)
+    for (final campo in grupo) campo.key: campo.label,
+  'conductor_documento': 'Número de documento del conductor',
+  'foto_conductor': 'Foto del conductor · enlace Drive',
+  for (final d in documentosFicha.entries) ...{
+    'doc_${d.key}': '${d.value} · enlace Drive',
+    '${d.key}_desde': '${d.value} · Vigencia desde',
+    '${d.key}_expedido': '${d.value} · Expedición',
+    '${d.key}_valor': '${d.value} · Valor COP',
+    '${d.key}_observaciones': '${d.value} · Observaciones',
+  },
   'fecha': 'Fecha de actividad',
+  'fecha_inicio': 'Fecha de inicio',
+  'hora_inicio': 'Hora de inicio',
+  'fecha_fin': 'Fecha fin',
+  'hora_fin': 'Hora fin',
+  'servicio_id': 'Código del servicio',
+  'hora_mantenimiento': 'Hora del mantenimiento',
   'resultado': 'Resultado de inspección',
   'notas': 'Novedades / observaciones',
   'siniestro': '¿Ocurrió un siniestro?',
   'hecho': 'Descripción del siniestro',
+  'galones': 'Galones del tanqueo',
   'km_tanqueo': 'Kilometraje del tanqueo',
   'cantidad': 'Cantidad (según actividad)',
   'valor': 'Valor · COP',
@@ -200,6 +222,7 @@ Uint8List generarExcelHistorialConductor(
     final grupo = switch (tipo) {
       'Inicio de jornada' || 'Fin de jornada' => 'Checklist',
       'Novedad' || 'Novedades' => 'Novedades',
+      'Checklist semanal de carretera' => 'Kit semanal',
       '' => 'Otros registros',
       _ => tipo,
     };
