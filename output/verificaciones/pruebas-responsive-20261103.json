@@ -1,0 +1,22 @@
+{
+  "rama_local": "master",
+  "ambiente": "ORBILOQ-DEV",
+  "proyecto": "igfuafcekcpugpmsoqbe",
+  "url": "http://127.0.0.1:8765/",
+  "verificacion": [
+    {
+      "archivo": "index.html",
+      "coincide": true
+    },
+    {
+      "archivo": "main.dart.js",
+      "coincide": true
+    },
+    {
+      "archivo": "masiva_excel_worker.js",
+      "coincide": true
+    }
+  ],
+  "base_datos_modificada": false,
+  "commit_push_realizado": false
+}

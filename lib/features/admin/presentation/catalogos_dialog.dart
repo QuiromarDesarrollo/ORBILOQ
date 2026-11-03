@@ -8,6 +8,7 @@ import '../../despacho/presentation/lista_empaque_dialog.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
 import 'package:flutter/material.dart';
 import '../../../core/conductor_entorno.dart';
+import '../../../core/masiva_entorno.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../application/providers.dart';
@@ -292,57 +293,60 @@ class _CatalogosState extends ConsumerState<CatalogosDialog> {
               child: ListaEmpaqueDialog(solicitud: '', integrado: true),
             )
           else ...[
-            CatalogoToolbar(
-              children: [
-                SegmentedButton<String>(
-                  showSelectedIcon: false,
-                  segments: [
-                    ButtonSegment(
-                      value: 'Activos',
-                      label: Text(
-                        'Activos ${_filas.where((f) => (f['activo'] ?? f['activa']) == true).length}',
+            LayoutBuilder(
+              builder:
+                  (context, constraints) => CatalogoToolbar(
+                    children: [
+                      SegmentedButton<String>(
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: 'Activos',
+                            label: Text(
+                              'Activos ${_filas.where((f) => (f['activo'] ?? f['activa']) == true).length}',
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: 'Inactivos',
+                            label: Text(
+                              'Inactivos ${_filas.where((f) => (f['activo'] ?? f['activa']) != true).length}',
+                            ),
+                          ),
+                          const ButtonSegment(
+                            value: 'Todos',
+                            label: Text('Todos'),
+                          ),
+                        ],
+                        selected: {_estado},
+                        onSelectionChanged:
+                            (v) => setState(() => _estado = v.single),
                       ),
-                    ),
-                    ButtonSegment(
-                      value: 'Inactivos',
-                      label: Text(
-                        'Inactivos ${_filas.where((f) => (f['activo'] ?? f['activa']) != true).length}',
+                      if (constraints.maxWidth < 600)
+                        IconButton.outlined(
+                          tooltip: 'Actualizar',
+                          onPressed: _cargando ? null : _cargar,
+                          icon: const Icon(Icons.refresh),
+                        )
+                      else
+                        OutlinedButton.icon(
+                          onPressed: _cargando ? null : _cargar,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Actualizar'),
+                        ),
+                      FilledButton.icon(
+                        onPressed:
+                            _cargando ||
+                                    !_admin(ref) ||
+                                    ref.watch(catalogosAdminProvider) == null
+                                ? null
+                                : () => _editar(null),
+                        icon: const Icon(Icons.add),
+                        label: Text(
+                          'Agregar ${catalogoSingular(_tipo).toLowerCase()}',
+                        ),
                       ),
-                    ),
-                    const ButtonSegment(value: 'Todos', label: Text('Todos')),
-                  ],
-                  selected: {_estado},
-                  onSelectionChanged: (v) => setState(() => _estado = v.single),
-                ),
-                if (MediaQuery.sizeOf(context).width < 600)
-                  IconButton.outlined(
-                    tooltip: 'Actualizar',
-                    onPressed: _cargando ? null : _cargar,
-                    icon: const Icon(Icons.refresh),
-                  )
-                else
-                  OutlinedButton.icon(
-                    onPressed: _cargando ? null : _cargar,
-                    icon: const Icon(Icons.refresh),
-                    label: Text(
-                      MediaQuery.sizeOf(context).width < 600
-                          ? ''
-                          : 'Actualizar',
-                    ),
+                    ],
                   ),
-                FilledButton.icon(
-                  onPressed:
-                      _cargando ||
-                              !_admin(ref) ||
-                              ref.watch(catalogosAdminProvider) == null
-                          ? null
-                          : () => _editar(null),
-                  icon: const Icon(Icons.add),
-                  label: Text(
-                    'Agregar ${catalogoSingular(_tipo).toLowerCase()}',
-                  ),
-                ),
-              ],
             ),
             if (_cargando) const WmsLoadingStrip(),
             if (_error != null) AvisoFormulario(_error!),
@@ -545,7 +549,8 @@ class _EditorState extends ConsumerState<_EditorCatalogo> {
           runSpacing: 8,
           children: [
             for (final r in RolCuenta.values)
-              if (r != RolCuenta.conductor || conductorHabilitado())
+              if ((r != RolCuenta.conductor || conductorHabilitado()) &&
+                  (r != RolCuenta.masiva || masivaHabilitada()))
                 FilterChip(
                   label: Text(r.etiqueta),
                   selected: _roles.contains(r),

@@ -19,6 +19,19 @@ final listaEmpaqueApiProvider = Provider<SupabaseClient>(
   (ref) => Supabase.instance.client,
 );
 
+Future<DateTime?> elegirFechaSalida(
+  BuildContext context,
+  DateTime? fechaActual,
+) {
+  final hoy = DateTime.now().toUtc().subtract(const Duration(hours: 5));
+  return showDatePicker(
+    context: context,
+    initialDate: fechaActual ?? hoy,
+    firstDate: DateTime(1),
+    lastDate: DateTime(9999, 12, 31),
+  );
+}
+
 Future<void> mostrarListaEmpaque(BuildContext context, String solicitud) =>
     showDialog<void>(
       context: context,
@@ -594,18 +607,9 @@ class _ListaState extends ConsumerState<ListaEmpaqueDialog> {
                             ocupado
                                 ? null
                                 : () async {
-                                  final hoy = DateTime.now().toUtc().subtract(
-                                    const Duration(hours: 5),
-                                  );
-                                  final fecha = await showDatePicker(
-                                    context: context,
-                                    initialDate: fechaSalida ?? hoy,
-                                    firstDate: DateTime(2000),
-                                    lastDate: DateTime(
-                                      hoy.year,
-                                      hoy.month,
-                                      hoy.day,
-                                    ),
+                                  final fecha = await elegirFechaSalida(
+                                    context,
+                                    fechaSalida,
                                   );
                                   if (fecha != null && mounted) {
                                     setState(() => fechaSalida = fecha);

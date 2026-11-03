@@ -1,6 +1,9 @@
-/// El módulo permanece deshabilitado en producción.
+/// Entornos autorizados de ORBILOQ; los permisos siguen siendo por usuario.
 bool conductorHabilitado([
   String url = const String.fromEnvironment('SUPABASE_URL'),
 ]) =>
     url.isEmpty ||
-    Uri.tryParse(url)?.host == 'igfuafcekcpugpmsoqbe.supabase.co';
+    const {
+      'igfuafcekcpugpmsoqbe.supabase.co',
+      'cxrflhgnxvomcvxzugda.supabase.co',
+    }.contains(Uri.tryParse(url)?.host);

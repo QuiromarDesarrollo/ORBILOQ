@@ -18,12 +18,17 @@ Future<void> mostrarAvisoContenido(
   SnackBarAction? accion,
   String? tituloPersonalizado,
   String cerrarEtiqueta = 'Cerrar aviso',
+  bool requiereConfirmacion = false,
+  bool esperarCierreCompleto = false,
 }) async {
   if (!context.mounted) return;
   final efectivo = error ? TipoAviso.error : tipo;
+  ModalRoute<dynamic>? alertRoute;
   await showDialog<void>(
     context: context,
+    barrierDismissible: !requiereConfirmacion,
     builder: (ctx) {
+      alertRoute = ModalRoute.of(ctx);
       final theme = Theme.of(ctx);
       final dark = theme.brightness == Brightness.dark;
       final (titulo, icono, tono) = switch (efectivo) {
@@ -48,129 +53,139 @@ Future<void> mostrarAvisoContenido(
           const Color(0xFF176888),
         ),
       };
-      return Dialog(
-        key: const ValueKey('aviso-global'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: SingleChildScrollView(
-            child: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 48),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(24, 78, 24, 24),
-                    decoration: BoxDecoration(
-                      color: dark ? theme.colorScheme.surface : Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: .15),
-                          blurRadius: 32,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          tituloPersonalizado ?? titulo,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        DefaultTextStyle.merge(
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            height: 1.5,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          child: contenido,
-                        ),
-                        const SizedBox(height: 24),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: [
-                            if (accion != null)
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(ctx);
-                                  accion.onPressed();
-                                },
-                                child: Text(accion.label),
-                              ),
-                            FilledButton(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: tono,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 28,
-                                  vertical: 16,
-                                ),
-                              ),
-                              onPressed: () => Navigator.pop(ctx),
-                              child: Text(cerrarEtiqueta),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Container(
-                    width: 112,
-                    height: 112,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color.alphaBlend(
-                        tono.withValues(alpha: .12),
-                        dark ? theme.colorScheme.surface : Colors.white,
-                      ),
-                    ),
+      return PopScope(
+        canPop: !requiereConfirmacion,
+        child: Dialog(
+          key: const ValueKey('aviso-global'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: SingleChildScrollView(
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 48),
                     child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(24, 78, 24, 24),
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: tono,
+                        color: dark ? theme.colorScheme.surface : Colors.white,
+                        borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: tono.withValues(alpha: .25),
-                            blurRadius: 20,
-                            offset: const Offset(0, 6),
+                            color: Colors.black.withValues(alpha: .15),
+                            blurRadius: 32,
+                            offset: const Offset(0, 12),
                           ),
                         ],
                       ),
-                      child: Icon(icono, size: 52, color: Colors.white),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            tituloPersonalizado ?? titulo,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          DefaultTextStyle.merge(
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              height: 1.5,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            child: contenido,
+                          ),
+                          const SizedBox(height: 24),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              if (accion != null)
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(ctx);
+                                    accion.onPressed();
+                                  },
+                                  child: Text(accion.label),
+                                ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: tono,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 28,
+                                    vertical: 16,
+                                  ),
+                                ),
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(cerrarEtiqueta),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                Positioned(
-                  top: 56,
-                  right: 8,
-                  child: IconButton(
-                    tooltip: 'Cerrar aviso',
-                    onPressed: () => Navigator.pop(ctx),
-                    icon: const Icon(Icons.close_rounded, size: 20),
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: Container(
+                      width: 112,
+                      height: 112,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color.alphaBlend(
+                          tono.withValues(alpha: .12),
+                          dark ? theme.colorScheme.surface : Colors.white,
+                        ),
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: tono,
+                          boxShadow: [
+                            BoxShadow(
+                              color: tono.withValues(alpha: .25),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Icon(icono, size: 52, color: Colors.white),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  if (!requiereConfirmacion)
+                    Positioned(
+                      top: 56,
+                      right: 8,
+                      child: IconButton(
+                        tooltip: 'Cerrar aviso',
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
       );
     },
   );
+  // A scan field must regain focus after the dialog releases its focus scope,
+  // not merely when Navigator.pop resolves while the exit animation runs.
+  if (esperarCierreCompleto) await alertRoute?.completed;
 }
 
 Future<void> mostrarAvisoSnack(

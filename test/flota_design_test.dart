@@ -82,7 +82,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Autorizar salida'), findsNothing);
-      expect(find.text('Sin inspecciones registradas'), findsOneWidget);
+      expect(find.text('No hay inspecciones que coincidan con los filtros'), findsOneWidget);
       await capture('revision');
       await tester.pumpWidget(const SizedBox());
     }

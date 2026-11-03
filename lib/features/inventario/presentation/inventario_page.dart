@@ -1,3 +1,4 @@
+import '../../../shared/borrador_operativo.dart';
 import '../../../shared/widgets/wms_loader.dart';
 import 'dart:convert';
 import 'inventario_seleccion.dart';
@@ -1024,7 +1025,7 @@ class _DetalleInventarioState extends State<_DetalleInventario> {
   }
 }
 
-class _OperacionInventario extends StatefulWidget {
+class _OperacionInventario extends ConsumerStatefulWidget {
   const _OperacionInventario({
     required this.repo,
     required this.modo,
@@ -1034,15 +1035,56 @@ class _OperacionInventario extends StatefulWidget {
   final String modo;
   final InventarioFila fila;
   @override
-  State<_OperacionInventario> createState() => _OperacionInventarioState();
+  ConsumerState<_OperacionInventario> createState() =>
+      _OperacionInventarioState();
 }
 
-class _OperacionInventarioState extends State<_OperacionInventario> {
+class _OperacionInventarioState extends ConsumerState<_OperacionInventario>
+    with BorradorOperativo<_OperacionInventario> {
+  @override
+  String get borradorProceso => [
+    'inventario',
+    widget.modo,
+    widget.fila['id'] ?? widget.fila['item_id'],
+    widget.fila['ubicacion_id'],
+  ].join(':');
+  @override
+  bool get operacionEnCurso => _guardando;
+  @override
+  Iterable<TextEditingController> get controlesBorrador => [
+    _cantidad,
+    _motivo,
+    _oc,
+    _peso,
+  ];
+  @override
+  Map<String, dynamic> capturarBorrador() => {
+    'cantidad': _cantidad.text,
+    'motivo': _motivo.text,
+    'oc': _oc.text,
+    'peso': _peso.text,
+    'destino': _destino,
+    'empaque': _empaque,
+    'estante': _estanteDestino,
+    'solicitud': _solicitud,
+  };
+  @override
+  void recuperarBorrador(Map<String, dynamic> d) {
+    _cantidad.text = d['cantidad'] as String? ?? '';
+    _motivo.text = d['motivo'] as String? ?? '';
+    _oc.text = d['oc'] as String? ?? '';
+    _peso.text = d['peso'] as String? ?? '';
+    _destino = d['destino'] as String?;
+    _empaque = d['empaque'] as String?;
+    _estanteDestino = d['estante'] as String? ?? '';
+    _solicitud = d['solicitud'] as String? ?? _solicitud;
+  }
+
   final _cantidad = TextEditingController(),
       _motivo = TextEditingController(),
       _oc = TextEditingController(),
       _peso = TextEditingController();
-  final _solicitud = nuevaSolicitudDespacho();
+  String _solicitud = nuevaSolicitudDespacho();
   bool _guardando = false;
   String? _error, _destino, _empaque;
   String _estanteDestino = '';
@@ -1087,7 +1129,7 @@ class _OperacionInventarioState extends State<_OperacionInventario> {
   }
 
   Future<void> _guardar() async {
-    if (_guardando) return;
+    if (_guardando || borradorBloqueado) return;
     final r = widget.fila, modo = widget.modo;
     try {
       final n = int.tryParse(_cantidad.text);
@@ -1153,12 +1195,16 @@ class _OperacionInventarioState extends State<_OperacionInventario> {
         _guardando = true;
         _error = null;
       });
+      if (!await asegurarBorrador()) {
+        throw StateError('No se pudo conservar el avance');
+      }
       await widget.repo.ejecutar(
         modo == 'transferir'
             ? 'inventario_transferir_estante'
             : 'inventario_$modo',
         p,
       );
+      await finalizarBorrador();
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -1185,6 +1231,7 @@ class _OperacionInventarioState extends State<_OperacionInventario> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              estadoBorrador(),
               if (widget.modo == 'transferir') ...[
                 Text(
                   'OP ${widget.fila['numero_op']} · ${widget.fila['producto']} · Talla ${widget.fila['talla']}',

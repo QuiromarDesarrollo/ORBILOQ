@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'application/auth_providers.dart';
 import 'core/conductor_entorno.dart';
+import 'core/masiva_entorno.dart';
+import 'features/masiva/presentation/masiva_page.dart';
 import 'domain/sesion.dart';
 import 'features/conductor/presentation/conductor_page.dart';
 import 'application/providers.dart';
@@ -48,6 +50,10 @@ class _PuertaDeEntrada extends ConsumerWidget {
           (usuario) =>
               usuario == null
                   ? const LoginPage()
+                  : masivaHabilitada() &&
+                      usuario.tieneRol(RolCuenta.masiva) &&
+                      usuario.areas.isEmpty
+                  ? const MasivaPage()
                   : conductorHabilitado() &&
                       usuario.tieneRol(RolCuenta.conductor) &&
                       usuario.areas.isEmpty

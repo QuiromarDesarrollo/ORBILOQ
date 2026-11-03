@@ -41,6 +41,8 @@ class WmsDialogShell extends StatefulWidget {
     this.compactHeader = false,
     this.fullscreen = false,
     this.onToggleFullscreen,
+    this.draggable = false,
+    this.onClose,
   });
 
   final String title;
@@ -50,6 +52,7 @@ class WmsDialogShell extends StatefulWidget {
   final double maxWidth;
   final bool expand;
   final bool canClose;
+  final VoidCallback? onClose;
   final String closeTooltip;
   final String? subtitle;
   final Widget? footer;
@@ -59,18 +62,50 @@ class WmsDialogShell extends StatefulWidget {
   final bool fullscreen;
   final VoidCallback? onToggleFullscreen;
 
+  /// Permite mover el diálogo desde su título en pantallas amplias.
+  final bool draggable;
+
   @override
   State<WmsDialogShell> createState() => _WmsDialogShellState();
 }
 
 class _WmsDialogShellState extends State<WmsDialogShell> {
   bool _fullscreen = false;
+  Alignment _position = Alignment.center;
+  final _surfaceKey = GlobalKey();
+  final _contentKey = GlobalKey();
+
+  void _move(DragUpdateDetails details) {
+    final surface = _surfaceKey.currentContext?.findRenderObject();
+    if (surface is! RenderBox) return;
+    final media = MediaQuery.of(context);
+    final freeX =
+        media.size.width -
+        media.viewInsets.horizontal -
+        32 -
+        surface.size.width;
+    final freeY =
+        media.size.height -
+        media.viewInsets.vertical -
+        32 -
+        surface.size.height;
+    setState(() {
+      _position = Alignment(
+        freeX > 0
+            ? (_position.x + details.delta.dx * 2 / freeX).clamp(-1.0, 1.0)
+            : 0,
+        freeY > 0
+            ? (_position.y + details.delta.dy * 2 / freeY).clamp(-1.0, 1.0)
+            : 0,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final title = widget.title;
     final icon = widget.icon;
-    final child = widget.child;
+    final child = KeyedSubtree(key: _contentKey, child: widget.child);
     final maxWidth = widget.maxWidth;
     final expand = widget.expand;
     final canClose = widget.canClose;
@@ -97,6 +132,10 @@ class _WmsDialogShellState extends State<WmsDialogShell> {
                 : 32))
         .clamp(100.0, fullscreen || compact ? 10000.0 : 720.0);
     final dialog = Dialog(
+      alignment:
+          widget.draggable && !compact && !fullscreen
+              ? _position
+              : Alignment.center,
       // Fijo en blanco a propósito: estos diálogos usan texto navy fijo
       // (título, iconos) diseñado para fondo claro, y no deben oscurecerse
       // con el tema oscuro del Kardex o el texto queda ilegible.
@@ -115,6 +154,7 @@ class _WmsDialogShellState extends State<WmsDialogShell> {
         side: const BorderSide(color: AppColors.cardBorder),
       ),
       child: WmsDialogLoadingHost(
+        key: _surfaceKey,
         child: ConstrainedBox(
           key: const ValueKey('wms-dialog-surface'),
           constraints: BoxConstraints(
@@ -158,28 +198,42 @@ class _WmsDialogShellState extends State<WmsDialogShell> {
                       ),
                     if (showHeaderIcon) SizedBox(width: compact ? 10 : 14),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: compact ? 16 : 18,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryNavy,
-                            ),
-                          ),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              subtitle,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: palOf(context).textMuted,
+                      child: MouseRegion(
+                        cursor:
+                            widget.draggable && !compact && !fullscreen
+                                ? SystemMouseCursors.move
+                                : MouseCursor.defer,
+                        child: GestureDetector(
+                          key: const ValueKey('wms-dialog-drag-handle'),
+                          behavior: HitTestBehavior.opaque,
+                          onPanUpdate:
+                              widget.draggable && !compact && !fullscreen
+                                  ? _move
+                                  : null,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: compact ? 16 : 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primaryNavy,
+                                ),
                               ),
-                            ),
-                          ],
-                        ],
+                              if (subtitle != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  subtitle,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: palOf(context).textMuted,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                     IconButton(
@@ -200,31 +254,40 @@ class _WmsDialogShellState extends State<WmsDialogShell> {
                         color: AppColors.slate600,
                         size: 20,
                       ),
-                      onPressed: canClose ? () => Navigator.pop(context) : null,
+                      onPressed:
+                          canClose
+                              ? (widget.onClose ?? () => Navigator.pop(context))
+                              : null,
                     ),
                   ],
                 ),
                 Divider(height: widget.compactHeader ? 12 : 16),
                 if (!widget.compactHeader) const SizedBox(height: 8),
-                if (compact)
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, c) {
-                        if (!expand) return SingleChildScrollView(child: child);
-                        // Keep toolbar and list reachable when the keyboard reduces height.
-                        if (c.maxHeight < (widget.compactHeader ? 300 : 430)) {
-                          return SingleChildScrollView(
-                            child: SizedBox(height: 430, child: child),
-                          );
-                        }
-                        return child;
-                      },
-                    ),
-                  )
-                else if (expand)
-                  Expanded(child: child)
-                else
-                  Flexible(child: SingleChildScrollView(child: child)),
+                Flexible(
+                  fit: expand || compact ? FlexFit.tight : FlexFit.loose,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Keep the same ancestors while the keyboard changes height.
+                      // Replacing scroll wrappers disconnects the text input on web.
+                      return SingleChildScrollView(
+                        child:
+                            expand
+                                ? SizedBox(
+                                  height:
+                                      compact &&
+                                              constraints.maxHeight <
+                                                  (widget.compactHeader
+                                                      ? 300
+                                                      : 430)
+                                          ? 430
+                                          : constraints.maxHeight,
+                                  child: child,
+                                )
+                                : child,
+                      );
+                    },
+                  ),
+                ),
                 if (footer != null) ...[
                   const SizedBox(height: 16),
                   const Divider(height: 1),
@@ -237,18 +300,24 @@ class _WmsDialogShellState extends State<WmsDialogShell> {
         ),
       ),
     );
-    if (!compact) return dialog;
     return Theme(
-      data: Theme.of(context).copyWith(
-        inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 12,
-          ),
-        ),
-        textTheme: Theme.of(context).textTheme.apply(fontSizeFactor: .92),
-      ),
+      data:
+          !compact
+              ? Theme.of(context)
+              : Theme.of(context).copyWith(
+                inputDecorationTheme: Theme.of(
+                  context,
+                ).inputDecorationTheme.copyWith(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                ),
+                textTheme: Theme.of(
+                  context,
+                ).textTheme.apply(fontSizeFactor: .92),
+              ),
       child: dialog,
     );
   }

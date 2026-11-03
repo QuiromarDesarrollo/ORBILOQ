@@ -30,7 +30,7 @@ const vehiculo = VehiculoConductor(
 void main() {
   for (final width in [390.0, 1440.0]) {
     testWidgets(
-      'Categorías conservan 27 respuestas y validan antes de guardar a $width',
+      'Categorías conservan todas las respuestas y validan antes de guardar a $width',
       (tester) async {
         tester.view.physicalSize = Size(width, 1000);
         tester.view.devicePixelRatio = 1;
@@ -49,6 +49,10 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        if (find.text('Cerrar aviso').evaluate().isNotEmpty) {
+          await tester.tap(find.text('Cerrar aviso'));
+          await tester.pumpAndSettle();
+        }
         await tester.tap(find.text('Guardar registro'));
         await tester.pumpAndSettle();
         expect(repo.guardado, isNull);
@@ -71,8 +75,12 @@ void main() {
               findsOneWidget,
               reason: 'Categoría $i, punto $pregunta',
             );
-            await tester.ensureVisible(chip);
+            await Scrollable.ensureVisible(tester.element(chip), alignment: 0.5);
             await tester.pumpAndSettle();
+            if (find.text('Cerrar aviso').evaluate().isNotEmpty) {
+              await tester.tap(find.text('Cerrar aviso'));
+              await tester.pumpAndSettle();
+            }
             await tester.tap(chip);
             await tester.pumpAndSettle();
           }
@@ -89,9 +97,13 @@ void main() {
               .length,
           3,
         );
+        if (find.text('Cerrar aviso').evaluate().isNotEmpty) {
+          await tester.tap(find.text('Cerrar aviso'));
+          await tester.pumpAndSettle();
+        }
         await tester.tap(find.text('Guardar registro'));
         await tester.pumpAndSettle();
-        expect((repo.guardado!['respuestas'] as Map).length, 27);
+        expect((repo.guardado!['respuestas'] as Map).length, 31);
         expect(
           (repo.guardado!['respuestas'] as Map).values.every(
             (r) => r == 'Buen estado',
@@ -114,7 +126,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     final chip = find.widgetWithText(ChoiceChip, 'Con novedad').first;
-    await tester.ensureVisible(chip);
+    await Scrollable.ensureVisible(tester.element(chip), alignment: 0.5);
     await tester.pumpAndSettle();
     await tester.tap(chip);
     await tester.pumpAndSettle();

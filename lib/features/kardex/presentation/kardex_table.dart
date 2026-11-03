@@ -360,102 +360,114 @@ class _KardexTableState extends ConsumerState<KardexTable> {
             ),
           ),
           for (final item in filas)
-            Card(
-              margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'OP ${item.item.op} · ${item.item.descripcion}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: pal.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}',
-                      style: TextStyle(fontSize: 11, color: pal.textSecondary),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'CLIENTE / OC',
-                      style: TextStyle(fontSize: 10, color: pal.textSecondary),
-                    ),
-                    Text(
-                      item.item.cliente,
-                      style: TextStyle(fontSize: 12, color: pal.textPrimary),
-                    ),
-                    const Divider(height: 20),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        for (final n in [
-                          for (var n = 3; n < labels.length; n++)
-                            if (!labels[n].contains('ESTADO') &&
-                                !labels[n].contains('CUMPLIMIENTO'))
-                              n,
-                          for (var n = 3; n < labels.length; n++)
-                            if (labels[n].contains('ESTADO') ||
-                                labels[n].contains('CUMPLIMIENTO'))
-                              n,
-                        ])
-                          SizedBox(
-                            width: ((constraints.maxWidth - 56) / 2).clamp(
-                              0.0,
-                              double.infinity,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  labels[n],
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: pal.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  extraer[campos[n]]?.call(item) ?? '',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color:
-                                        campos[n] == ColKardex.entregado
-                                            ? pal.chipGreen
-                                            : pal.textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                    const Divider(height: 22),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton.icon(
-                            onPressed:
-                                () => showObservacionDialog(context, item),
-                            icon: const Icon(Icons.comment_outlined, size: 17),
-                            label: const Text(
-                              'Observaciones',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ),
+            if (esProduccion)
+              _TarjetaProduccion(item: item, esAdmin: esAdmin, extraer: extraer)
+            else
+              Card(
+                margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'OP ${item.item.op} · ${item.item.descripcion}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: pal.textPrimary,
                         ),
-                        if (esAdmin) _AccionesFila(item: item),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: pal.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'CLIENTE / OC',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: pal.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        item.item.cliente,
+                        style: TextStyle(fontSize: 12, color: pal.textPrimary),
+                      ),
+                      const Divider(height: 20),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          for (final n in [
+                            for (var n = 3; n < labels.length; n++)
+                              if (!labels[n].contains('ESTADO') &&
+                                  !labels[n].contains('CUMPLIMIENTO'))
+                                n,
+                            for (var n = 3; n < labels.length; n++)
+                              if (labels[n].contains('ESTADO') ||
+                                  labels[n].contains('CUMPLIMIENTO'))
+                                n,
+                          ])
+                            SizedBox(
+                              width: ((constraints.maxWidth - 56) / 2).clamp(
+                                0.0,
+                                double.infinity,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    labels[n],
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: pal.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    extraer[campos[n]]?.call(item) ?? '',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color:
+                                          campos[n] == ColKardex.entregado
+                                              ? pal.chipGreen
+                                              : pal.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      const Divider(height: 22),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed:
+                                  () => showObservacionDialog(context, item),
+                              icon: const Icon(
+                                Icons.comment_outlined,
+                                size: 17,
+                              ),
+                              label: const Text(
+                                'Observaciones',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ),
+                          if (esAdmin) _AccionesFila(item: item),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
           _BarraPaginacion(
             pagina: pagina,
             totalPaginas: totalPaginas,
@@ -560,6 +572,483 @@ class _KardexTableState extends ConsumerState<KardexTable> {
       ),
     );
   }
+}
+
+/// La vista compacta conserva las columnas y acciones de Producción.
+class _TarjetaProduccion extends StatelessWidget {
+  const _TarjetaProduccion({
+    required this.item,
+    required this.esAdmin,
+    required this.extraer,
+  });
+
+  final ItemKardex item;
+  final bool esAdmin;
+  final Map<String, String Function(ItemKardex)> extraer;
+
+  String _valor(String columna) => extraer[columna]?.call(item) ?? '';
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = palOf(context);
+    final oscuro = Theme.of(context).brightness == Brightness.dark;
+    final fondo = oscuro ? pal.card : Colors.white;
+    final estado = item.estadoProduccion;
+    final (colorEstado, fondoEstado, iconoEstado) = switch (estado) {
+      EstadoProduccion.completado => (
+        pal.chipGreen,
+        pal.chipGreenBg,
+        Icons.check_circle_outline,
+      ),
+      EstadoProduccion.parcialPorRetardo => (
+        pal.chipRed,
+        pal.chipRedBg,
+        Icons.warning_amber_outlined,
+      ),
+      EstadoProduccion.parcialPorEntregar => (
+        AppColors.petroleo,
+        AppColors.celesteSuave,
+        Icons.hourglass_bottom,
+      ),
+    };
+    final cumplimiento = item.cumplimientoProduccion();
+    final (
+      colorCumplimiento,
+      fondoCumplimiento,
+      iconoCumplimiento,
+    ) = switch (cumplimiento.resultado) {
+      ResultadoCumplimiento.aTiempo => (
+        pal.chipGreen,
+        pal.chipGreenBg,
+        Icons.check_circle_outline,
+      ),
+      ResultadoCumplimiento.vencido => (
+        pal.chipRed,
+        pal.chipRedBg,
+        Icons.warning_amber_outlined,
+      ),
+      ResultadoCumplimiento.conRetraso || ResultadoCumplimiento.pendiente => (
+        pal.warning,
+        oscuro ? pal.chipNeutralBg : AppColors.amberChipBg,
+        Icons.schedule,
+      ),
+      ResultadoCumplimiento.sinDatos => (
+        pal.textSecondary,
+        pal.chipNeutralBg,
+        Icons.event_outlined,
+      ),
+    };
+    final avance =
+        item.cantidadPedida > 0 ? item.producido / item.cantidadPedida : 0.0;
+    final colorAvance =
+        estado == EstadoProduccion.completado ? pal.chipGreen : pal.info;
+    final colorPendiente =
+        item.pendienteProduccion > 0 ? pal.chipRed : pal.textPrimary;
+    final colorNoConforme =
+        item.pendienteReproceso > 0 ? pal.warning : pal.textPrimary;
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+      color: fondo,
+      clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: pal.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: AppColors.petroleo,
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Flexible(
+                      child: _etiqueta(
+                        'OP ${item.item.op}',
+                        AppColors.petroleo,
+                        AppColors.lima,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: _etiqueta(
+                        _valor(ColKardex.estadoProduccion),
+                        colorEstado,
+                        fondoEstado,
+                        icono: iconoEstado,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  item.item.descripcion,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    height: 1.25,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final texto in [
+                      item.item.codigo,
+                      'Talla ${item.item.talla}',
+                      item.item.oc.trim().isEmpty
+                          ? 'Sin OC'
+                          : 'OC ${item.item.oc}',
+                    ])
+                      _etiqueta(
+                        texto,
+                        Colors.white,
+                        Colors.white.withValues(alpha: .14),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: pal.info.withValues(alpha: .09),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.storefront_outlined,
+                        size: 20,
+                        color: pal.info,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _rotulo('CLIENTE / OC', pal.textMuted),
+                          const SizedBox(height: 3),
+                          Text(
+                            item.item.cliente,
+                            style: TextStyle(
+                              color: pal.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    Text(
+                      'Avance de entrega',
+                      style: TextStyle(fontSize: 11, color: pal.textSecondary),
+                    ),
+                    Text(
+                      '${_valor(ColKardex.entregado)} de '
+                      '${_valor(ColKardex.cantidad)} · '
+                      '${(avance * 100).toStringAsFixed(0)} %',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorAvance,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                LinearProgressIndicator(
+                  value: avance.clamp(0.0, 1.0),
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(8),
+                  color: colorAvance,
+                  backgroundColor: pal.chipNeutralBg,
+                  semanticsLabel:
+                      'Avance de entrega: ${_valor(ColKardex.entregado)} de '
+                      '${_valor(ColKardex.cantidad)} unidades',
+                ),
+                const SizedBox(height: 12),
+                _pareja(
+                  _metrica(
+                    'CANTIDAD',
+                    ColKardex.cantidad,
+                    Icons.bar_chart,
+                    pal.info,
+                    pal.info.withValues(alpha: .10),
+                  ),
+                  _metrica(
+                    'ENTREGADO A LOGÍSTICA',
+                    ColKardex.entregado,
+                    Icons.local_shipping_outlined,
+                    pal.chipGreen,
+                    pal.chipGreenBg,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _pareja(
+                  _metrica(
+                    'PENDIENTE',
+                    ColKardex.pendiente,
+                    Icons.schedule,
+                    colorPendiente,
+                    pal.chipNeutralBg,
+                    detalle:
+                        item.pendienteProduccion == 0 ? 'Sin pendientes' : null,
+                  ),
+                  _metrica(
+                    'PRODUCTO NO CONFORME',
+                    ColKardex.noConforme,
+                    Icons.warning_amber_outlined,
+                    colorNoConforme,
+                    pal.chipNeutralBg,
+                    detalle:
+                        item.pendienteReproceso == 0 ? 'Sin novedades' : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _pareja(
+                  _fecha('FECHA PACTADA', ColKardex.fechaEsperada, pal),
+                  _fecha('ÚLTIMA ENTREGA', ColKardex.fechaEntrega, pal),
+                  separador: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Icon(
+                      Icons.arrow_forward,
+                      size: 16,
+                      color: pal.textMuted,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: fondoCumplimiento,
+                    border: Border.all(
+                      color: colorCumplimiento.withValues(alpha: .25),
+                    ),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        iconoCumplimiento,
+                        size: 17,
+                        color: colorCumplimiento,
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            text: 'Cumplimiento: ',
+                            children: [
+                              TextSpan(
+                                text: _valor(ColKardex.diasFaltantes),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          style: TextStyle(
+                            color: colorCumplimiento,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 24, color: pal.cardBorder),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => showObservacionDialog(context, item),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.lima,
+                          foregroundColor: AppColors.petroleo,
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        icon: const Icon(Icons.comment_outlined, size: 17),
+                        label: const Text(
+                          'Observaciones',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (esAdmin) ...[
+                      const SizedBox(width: 8),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: pal.cardBorder),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: _AccionesFila(item: item),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rotulo(String texto, Color color) => Text(
+    texto,
+    style: TextStyle(
+      color: color,
+      fontSize: 10,
+      fontWeight: FontWeight.w600,
+      letterSpacing: .25,
+    ),
+  );
+
+  Widget _etiqueta(String texto, Color color, Color fondo, {IconData? icono}) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: fondo,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icono != null) ...[
+              Icon(icono, size: 13, color: color),
+              const SizedBox(width: 4),
+            ],
+            Flexible(
+              child: Text(
+                texto,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _pareja(Widget izquierda, Widget derecha, {Widget? separador}) =>
+      IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: izquierda),
+            separador ?? const SizedBox(width: 8),
+            Expanded(child: derecha),
+          ],
+        ),
+      );
+
+  Widget _metrica(
+    String etiqueta,
+    String columna,
+    IconData icono,
+    Color color,
+    Color fondo, {
+    String? detalle,
+  }) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: fondo,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color.withValues(alpha: .10)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icono, size: 13, color: color),
+            const SizedBox(width: 5),
+            Expanded(child: _rotulo(etiqueta, color)),
+          ],
+        ),
+        const Spacer(),
+        const SizedBox(height: 5),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          runSpacing: 2,
+          children: [
+            Text(
+              _valor(columna),
+              style: TextStyle(
+                color: color,
+                fontSize: 23,
+                height: 1.15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (detalle != null)
+              Text(detalle, style: TextStyle(color: color, fontSize: 10)),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _fecha(String etiqueta, String columna, AppPalette pal) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(9),
+      border: Border.all(color: pal.cardBorder),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _rotulo(etiqueta, pal.textMuted),
+        const SizedBox(height: 4),
+        Text(
+          _valor(columna),
+          style: TextStyle(
+            color: pal.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Encabezado de columna con el ícono de embudo que abre el filtro de

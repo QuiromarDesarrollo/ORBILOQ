@@ -8,6 +8,9 @@ import 'package:orbiloq_wms/data/in_memory_wms_repository.dart';
 import 'package:orbiloq_wms/domain/models.dart';
 import 'package:orbiloq_wms/domain/sesion.dart';
 import 'package:orbiloq_wms/features/kardex/presentation/kardex_page.dart';
+import 'package:orbiloq_wms/features/masiva/masiva_repository.dart';
+import 'package:orbiloq_wms/features/masiva/presentation/masiva_page.dart';
+import 'package:orbiloq_wms/features/conductor/borrador_local.dart';
 
 void main() {
   for (final cuenta in RolCuenta.values) {
@@ -22,7 +25,9 @@ void main() {
         ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(true),
+            transporteBorradorUsuarioProvider.overrideWithValue(null),
             wmsRepositoryProvider.overrideWithValue(repo),
+            masivaRepositoryProvider.overrideWithValue(MasivaRepository(null)),
             usuarioSesionProvider.overrideWith(
               (ref) async => UsuarioSesion(
                 numeroUsuario: '123',
@@ -44,6 +49,12 @@ void main() {
         return;
       }
       final original = container.read(rolProvider);
+      if (cuenta == RolCuenta.masiva) {
+        expect(find.byType(MasivaPage), findsOneWidget);
+        expect(find.text('Control de operaciones'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+        return;
+      }
       if (cuenta == RolCuenta.conductor) {
         expect(
           find.text('Este perfil utiliza el portal del conductor.'),
@@ -56,7 +67,7 @@ void main() {
         RolCuenta.produccion ||
         RolCuenta.admin ||
         RolCuenta.gerencia ||
-        RolCuenta.conductor => Rol.produccion,
+        RolCuenta.conductor || RolCuenta.masiva => Rol.produccion,
         RolCuenta.logistica => Rol.logistica,
         RolCuenta.despacho || RolCuenta.seguimiento => Rol.despacho,
       });

@@ -1,3 +1,4 @@
+import '../../../shared/borrador_operativo.dart';
 import '../../../application/historial_recepciones.dart';
 import '../../inventario/presentation/inventario_page.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
@@ -115,7 +116,47 @@ class _PendientesTab extends ConsumerStatefulWidget {
   ConsumerState<_PendientesTab> createState() => _PendientesTabState();
 }
 
-class _PendientesTabState extends ConsumerState<_PendientesTab> {
+class _PendientesTabState extends ConsumerState<_PendientesTab>
+    with BorradorOperativo<_PendientesTab> {
+  @override
+  String get borradorProceso => 'recepcion-pendientes';
+  @override
+  bool get operacionEnCurso => _confirmando;
+  @override
+  Iterable<TextEditingController> get controlesBorrador => [
+    _busquedaCtrl,
+    _cantidadCtrl,
+    _notaCtrl,
+  ];
+  @override
+  Map<String, dynamic> capturarBorrador() => {
+    'busqueda': _busquedaCtrl.text,
+    'cantidad': _cantidadCtrl.text,
+    'nota': _notaCtrl.text,
+    'orden': _ordenManual,
+    'linea': _lineaAbiertaId,
+    'conteos': _conteos,
+    'ubicacion': _ubicacion,
+    'solicitud': _solicitudRecepcion,
+    'pedido': _pedidoRecepcion,
+  };
+  @override
+  void recuperarBorrador(Map<String, dynamic> d) {
+    _busquedaCtrl.text = d['busqueda'] as String? ?? '';
+    _cantidadCtrl.text = d['cantidad'] as String? ?? '';
+    _notaCtrl.text = d['nota'] as String? ?? '';
+    _ordenManual
+      ..clear()
+      ..addAll((d['orden'] as List? ?? []).cast<String>());
+    _lineaAbiertaId = d['linea'] as String?;
+    _conteos
+      ..clear()
+      ..addAll(Map<String, int>.from(d['conteos'] as Map? ?? {}));
+    _ubicacion = d['ubicacion'] as String? ?? '';
+    _solicitudRecepcion = d['solicitud'] as String?;
+    _pedidoRecepcion = d['pedido'] as String?;
+  }
+
   final _scanCtrl = TextEditingController();
   final _busquedaCtrl = TextEditingController();
   final _scanFocus = FocusNode();
@@ -310,6 +351,7 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   }
 
   Future<void> _confirmar(GrupoRecepcionPendiente grupo) async {
+    if (_confirmando || borradorBloqueado) return;
     final linea = grupo.lineas.first.linea;
     if (!(ref.read(ubicacionesProvider).value ?? []).contains(_ubicacion)) {
       setState(
@@ -377,6 +419,9 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
         if (_pedidoRecepcion != firma) {
           _pedidoRecepcion = firma;
           _solicitudRecepcion = nuevaSolicitudDespacho();
+        }
+        if (!await asegurarBorrador()) {
+          throw StateError('No se pudo conservar la solicitud');
         }
         await inventario.ejecutar('inventario_recibir', {
           ...parametros,
@@ -521,7 +566,9 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
   );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => envolverBorrador(_contenido(context));
+
+  Widget _contenido(BuildContext context) {
     ref.watch(wmsSnapshotProvider);
     final pendientes = agruparRecepcionPendiente(_ordenar(_todasPendientes));
     final mobile = MediaQuery.sizeOf(context).width < 600;
@@ -530,10 +577,11 @@ class _PendientesTabState extends ConsumerState<_PendientesTab> {
             .where((g) => g.lineas.any((e) => e.linea.id == _lineaAbiertaId))
             .firstOrNull;
     final enfocado = activo != null;
-    if (_notificoEdicion != enfocado) {
-      _notificoEdicion = enfocado;
+    final modoEdicion = enfocado && !borradorBloqueado;
+    if (_notificoEdicion != modoEdicion) {
+      _notificoEdicion = modoEdicion;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.onEdicion(enfocado);
+        if (mounted) widget.onEdicion(modoEdicion);
       });
     }
     final visibles = enfocado ? [activo] : pendientes;

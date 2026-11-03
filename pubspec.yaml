@@ -25,6 +25,7 @@ dependencies:
   xml: ^6.6.1
   web: ^1.1.1
   http: ^1.6.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -45,3 +46,4 @@ flutter:
     - assets/images/logo_quiromar_lista.jpg
     - assets/images/logo_quiromar_formato.jpg
     - assets/images/logo_quiromar_vector_bn.svg
+    - assets/images/logo_colsubsidio.svg

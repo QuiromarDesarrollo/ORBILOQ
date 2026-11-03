@@ -5,12 +5,20 @@ import 'package:orbiloq_wms/data/seguimiento_entregas.dart';
 import 'package:orbiloq_wms/features/despacho/presentation/seguimiento_entregas_tabla.dart';
 
 void main() {
-  test('Correo comercial admite una dirección y rechaza múltiples o cabeceras', () {
-    expect(correoComercialValido('comercial+ventas@empresa.com'), isTrue);
-    for (final correo in ['sin-correo', 'a@b', 'a@b.com,b@c.com', 'a@b.com\nBcc:otra@b.com']) {
-      expect(correoComercialValido(correo), isFalse);
-    }
-  });
+  test(
+    'Correo comercial admite una dirección y rechaza múltiples o cabeceras',
+    () {
+      expect(correoComercialValido('comercial+ventas@empresa.com'), isTrue);
+      for (final correo in [
+        'sin-correo',
+        'a@b',
+        'a@b.com,b@c.com',
+        'a@b.com\nBcc:otra@b.com',
+      ]) {
+        expect(correoComercialValido(correo), isFalse);
+      }
+    },
+  );
   test('Filtro recibido incluye extremos y excluye fechas vacías', () {
     final rango = DateTimeRange(
       start: DateTime(2026, 10, 8),
@@ -33,6 +41,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          placasSeguimientoProvider.overrideWith(
+            (ref) async => ['ABC123', 'JOU797'],
+          ),
           entregasProvider.overrideWith(
             (ref) async => [
               {
@@ -102,15 +113,32 @@ void main() {
     expect(tester.takeException(), isNull);
     tester.view.physicalSize = const Size(1200, 800);
     await tester.pumpAndSettle();
-    final campos = find.byType(TextField);
-    await tester.enterText(campos.at(1), 'QUIROMAR');
+    await tester.ensureVisible(find.byKey(const ValueKey('transportadora-')));
+    await tester.tap(find.byKey(const ValueKey('transportadora-')));
+    await tester.pumpAndSettle();
+    expect(find.text('Coordinadora'), findsOneWidget);
+    expect(find.text('TCC'), findsOneWidget);
+    await tester.tap(find.text('Quiromar').last);
+    await tester.pumpAndSettle();
+    final placa = find.byWidgetPredicate(
+      (w) =>
+          w is DropdownButtonFormField<String> &&
+          w.decoration.labelText == 'Placa',
+    );
+    await tester.ensureVisible(placa);
+    await tester.tap(placa);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('JOU797').last);
+    await tester.pumpAndSettle();
+    expect(find.text('JOU797'), findsOneWidget);
     await tester.tap(find.byTooltip('Ampliar pantalla'));
     await tester.pumpAndSettle();
-    expect(find.text('QUIROMAR'), findsOneWidget);
+    expect(find.text('Quiromar'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.tap(find.byTooltip('Restaurar tamaño'));
     await tester.pumpAndSettle();
-    expect(find.text('QUIROMAR'), findsOneWidget);
+    expect(find.text('Quiromar'), findsOneWidget);
+    expect(find.text('JOU797'), findsOneWidget);
     await tester.tap(find.text('En tránsito').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Entregado').last);
@@ -147,7 +175,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('LE 2971'));
     await tester.pumpAndSettle();
-    expect(find.text('QUIROMAR'), findsOneWidget);
+    expect(find.text('Quiromar'), findsOneWidget);
     await tester.tap(find.byTooltip('Cerrar formulario'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Actualizar'));

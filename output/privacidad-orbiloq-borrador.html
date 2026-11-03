@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ORBILOQ · Borrador de privacidad</title>
+<style>body{margin:0;background:#f2f6f7;color:#123f50;font:16px/1.65 system-ui,sans-serif}main{max-width:850px;margin:36px auto;padding:36px;background:white;border:1px solid #d7e5eb;border-radius:18px}h1{font-size:30px}h2{font-size:21px;margin-top:28px}a{color:#145b7d}.aviso{background:#fff4dc;border-left:4px solid #bb7900;padding:16px}small{color:#526d7a}@media(max-width:600px){main{margin:12px;padding:20px}}</style>
+<main><small>ORBILOQ · Documento de trabajo · 3 de noviembre de 2026</small>
+<h1>Privacidad y uso de servicios de Google</h1>
+<p class="aviso"><strong>Borrador para revisión interna. No publicado ni aprobado.</strong> Este texto describe las integraciones revisadas en el código. Falta confirmar las prácticas organizacionales indicadas al final antes de utilizarlo como política pública.</p>
+<h2>Responsable y alcance</h2>
+<p>ORBILOQ es una aplicación de gestión operativa de Grupo Quiromar. Esta propuesta cubre el envío de notificaciones de entrega mediante Gmail y el almacenamiento de evidencias de transporte mediante Google Drive. Debe integrarse con la política general de tratamiento de datos de la empresa.</p>
+<h2>Qué información utiliza</h2>
+<p>La conexión con Google identifica la cuenta autorizada por su dirección de correo y conserva credenciales OAuth en el servidor para ejecutar las funciones autorizadas. No solicita la contraseña de Google dentro de ORBILOQ.</p>
+<p>Los avisos de entrega utilizan el correo destinatario indicado en Seguimiento, datos del despacho y los archivos adjuntos registrados como evidencia. El servicio de transporte utiliza archivos de evidencia y sus identificadores para almacenarlos y consultarlos.</p>
+<h2>Para qué se solicitan los permisos</h2>
+<ul><li><strong>Gmail:</strong> enviar los avisos de entrega desde la cuenta autorizada. El permiso de envío utilizado no permite leer la bandeja de entrada.</li>
+<li><strong>Drive:</strong> gestionar los archivos a los que la aplicación tiene acceso mediante el permiso <code>drive.file</code>; no se solicita acceso general a todos los archivos de la cuenta.</li>
+<li><strong>Identidad:</strong> comprobar que la cuenta conectada corresponde a la cuenta configurada para el servicio.</li></ul>
+<h2>Dónde se procesan los datos</h2>
+<p>Google procesa el envío de correo y el almacenamiento en Drive. Supabase aloja los registros operativos, estados de envío y archivos utilizados por las funciones correspondientes. Al enviar una notificación, su destinatario recibe el contenido y las evidencias adjuntas seleccionadas para ese despacho.</p>
+<h2>Desconexión</h2>
+<p>La persona titular de la cuenta puede retirar la autorización desde las conexiones de terceros de su cuenta de Google. Esto impide nuevos usos de esa autorización; no elimina automáticamente los correos ya enviados ni los registros operativos y archivos conservados por la organización.</p>
+<h2>Contacto</h2><p>Para consultas sobre ORBILOQ y el tratamiento de la información: <a href="mailto:analistasdedatosing@gmail.com">analistasdedatosing@gmail.com</a>. Canal confirmado por el responsable del despliegue el 3 de noviembre de 2026.</p><h2>Información que Grupo Quiromar debe confirmar</h2>
+<ol><li>Razón social responsable y canal vigente para consultas, correcciones y solicitudes de eliminación. El documento público actual identifica a GRUPO QUIROMAR S.A.S. y publica <strong>quejasyreclamos@grupoquiromar.com</strong>; confirmar que este canal también atenderá ORBILOQ.</li>
+<li>Plazos o criterios de conservación para registros, evidencias, mensajes y credenciales; procedimiento de eliminación y tratamiento de respaldos.</li>
+<li>Personas autorizadas para acceder a la información y condiciones de acceso por proveedores.</li>
+<li>Compromisos organizacionales sobre uso limitado de datos de Google, ausencia de venta o usos publicitarios y comunicación de cambios. No deben afirmarse como hechos sin aprobación del responsable.</li></ol>
+<h2>Fuentes revisadas</h2>
+<p><a href="https://grupoquiromar.com/wp-content/uploads/2020/05/autorizacion_de_tratamiento_de_datos_personales_grupo_quiromar.pdf">Documento público de autorización de Grupo Quiromar</a> · <a href="https://developers.google.com/terms/api-services-user-data-policy">Requisitos de Google sobre datos de usuarios</a>.</p>
+</main></html>

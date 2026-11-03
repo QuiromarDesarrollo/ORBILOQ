@@ -2,6 +2,11 @@ import { plantillaEntrega } from './plantilla.mjs';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const respuesta = (status, data) => new Response(JSON.stringify(data), {status, headers:{...cors,'Content-Type':'application/json'}});
+const diagnosticos = {
+  gmail_autorizacion_vencida: 'Google venció o revocó la autorización de correo. El administrador debe reconectar Gmail; reintentar sin reconectarlo no resolverá el problema.',
+  gmail_configuracion: 'La configuración de Gmail no es válida. El administrador debe revisar las credenciales del servicio.',
+  gmail_temporal: 'No se pudo conectar con Google. El correo sigue pendiente; vuelve a intentar cuando se restablezca el servicio.',
+};
 export function crearHandler(deps) {
   return async request => {
     if (request.method === 'OPTIONS') return new Response(null, {status:204,headers:cors});
@@ -18,9 +23,10 @@ export function crearHandler(deps) {
       const permiso = await deps.autorizar(token,body.id);
       if (!permiso) return respuesta(403,{error:'Sin acceso a esta notificación'});
       if (permiso.estado === 'enviado') return respuesta(200,{estado:'enviado'});
-      if (!deps.habilitado || !deps.configurado) return respuesta(503,{error:'Entrega guardada. Falta configurar el servicio de correo y el remitente.'});
+      if (!deps.habilitado || !deps.configurado) return respuesta(503,{codigo:'gmail_configuracion',error:'Entrega guardada. Falta configurar el servicio de correo y el remitente.'});
       job = await deps.reclamar(body.id);
       if (!job) return respuesta(409,{error:'El correo está en proceso o requiere revisión. Actualiza el seguimiento.'});
+      const preparacion = deps.prepararEnvio ? await deps.prepararEnvio() : undefined;
       const attachments = [];
       for (const a of job.datos.adjuntos ?? []) {
         const prefijo = `${job.despacho_id}/${job.revision}/`;
@@ -32,15 +38,17 @@ export function crearHandler(deps) {
       const contenido = plantillaEntrega(job.datos);
       await deps.marcarInicio(job.id);
       iniciado=true;
-      const id = await deps.enviar({ ...contenido, to:[job.destinatario], attachments },job.id);
+      const id = await deps.enviar({ ...contenido, to:[job.destinatario], attachments },job.id,preparacion);
       await deps.finalizar(job.id, {estado:'enviado',proveedor_id:id,enviado_en:new Date().toISOString(),error:null});
       return respuesta(200,{estado:'enviado'});
     } catch (error) {
+      const codigo = Object.hasOwn(diagnosticos,error?.codigo) ? error.codigo : null;
+      const diagnostico = codigo ? diagnosticos[codigo] : 'No se envió el correo. Revisa la autorización y reintenta.';
       if (job) {
         const incierto=iniciado && !error?.noEnviado;
-        try { await deps.finalizar(job.id,{estado:incierto?'revision_manual':'error',envio_iniciado:incierto,error:incierto?'Comprueba Enviados en Gmail antes de volver a enviar; el resultado no fue confirmado.':'No se envió el correo. Revisa la autorización y reintenta.'}); } catch { /* envio_iniciado impide repetir un envío incierto al expirar la reserva. */ }
+        try { await deps.finalizar(job.id,{estado:incierto?'revision_manual':'error',envio_iniciado:incierto,error:incierto?'Comprueba Enviados en Gmail antes de volver a enviar; el resultado no fue confirmado.':diagnostico}); } catch { /* envio_iniciado impide repetir un envío incierto al expirar la reserva. */ }
       }
-      return respuesta(502,{error:'La entrega sigue guardada, pero no se confirmó el correo. Reintenta desde Seguimiento.'});
+      return respuesta(502,{codigo,error:codigo ? diagnostico : 'La entrega sigue guardada, pero no se confirmó el correo. Revisa su estado en Seguimiento antes de reintentar.'});
     }
   };
 }

@@ -21,7 +21,8 @@ export function crearHandler(api) {
       if (!datos || typeof datos !== 'object') return respuesta(400, { error: 'Solicitud invalida.' });
       const { numero, nombre, contrasena } = datos;
       const prioridad = ['admin', 'seguimiento', 'produccion', 'logistica', 'despacho', 'gerencia',
-        ...(api.permitirConductor === true ? ['conductor'] : [])];
+        ...(api.permitirConductor === true ? ['conductor'] : []),
+        ...(api.permitirMasiva === true ? ['masiva'] : [])];
       const solicitados = datos.roles === undefined ? [datos.rol] : datos.roles;
       if (!Array.isArray(solicitados) || solicitados.length < 1 || solicitados.length > prioridad.length || solicitados.some(r => !prioridad.includes(r))) {
         return respuesta(400, { error: 'Selecciona al menos un perfil valido.' });

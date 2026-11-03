@@ -1,0 +1,20 @@
+{
+  "cambios": [
+    "Catálogos: Actualizar usa ancho útil",
+    "Teclado manual accesible Android/iOS y conexión renovada",
+    "Producción y no conformes conservan lector al rotar",
+    "Diálogos conservan subtree contenido al variar altura"
+  ],
+  "cobertura": [
+    "Admin320/390/640/680/768/1440",
+    "Producción/Bodega/Despacho y orientación horizontal",
+    "Conductor/Flota/Masiva320/390/768/1440",
+    "Inventario/Dashboard/Catálogos/Diálogos",
+    "Rotación390x844->844x844->844x390->390x844"
+  ],
+  "limites": [
+    "Datos simulados y viewports",
+    "Teclado nativo de teléfono real pendiente"
+  ],
+  "base_datos_modificada": false
+}

@@ -23,6 +23,33 @@ class EvidenciaSeleccionada extends ChangeNotifier {
   String? get enlace => _enlace;
   bool get pendiente => _subida != null && _enlace == null;
 
+  Map<String, dynamic> borrador() => {
+    if (archivo != null) ...{
+      'nombre': archivo!.nombre,
+      'mime': archivo!.mime,
+      'bytes': base64Encode(archivo!.bytes),
+    },
+    if (_enlace != null) 'enlace': _enlace,
+  };
+
+  void restaurarBorrador(Map<String, dynamic> data) {
+    if (data['bytes'] is String) {
+      final bytes = base64Decode(data['bytes'] as String);
+      if (bytes.length > maxEvidenciaBytes) {
+        throw const FormatException('Evidencia demasiado grande');
+      }
+      seleccionar(
+        ArchivoEvidencia(
+          data['nombre'] as String,
+          data['mime'] as String,
+          bytes,
+        ),
+      );
+    }
+    _enlace = data['enlace'] as String?;
+    notifyListeners();
+  }
+
   void seleccionar(ArchivoEvidencia archivo) {
     _subida?.dispose();
     _subida = _crearSubida(archivo);
@@ -66,11 +93,14 @@ Future<void> subirEvidenciasConductor(
 }) async {
   final pendientes =
       evidencias.entries.where((e) => e.value.pendiente).toList();
-  for (var i = 0; i < pendientes.length; i++) {
-    onProgress?.call(i + 1, pendientes.length);
-    final e = pendientes[i];
-    await e.value.subir(client, vehiculo, e.key, tipo);
-  }
+  var completadas = 0;
+  await Future.wait(
+    pendientes.map((e) async {
+      await e.value.subir(client, vehiculo, e.key, tipo);
+      completadas++;
+      onProgress?.call(completadas, pendientes.length);
+    }),
+  );
 }
 
 class ArchivoEvidencia {

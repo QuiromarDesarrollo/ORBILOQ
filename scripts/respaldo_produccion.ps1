@@ -50,7 +50,13 @@ try {
         inicio_utc = $started
         fin_utc = [DateTime]::UtcNow.ToString('o')
         estado = 'exportacion_finalizada_pendiente_prueba_restauracion'
-        archivos = @(Get-FileHash -LiteralPath $dumpFinal,$rolesFinal,$toc -Algorithm SHA256 | Select-Object Path,Algorithm,Hash)
+        archivos = @(foreach ($path in @($dumpFinal,$rolesFinal,$toc)) {
+            $sha = [Security.Cryptography.SHA256]::Create()
+            $stream = [IO.File]::OpenRead($path)
+            try {
+                [pscustomobject]@{ Path=$path; Algorithm='SHA256'; Hash=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','') }
+            } finally { $stream.Dispose(); $sha.Dispose() }
+        })
         notas = @(
             'Leer el índice no demuestra que todos los datos puedan restaurarse. Falta ensayo en una base separada.',
             'No incluye archivos de Supabase Storage, código o secretos de Edge Functions ni configuración externa.',

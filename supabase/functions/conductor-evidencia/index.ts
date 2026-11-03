@@ -11,7 +11,7 @@ const oauth = new OAuth2Client(clientId, clientSecret);
 oauth.setCredentials({ refresh_token: refreshToken });
 
 Deno.serve(crearHandler({
-  habilitado: new URL(supabaseUrl).hostname === 'igfuafcekcpugpmsoqbe.supabase.co',
+  habilitado: ['igfuafcekcpugpmsoqbe.supabase.co', 'cxrflhgnxvomcvxzugda.supabase.co'].includes(new URL(supabaseUrl).hostname),
   configurado: Boolean(clientId && clientSecret && refreshToken),
   async autorizar(token: string, vehiculo: string) {
     // La lectura conserva RLS: usuario activo admin o conductor asignado.

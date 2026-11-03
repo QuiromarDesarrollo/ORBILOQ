@@ -1,0 +1,18 @@
+{
+  "commit": "c2220c1",
+  "produccion": [
+    {
+      "archivo": "index.html",
+      "coincide": true
+    },
+    {
+      "archivo": "flutter_bootstrap.20261103-responsive.js",
+      "coincide": true
+    },
+    {
+      "archivo": "main.20261103-responsive.dart.js",
+      "coincide": true
+    }
+  ],
+  "base_datos_modificada": false
+}

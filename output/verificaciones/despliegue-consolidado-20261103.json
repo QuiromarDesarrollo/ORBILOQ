@@ -1,0 +1,26 @@
+{
+  "commit": "cd68d60",
+  "verificacion_http": [
+    {
+      "archivo": "index.html",
+      "bytes": 2765,
+      "coincide": true
+    },
+    {
+      "archivo": "flutter_bootstrap.20261103-consolidado.js",
+      "bytes": 13209,
+      "coincide": true
+    },
+    {
+      "archivo": "main.20261103-consolidado.dart.js",
+      "bytes": 6577548,
+      "coincide": true
+    },
+    {
+      "archivo": "masiva_excel_worker.20261103-consolidado.js",
+      "bytes": 280736,
+      "coincide": true
+    }
+  ],
+  "base_datos_modificada": false
+}

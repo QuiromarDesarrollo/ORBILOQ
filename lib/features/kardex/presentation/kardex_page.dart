@@ -32,6 +32,8 @@ import 'kardex_table.dart';
 import '../../inventario/presentation/inventario_page.dart';
 import '../../../core/inventario_entorno.dart';
 import '../../../core/conductor_entorno.dart';
+import '../../../core/masiva_entorno.dart';
+import '../../masiva/presentation/masiva_page.dart';
 import '../../conductor/presentation/conductor_page.dart';
 
 bool _puedeAbrirTransporte(WidgetRef ref) {
@@ -41,6 +43,18 @@ bool _puedeAbrirTransporte(WidgetRef ref) {
           sesion?.tieneRol(RolCuenta.admin) == true ||
           sesion?.tieneRol(RolCuenta.conductor) == true);
 }
+
+bool _puedeAbrirMasiva(WidgetRef ref) =>
+    masivaHabilitada() &&
+    (!ref.read(usarSupabaseProvider) ||
+        ref.read(usuarioSesionProvider).value?.tieneRol(RolCuenta.admin) ==
+            true ||
+        ref.read(usuarioSesionProvider).value?.tieneRol(RolCuenta.masiva) ==
+            true);
+
+void _abrirMasiva(BuildContext context) => Navigator.of(
+  context,
+).push(MaterialPageRoute<void>(builder: (_) => const MasivaPage()));
 
 void _abrirTransporte(BuildContext context) {
   Navigator.of(
@@ -96,6 +110,12 @@ class _KardexPageState extends ConsumerState<KardexPage> {
                     title: const Text('Transporte'),
                     onTap: () => Navigator.pop(context, 'transporte'),
                   ),
+                if (_puedeAbrirMasiva(ref))
+                  ListTile(
+                    leading: const Icon(Icons.inventory_2_outlined),
+                    title: const Text('Masiva'),
+                    onTap: () => Navigator.pop(context, 'masiva'),
+                  ),
               ],
             ),
           ),
@@ -103,6 +123,7 @@ class _KardexPageState extends ConsumerState<KardexPage> {
     if (!mounted) return;
     if (area is Rol) ref.read(rolProvider.notifier).cambiar(area);
     if (area == 'transporte') _abrirTransporte(context);
+    if (area == 'masiva') _abrirMasiva(context);
   }
 
   Future<void> _sincronizar() async {
@@ -232,6 +253,11 @@ class _KardexPageState extends ConsumerState<KardexPage> {
     final nav = palNavegacion(context);
     final usarSupabase = ref.watch(usarSupabaseProvider);
     final sesion = usarSupabase ? ref.watch(usuarioSesionProvider).value : null;
+    if (sesion?.tieneRol(RolCuenta.masiva) == true &&
+        sesion!.areas.isEmpty &&
+        masivaHabilitada()) {
+      return const MasivaPage();
+    }
     if (sesion?.tieneRol(RolCuenta.conductor) == true &&
         sesion!.areas.isEmpty) {
       return const Scaffold(
@@ -268,7 +294,8 @@ class _KardexPageState extends ConsumerState<KardexPage> {
     final puedeCambiarArea =
         !usarSupabase ||
         (sesion?.areas.length ?? 0) > 1 ||
-        _puedeAbrirTransporte(ref);
+        _puedeAbrirTransporte(ref) ||
+        _puedeAbrirMasiva(ref);
 
     final compacto = MediaQuery.sizeOf(context).width < 1200;
     return Scaffold(
@@ -850,7 +877,8 @@ class _SelectorPerfil extends ConsumerWidget {
 
     return (!usarSupabase ||
             (sesion?.areas.length ?? 0) > 1 ||
-            _puedeAbrirTransporte(ref))
+            _puedeAbrirTransporte(ref) ||
+            _puedeAbrirMasiva(ref))
         ? _pastillaDesplegable(context, ref, pal)
         : _pastillaFija(_etiqueta(rol), pal);
   }
@@ -898,6 +926,7 @@ class _SelectorPerfil extends ConsumerWidget {
       onSelected: (r) {
         if (r is Rol) ref.read(rolProvider.notifier).cambiar(r);
         if (r == 'transporte') _abrirTransporte(context);
+        if (r == 'masiva') _abrirMasiva(context);
       },
       itemBuilder:
           (context) => [
@@ -958,6 +987,17 @@ class _SelectorPerfil extends ConsumerWidget {
                       'Transporte',
                       style: TextStyle(color: pal.textPrimary),
                     ),
+                  ],
+                ),
+              ),
+            if (_puedeAbrirMasiva(ref))
+              const PopupMenuItem<Object>(
+                value: 'masiva',
+                child: Row(
+                  children: [
+                    Icon(Icons.inventory_2_outlined, size: 18),
+                    SizedBox(width: 10),
+                    Text('Masiva'),
                   ],
                 ),
               ),

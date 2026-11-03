@@ -3,6 +3,7 @@ import { encodeBase64 } from 'jsr:@std/encoding@1/base64';
 import { crearHandler } from './handler.mjs';
 import { logoBase64 } from './logo.mjs';
 import { mensajeGmail, REMITENTE } from './gmail.mjs';
+import { tokenGmail } from './oauth.mjs';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const clientId = Deno.env.get('ENTREGA_GOOGLE_CLIENT_ID');
@@ -11,7 +12,7 @@ const refreshToken = Deno.env.get('ENTREGA_GOOGLE_REFRESH_TOKEN');
 const from = Deno.env.get('ENTREGA_GMAIL_FROM');
 const admin = createClient(url,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
 Deno.serve(crearHandler({
-  habilitado: new URL(url).hostname === 'igfuafcekcpugpmsoqbe.supabase.co',
+  habilitado: ['igfuafcekcpugpmsoqbe.supabase.co', 'cxrflhgnxvomcvxzugda.supabase.co'].includes(new URL(url).hostname),
   configurado: Boolean(clientId && clientSecret && refreshToken && from === REMITENTE),
   async autorizar(token: string,id: string) {
     const client = createClient(url,Deno.env.get('SUPABASE_ANON_KEY')!,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
@@ -35,17 +36,8 @@ Deno.serve(crearHandler({
     const {error} = await admin.from('entrega_correos').update({envio_iniciado:true}).eq('id',id);
     if (error) throw error;
   },
-  async enviar(contenido: Record<string,unknown> & {attachments: unknown[]}, id: string) {
-    let token;
-    try {
-      const refresh = await fetch('https://oauth2.googleapis.com/token', {
-        method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body:new URLSearchParams({client_id:clientId!,client_secret:clientSecret!,refresh_token:refreshToken!,grant_type:'refresh_token'}),signal:AbortSignal.timeout(15000),
-      });
-      if (!refresh.ok) throw new Error('Renueva la autorización de Gmail');
-      token = (await refresh.json()).access_token;
-      if (!token) throw new Error('Falta token');
-    } catch { throw Object.assign(new Error('No se autorizó Gmail'),{noEnviado:true}); }
+  prepararEnvio: () => tokenGmail({client_id:clientId!,client_secret:clientSecret!,refresh_token:refreshToken!}),
+  async enviar(contenido: Record<string,unknown> & {attachments: unknown[]}, id: string, token: string) {
     const raw=mensajeGmail(contenido,id,logoBase64);
     const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/${REMITENTE}/messages/send`,{
       method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},

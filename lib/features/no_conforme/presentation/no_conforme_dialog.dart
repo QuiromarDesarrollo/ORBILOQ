@@ -1,3 +1,4 @@
+import '../../../shared/borrador_operativo.dart';
 import 'historial_no_conforme.dart';
 import '../../../shared/widgets/wms_camera_scanner.dart';
 import '../../admin/presentation/catalogo_form_widgets.dart';
@@ -278,10 +279,54 @@ class _EscanearTab extends ConsumerStatefulWidget {
 }
 
 class _EscanearTabState extends ConsumerState<_EscanearTab>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, BorradorOperativo<_EscanearTab> {
+  @override
+  String get borradorProceso => 'no-conforme-qr';
+  @override
+  bool get operacionEnCurso => _enviandoTodo;
+  @override
+  Iterable<TextEditingController> get controlesBorrador => [
+    _manualCtrl,
+    for (final t in _tarjetas) ...[t.cantidadCtrl, t.notaCtrl],
+  ];
+  @override
+  Map<String, dynamic> capturarBorrador() => {
+    'buscar': _manualCtrl.text,
+    'tarjetas': [
+      for (final t in _tarjetas.where((t) => !t.enviada))
+        {
+          'id': t.itemId,
+          'cantidad': t.cantidadCtrl.text,
+          'nota': t.notaCtrl.text,
+          'conteo': t.conteo,
+          'causal': t.causalId,
+          'recibido': t.recibidoDeProduccion,
+        },
+    ],
+  };
+  @override
+  void recuperarBorrador(Map<String, dynamic> d) {
+    _manualCtrl.text = d['buscar'] as String? ?? '';
+    for (final t in _tarjetas) {
+      t.dispose();
+    }
+    _tarjetas.clear();
+    for (final t in (d['tarjetas'] as List? ?? [])) {
+      _tarjetas.add(
+        _TarjetaNoConforme(itemId: t['id'] as String)
+          ..cantidadCtrl.text = t['cantidad'] as String
+          ..notaCtrl.text = t['nota'] as String
+          ..conteo = t['conteo'] as int
+          ..causalId = t['causal'] as String?
+          ..recibidoDeProduccion = t['recibido'] as String?,
+      );
+    }
+  }
+
   final _qrCtrl = TextEditingController();
   final _manualCtrl = TextEditingController();
   final _qrFocus = FocusNode();
+  final _qrFieldKey = GlobalKey();
   String get _operario => ref.read(nombreOperarioProvider);
   final List<_TarjetaNoConforme> _tarjetas = [];
   FeedbackMessage? _msgGeneral;
@@ -373,6 +418,10 @@ class _EscanearTabState extends ConsumerState<_EscanearTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    return envolverBorrador(_contenido(context));
+  }
+
+  Widget _contenido(BuildContext context) {
     final snapshot = ref.watch(wmsSnapshotProvider).value;
     final pendientes = _tarjetas.where((t) => !t.enviada).toList();
 
@@ -385,10 +434,14 @@ class _EscanearTabState extends ConsumerState<_EscanearTab>
         color: AppColors.alertRed,
         busy: _enviandoTodo,
         onPressed:
-            pendientes.isEmpty
+            pendientes.isEmpty || borradorBloqueado || _enviandoTodo
                 ? null
                 : () async {
                   setState(() => _enviandoTodo = true);
+                  if (!await asegurarBorrador()) {
+                    if (mounted) setState(() => _enviandoTodo = false);
+                    return;
+                  }
                   await _reportarTodo(
                     ref: ref,
                     pendientes: pendientes,
@@ -451,6 +504,7 @@ class _EscanearTabState extends ConsumerState<_EscanearTab>
                       ),
                     );
                     final lector = WmsScanField(
+                      key: _qrFieldKey,
                       controller: _qrCtrl,
                       focusNode: _qrFocus,
                       autofocus: true,
@@ -533,6 +587,7 @@ class _EscanearTabState extends ConsumerState<_EscanearTab>
             const SizedBox(height: 10),
             for (final t in pendientes) ...[
               _TarjetaWidget(
+                onCambio: guardarBorrador,
                 tarjeta: t,
                 kardex: snapshot?.kardexPorId(t.itemId),
                 onQuitar: () => _quitar(t),
@@ -556,7 +611,50 @@ class _ManualTab extends ConsumerStatefulWidget {
 }
 
 class _ManualTabState extends ConsumerState<_ManualTab>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, BorradorOperativo<_ManualTab> {
+  @override
+  String get borradorProceso => 'no-conforme-manual';
+  @override
+  bool get operacionEnCurso => _enviandoTodo;
+  @override
+  Iterable<TextEditingController> get controlesBorrador => [
+    _opCtrl,
+    for (final t in _tarjetas) ...[t.cantidadCtrl, t.notaCtrl],
+  ];
+  @override
+  Map<String, dynamic> capturarBorrador() => {
+    'buscar': _opCtrl.text,
+    'tarjetas': [
+      for (final t in _tarjetas.where((t) => !t.enviada))
+        {
+          'id': t.itemId,
+          'cantidad': t.cantidadCtrl.text,
+          'nota': t.notaCtrl.text,
+          'conteo': t.conteo,
+          'causal': t.causalId,
+          'recibido': t.recibidoDeProduccion,
+        },
+    ],
+  };
+  @override
+  void recuperarBorrador(Map<String, dynamic> d) {
+    _opCtrl.text = d['buscar'] as String? ?? '';
+    for (final t in _tarjetas) {
+      t.dispose();
+    }
+    _tarjetas.clear();
+    for (final t in (d['tarjetas'] as List? ?? [])) {
+      _tarjetas.add(
+        _TarjetaNoConforme(itemId: t['id'] as String)
+          ..cantidadCtrl.text = t['cantidad'] as String
+          ..notaCtrl.text = t['nota'] as String
+          ..conteo = t['conteo'] as int
+          ..causalId = t['causal'] as String?
+          ..recibidoDeProduccion = t['recibido'] as String?,
+      );
+    }
+  }
+
   final _opCtrl = TextEditingController();
   String get _operario => ref.read(nombreOperarioProvider);
   List<ItemKardex> _resultados = [];
@@ -631,6 +729,10 @@ class _ManualTabState extends ConsumerState<_ManualTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    return envolverBorrador(_contenido(context));
+  }
+
+  Widget _contenido(BuildContext context) {
     final snapshot = ref.watch(wmsSnapshotProvider).value;
     final pendientes = _tarjetas.where((t) => !t.enviada).toList();
 
@@ -643,10 +745,14 @@ class _ManualTabState extends ConsumerState<_ManualTab>
         color: AppColors.alertRed,
         busy: _enviandoTodo,
         onPressed:
-            pendientes.isEmpty
+            pendientes.isEmpty || borradorBloqueado || _enviandoTodo
                 ? null
                 : () async {
                   setState(() => _enviandoTodo = true);
+                  if (!await asegurarBorrador()) {
+                    if (mounted) setState(() => _enviandoTodo = false);
+                    return;
+                  }
                   await _reportarTodo(
                     ref: ref,
                     pendientes: pendientes,
@@ -756,6 +862,7 @@ class _ManualTabState extends ConsumerState<_ManualTab>
             const SizedBox(height: 10),
             for (final t in pendientes) ...[
               _TarjetaWidget(
+                onCambio: guardarBorrador,
                 tarjeta: t,
                 kardex: snapshot?.kardexPorId(t.itemId),
                 onQuitar: () => _quitar(t),
@@ -776,8 +883,10 @@ class _TarjetaWidget extends StatefulWidget {
     required this.tarjeta,
     required this.kardex,
     required this.onQuitar,
+    required this.onCambio,
   });
 
+  final VoidCallback onCambio;
   final _TarjetaNoConforme tarjeta;
   final ItemKardex? kardex;
   final VoidCallback onQuitar;
@@ -787,6 +896,12 @@ class _TarjetaWidget extends StatefulWidget {
 }
 
 class _TarjetaWidgetState extends State<_TarjetaWidget> {
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    widget.onCambio();
+  }
+
   @override
   Widget build(BuildContext context) {
     final k = widget.kardex;

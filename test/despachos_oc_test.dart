@@ -21,6 +21,31 @@ import 'package:orbiloq_wms/data/in_memory_wms_repository.dart';
 import 'package:orbiloq_wms/features/despacho/presentation/despacho_dialog.dart';
 import 'package:orbiloq_wms/application/kardex_columnas.dart';
 import 'package:orbiloq_wms/application/kardex_filters.dart';
+import 'package:orbiloq_wms/core/theme/app_theme.dart';
+import 'package:orbiloq_wms/data/despacho_borrador_repository.dart';
+
+class _BorradoresPrueba implements DespachoBorradorRepository {
+  final registros = <String, Map<String, dynamic>>{};
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  @override
+  Future<Map<String, dynamic>?> cargar(String clave) async => registros[clave];
+  @override
+  Future<Map<String, dynamic>> guardar(
+    String clave,
+    Map<String, dynamic> datos, {
+    int version = 0,
+  }) async {
+    expect(version, registros[clave]?['version'] ?? 0);
+    return registros[clave] = {'version': version + 1, 'datos': datos};
+  }
+
+  @override
+  Future<void> eliminar(String clave, {required int version}) async {
+    expect(version, registros[clave]?['version']);
+    registros.remove(clave);
+  }
+}
 
 class _Despachos extends DespachosOcRepository {
   final correcciones = <String>[];
@@ -156,6 +181,9 @@ void main() {
         ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(false),
+            despachoBorradorRepositoryProvider.overrideWithValue(
+              _BorradoresPrueba(),
+            ),
             usuarioSesionProvider.overrideWith(
               (ref) async => UsuarioSesion(
                 numeroUsuario: '1',
@@ -244,8 +272,11 @@ void main() {
   }
 
   for (final size in [
+    const Size(1920, 1080),
     const Size(1440, 900),
     const Size(320, 740),
+    const Size(390, 844),
+    const Size(768, 900),
     const Size(740, 360),
   ]) {
     testWidgets('Buscar OP y ampliar conserva empaques en $size', (
@@ -266,6 +297,16 @@ void main() {
         ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(false),
+            despachoBorradorRepositoryProvider.overrideWithValue(
+              _BorradoresPrueba(),
+            ),
+            usuarioSesionProvider.overrideWith(
+              (ref) async => const UsuarioSesion(
+                numeroUsuario: '1',
+                nombre: 'Administrador',
+                rolCuenta: RolCuenta.admin,
+              ),
+            ),
             wmsRepositoryProvider.overrideWithValue(repo),
             despachosOcProvider.overrideWithValue(_Despachos()),
             destinatariosEmpaqueProvider.overrideWith((ref) async => []),
@@ -274,6 +315,22 @@ void main() {
                 WmsSnapshot(
                   kardex: [
                     prenda(),
+                    const ItemKardex(
+                      item: ItemOrden(
+                        id: 'k',
+                        op: '1',
+                        cliente: 'Cliente',
+                        oc: 'OC1',
+                        codigo: 'C-L',
+                        descripcion: 'Camisa',
+                        talla: 'L',
+                        cantidadPedida: 5,
+                      ),
+                      producido: 5,
+                      recibido: 5,
+                      despachado: 0,
+                      ubicaciones: {'A': 5},
+                    ),
                     const ItemKardex(
                       item: ItemOrden(
                         id: 'j',
@@ -310,6 +367,7 @@ void main() {
             ),
           ],
           child: MaterialApp(
+            theme: AppTheme.light,
             builder:
                 (context, child) => RepaintBoundary(
                   key: const ValueKey('captura-empaque'),
@@ -352,17 +410,33 @@ void main() {
       });
       final surface = find.byKey(const ValueKey('wms-dialog-surface'));
       final normal = tester.getSize(surface);
-      final buscar = find.widgetWithText(TextField, 'Buscar por OP');
-      await tester.ensureVisible(buscar);
-      await tester.enterText(buscar, '#1');
+      final buscar = find.byWidgetPredicate(
+        (w) =>
+            w is DropdownButtonFormField<String> &&
+            '${w.key}'.contains('filtro-op-empaque-'),
+      );
+      Future<void> elegirOp(String op) async {
+        await tester.ensureVisible(buscar);
+        await tester.tap(buscar);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('OP $op').last);
+        await tester.pumpAndSettle();
+      }
+
+      await elegirOp('1');
       await tester.pumpAndSettle();
-      expect(find.textContaining('OP 1 ·'), findsOneWidget);
+      expect(find.text('OP 1 · Camisa · Talla M'), findsOneWidget);
+      expect(find.text('OP 1 · Camisa · Talla L'), findsOneWidget);
       expect(find.textContaining('OP 2 ·'), findsNothing);
-      await tester.ensureVisible(find.textContaining('OP 1 ·'));
-      await tester.tap(find.textContaining('OP 1 ·'));
+      final grupo = find.byKey(const ValueKey('grupo-op-1'));
+      await tester.ensureVisible(grupo);
+      await tester.tap(grupo);
       await tester.pumpAndSettle();
       expect(find.widgetWithText(TextFormField, 'Prendas'), findsNothing);
-      await tester.tap(find.textContaining('OP 1 ·'));
+      expect(find.text('OP 1 · Camisa · Talla M'), findsNothing);
+      expect(find.text('OP 1 · Camisa · Talla L'), findsNothing);
+      expect(find.text('5 prendas · 2 empaques'), findsOneWidget);
+      await tester.tap(grupo);
       await tester.pumpAndSettle();
       expect(
         tester
@@ -376,25 +450,38 @@ void main() {
       expect(find.text('5 prendas · 2 empaques'), findsOneWidget);
       await tester.tap(find.byTooltip('Ampliar pantalla'));
       await tester.pumpAndSettle();
+      if (size.width == 1920) {
+        await tester.ensureVisible(
+          find.text('Reparte las prendas en cajas o paquetes'),
+        );
+        await tester.pumpAndSettle();
+        captura.markNeedsPaint();
+        await tester.pump();
+        await tester.runAsync(() async {
+          final image = await captura.toImage();
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          await File(
+            '.dart_tool/despacho-1920-ampliado.png',
+          ).writeAsBytes(bytes!.buffer.asUint8List());
+          image.dispose();
+        });
+      }
       expect(tester.getSize(surface).width, closeTo(size.width, 1));
       expect(tester.getSize(surface).height, closeTo(size.height, 1));
-      expect(tester.widget<TextField>(buscar).controller!.text, '#1');
+      expect(
+        tester.widget<DropdownButtonFormField<String>>(buscar).initialValue,
+        '1',
+      );
       await tester.tap(find.byTooltip('Restaurar tamaño'));
       await tester.pumpAndSettle();
       expect(tester.getSize(surface), normal);
-      await tester.ensureVisible(buscar);
-      await tester.enterText(buscar, '999');
+      final limpiar = find.byKey(const ValueKey('limpiar-filtros-empaque'));
+      await tester.ensureVisible(limpiar);
+      await tester.tap(limpiar);
       await tester.pumpAndSettle();
-      expect(
-        find.text('No hay OP que coincidan con la búsqueda.'),
-        findsOneWidget,
-      );
-      expect(find.text('5 prendas · 2 empaques'), findsOneWidget);
-      await tester.ensureVisible(find.byTooltip('Limpiar búsqueda de OP'));
-      await tester.tap(find.byTooltip('Limpiar búsqueda de OP'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('OP 1 ·'), findsOneWidget);
-      expect(find.textContaining('OP 2 ·'), findsOneWidget);
+      expect(find.text('OP 1 · Camisa · Talla M'), findsOneWidget);
+      expect(find.text('OP 1 · Camisa · Talla L'), findsOneWidget);
+      expect(find.text('OP 2 · Pantalón · Talla M'), findsOneWidget);
       expect(
         tester
             .widget<TextFormField>(
@@ -411,13 +498,54 @@ void main() {
             .initialValue,
         '2',
       );
+      final talla = find.byKey(const ValueKey('filtro-talla-empaque-todas'));
+      await tester.ensureVisible(talla);
+      await tester.tap(talla);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('L').last);
+      await tester.pumpAndSettle();
+      expect(find.text('OP 1 · Camisa · Talla L'), findsOneWidget);
+      expect(find.text('OP 1 · Camisa · Talla M'), findsNothing);
+      expect(find.text('OP 2 · Pantalón · Talla M'), findsNothing);
+      expect(find.text('5 prendas · 2 empaques'), findsOneWidget);
+      await elegirOp('2');
+      expect(find.byKey(const ValueKey('grupo-op-1')), findsNothing);
+      expect(find.byKey(const ValueKey('grupo-op-2')), findsOneWidget);
+      final tallasOp2 = tester.widget<DropdownButtonFormField<String>>(
+        find.byKey(const ValueKey('filtro-talla-empaque-todas')),
+      );
+      final tallasDropdown = tester.widget<DropdownButton<String>>(
+        find.descendant(
+          of: find.byKey(const ValueKey('filtro-talla-empaque-todas')),
+          matching: find.byType(DropdownButton<String>),
+        ),
+      );
+      expect(tallasDropdown.items!.map((item) => item.value), ['M']);
+      expect(tallasOp2.initialValue, isNull);
+      await tester.ensureVisible(limpiar);
+      await tester.tap(limpiar);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<DropdownButtonFormField<String>>(buscar).initialValue,
+        isNull,
+      );
+      expect(find.text('OP 1 · Camisa · Talla M'), findsOneWidget);
+      expect(find.text('OP 1 · Camisa · Talla L'), findsOneWidget);
+      expect(find.text('OP 2 · Pantalón · Talla M'), findsOneWidget);
+      expect(find.text('5 prendas · 2 empaques'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Prendas').first,
+            )
+            .initialValue,
+        '3',
+      );
       if (size.width == 320) {
         tester.view.viewInsets = const FakeViewPadding(bottom: 280);
         addTearDown(tester.view.resetViewInsets);
         await tester.pumpAndSettle();
-        await tester.ensureVisible(buscar);
-        await tester.enterText(buscar, '2');
-        await tester.pumpAndSettle();
+        await elegirOp('2');
         expect(find.textContaining('OP 2 ·'), findsOneWidget);
       }
       expect(tester.takeException(), isNull);
@@ -430,6 +558,12 @@ void main() {
     RolCuenta.admin,
   ]) {
     testWidgets('Pestañas de despacho según rol ${rol.name}', (tester) async {
+      if (rol == RolCuenta.despacho) {
+        tester.view.physicalSize = const Size(320, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+      }
       var consultasEntregas = 0;
       final repo = InMemoryWmsRepository.seeded();
       addTearDown(repo.dispose);
@@ -437,6 +571,9 @@ void main() {
         ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(true),
+            despachoBorradorRepositoryProvider.overrideWithValue(
+              _BorradoresPrueba(),
+            ),
             usuarioSesionProvider.overrideWith(
               (ref) async => UsuarioSesion(
                 numeroUsuario: '1',
@@ -447,6 +584,7 @@ void main() {
             wmsRepositoryProvider.overrideWithValue(repo),
             despachosOcProvider.overrideWithValue(_Despachos()),
             destinatariosEmpaqueProvider.overrideWith((ref) async => []),
+            empaquesProvider.overrideWith((ref) async => []),
             entregasProvider.overrideWith((ref) async {
               consultasEntregas++;
               return [];
@@ -471,6 +609,13 @@ void main() {
       await tester.tap(find.widgetWithText(Tab, 'Despacho'));
       await tester.pumpAndSettle();
       expect(find.text('¿A quién va el empaque?'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey('despacho-sincronizar-datos')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Datos actualizados'), findsOneWidget);
+      expect(find.text('¿A quién va el empaque?'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       await tester.tap(find.widgetWithText(Tab, 'Historial'));
       await tester.pumpAndSettle();
       if (rol == RolCuenta.despacho) {
@@ -496,6 +641,9 @@ void main() {
       ProviderScope(
         overrides: [
           usarSupabaseProvider.overrideWithValue(true),
+          despachoBorradorRepositoryProvider.overrideWithValue(
+            _BorradoresPrueba(),
+          ),
           wmsRepositoryProvider.overrideWithValue(repo),
           despachosOcProvider.overrideWithValue(_Despachos()),
           wmsSnapshotProvider.overrideWith(
@@ -646,7 +794,10 @@ void main() {
     expect(
       tester
           .widget<OutlinedButton>(
-            find.widgetWithText(OutlinedButton, 'Generar todos los rótulos'),
+            find.widgetWithText(
+              OutlinedButton,
+              'Generar todos los rótulos en un PDF',
+            ),
           )
           .onPressed,
       isNotNull,
@@ -702,6 +853,9 @@ void main() {
       ProviderScope(
         overrides: [
           usarSupabaseProvider.overrideWithValue(false),
+          despachoBorradorRepositoryProvider.overrideWithValue(
+            _BorradoresPrueba(),
+          ),
           wmsRepositoryProvider.overrideWithValue(repo),
           despachosOcProvider.overrideWithValue(despachos),
         ],
@@ -734,6 +888,9 @@ void main() {
         ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(false),
+            despachoBorradorRepositoryProvider.overrideWithValue(
+              _BorradoresPrueba(),
+            ),
             wmsRepositoryProvider.overrideWithValue(repo),
             wmsSnapshotProvider.overrideWith(
               (ref) => Stream.value(
@@ -889,6 +1046,9 @@ void main() {
       ProviderScope(
         overrides: [
           usarSupabaseProvider.overrideWithValue(false),
+          despachoBorradorRepositoryProvider.overrideWithValue(
+            _BorradoresPrueba(),
+          ),
           wmsRepositoryProvider.overrideWithValue(repo),
           wmsSnapshotProvider.overrideWith((ref) => snapshots.stream),
           despachosOcProvider.overrideWithValue(_Despachos()),
@@ -950,6 +1110,9 @@ void main() {
         ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(false),
+            despachoBorradorRepositoryProvider.overrideWithValue(
+              _BorradoresPrueba(),
+            ),
             wmsRepositoryProvider.overrideWithValue(repo),
             wmsSnapshotProvider.overrideWith(
               (ref) => Stream.value(WmsSnapshot(kardex: [prenda()], lotes: [])),
@@ -1160,6 +1323,9 @@ void main() {
       ProviderScope(
         overrides: [
           usarSupabaseProvider.overrideWithValue(false),
+          despachoBorradorRepositoryProvider.overrideWithValue(
+            _BorradoresPrueba(),
+          ),
           wmsRepositoryProvider.overrideWithValue(repo),
           wmsSnapshotProvider.overrideWith(
             (ref) =>
@@ -1269,6 +1435,9 @@ void main() {
         ProviderScope(
           overrides: [
             usarSupabaseProvider.overrideWithValue(false),
+            despachoBorradorRepositoryProvider.overrideWithValue(
+              _BorradoresPrueba(),
+            ),
             wmsRepositoryProvider.overrideWithValue(repo),
             wmsSnapshotProvider.overrideWith(
               (ref) => Stream.value(

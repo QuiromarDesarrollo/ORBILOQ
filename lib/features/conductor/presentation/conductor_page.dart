@@ -295,14 +295,18 @@ class _ConductorPageState extends ConsumerState<ConductorPage> {
       final actual =
           vehiculos.where((v) => v.id == _vehiculo?.id).firstOrNull ??
           vehiculos.firstOrNull;
-      final historial =
-          actual == null
-              ? <Map<String, dynamic>>[]
-              : await repo.historial(actual.id);
-      final revision =
-          actual == null
-              ? <String, dynamic>{}
-              : await repo.revisionSalida(actual.id);
+      final historial = <Map<String, dynamic>>[];
+      var revision = <String, dynamic>{};
+      if (actual != null) {
+        // Ambos datos dependen del vehículo, pero no entre sí. Consultarlos
+        // juntos evita sumar dos viajes de red al tiempo de carga inicial.
+        final resultados = await Future.wait<Object>([
+          repo.historial(actual.id),
+          repo.revisionSalida(actual.id),
+        ]);
+        historial.addAll(resultados[0] as List<Map<String, dynamic>>);
+        revision = resultados[1] as Map<String, dynamic>;
+      }
       if (!mounted) return;
       setState(() {
         _revision = revision;
@@ -2104,7 +2108,7 @@ class _ConductorPageState extends ConsumerState<ConductorPage> {
   Widget build(BuildContext context) {
     if (!conductorHabilitado()) {
       return const Scaffold(
-        body: Center(child: Text('Disponible únicamente en pruebas.')),
+        body: Center(child: Text('Módulo no disponible en este entorno.')),
       );
     }
     final usuario =

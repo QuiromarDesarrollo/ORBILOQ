@@ -1,3 +1,7 @@
+import 'package:flutter/foundation.dart';
+import '../../conductor/borrador_local.dart';
+import '../../../shared/borrador_texto_native.dart'
+    if (dart.library.js_interop) '../../../shared/borrador_texto_web.dart';
 import '../../../data/inventario_repository.dart';
 import '../../../domain/destinatario_internacional.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
@@ -23,6 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../application/providers.dart';
 import '../../../data/despachos_oc_repository.dart';
+import '../../../data/despacho_borrador_repository.dart';
 import '../../../data/empaques_repository.dart';
 import '../../../domain/models.dart';
 import '../../../domain/sesion.dart';
@@ -49,6 +54,8 @@ class _EmpaqueAsignado {
 }
 
 class _DespachoState extends ConsumerState<DespachoDialog> {
+  InventarioFila? _inventarioRecuperado;
+  InventarioFila? get _inventario => _inventarioRecuperado ?? widget.inventario;
   bool get _puedeSeguimiento =>
       !ref.read(usarSupabaseProvider) ||
       (ref.read(usuarioSesionProvider).valueOrNull?.puedeSeguimiento ?? false);
@@ -59,10 +66,11 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   int _paso = 0;
   bool _exito = false;
   bool _pantallaCompleta = false;
-  final _buscarOpEmpaque = TextEditingController();
-  bool _coincideOp(ItemKardex i) => i.item.op.toLowerCase().contains(
-    _buscarOpEmpaque.text.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(),
-  );
+  String? _opEmpaque;
+  String? _tallaEmpaque;
+  final _gruposOpAbiertos = <String, bool>{};
+  bool _coincideOp(ItemKardex i) =>
+      _opEmpaque == null || i.item.op == _opEmpaque;
   int _confirmadas = 0, _bultosConfirmados = 0;
   List<Map<String, dynamic>>? _planRevisado;
   String? _cliente, _oc, _destinatarioId;
@@ -72,6 +80,9 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   final _pesosBrutos = <String, String>{};
   final _rotulosGenerados = <String, String>{};
   bool _generandoRotulo = false;
+  bool _sincronizandoDatos = false;
+  String? _resultadoSincronizacion;
+  bool _errorSincronizacion = false;
   Map<String, dynamic>? get _destino =>
       ref
           .read(destinatariosEmpaqueProvider)
@@ -225,6 +236,98 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
       if (mounted) setState(() => _generandoRotulo = false);
     }
   }
+
+  Future<void> _sincronizarDatos() async {
+    if (_sincronizandoDatos ||
+        _ocupado ||
+        _preparando ||
+        _generandoRotulo ||
+        _pendiente != null) {
+      return;
+    }
+    setState(() {
+      _sincronizandoDatos = true;
+      _resultadoSincronizacion = null;
+      _errorSincronizacion = false;
+    });
+    try {
+      await ref.read(wmsRepositoryProvider).refrescar();
+      ref.invalidate(destinatariosEmpaqueProvider);
+      ref.invalidate(empaquesProvider);
+      await Future.wait([
+        ref.read(destinatariosEmpaqueProvider.future),
+        ref.read(empaquesProvider.future),
+      ]);
+      if (mounted) {
+        setState(() {
+          _resultadoSincronizacion = 'Datos actualizados';
+          _errorSincronizacion = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _resultadoSincronizacion =
+              'La sincronización no se completó. Intenta de nuevo.';
+          _errorSincronizacion = true;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _sincronizandoDatos = false);
+    }
+  }
+
+  Widget _sincronizarEnDialogo() => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+    child: LayoutBuilder(
+      builder:
+          (context, constraints) => Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 10,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (_resultadoSincronizacion != null)
+                SizedBox(
+                  width:
+                      constraints.maxWidth < 600 ? constraints.maxWidth : null,
+                  child: Text(
+                    _resultadoSincronizacion!,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color:
+                          _errorSincronizacion
+                              ? Theme.of(context).colorScheme.error
+                              : Colors.blueGrey,
+                    ),
+                  ),
+                ),
+              OutlinedButton.icon(
+                key: const ValueKey('despacho-sincronizar-datos'),
+                onPressed:
+                    _sincronizandoDatos ||
+                            _ocupado ||
+                            _preparando ||
+                            _generandoRotulo ||
+                            _pendiente != null
+                        ? null
+                        : _sincronizarDatos,
+                icon:
+                    _sincronizandoDatos
+                        ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Icon(Icons.sync, size: 18),
+                label: Text(
+                  _sincronizandoDatos ? 'Sincronizando…' : 'Sincronizar datos',
+                ),
+              ),
+            ],
+          ),
+    ),
+  );
 
   Widget _selectorDestinoBuscable(
     List<Map<String, dynamic>> datos,
@@ -408,10 +511,303 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   int _revisionEmpaques = 0;
   final _motivoCorreccion = TextEditingController();
   bool _correccionGuardada = false;
+  bool _cargandoBorrador = false, _guardandoBorrador = false;
+  bool _errorBorrador = false, _cerrando = false, _permitirSalida = false;
+  int _versionBorrador = 0;
+  String _estadoGuardado = '';
+  String? _avisoBorrador;
+  String get _claveBorrador =>
+      widget.correccion != null
+          ? 'correccion:${widget.correccion!['id']}'
+          : _inventario != null
+          ? 'inventario'
+          : 'nuevo';
+
+  Map<String, dynamic> _datosBorrador() => {
+    'formato': 1,
+    'inventario': _inventario,
+    'paso': _paso,
+    'cliente': _cliente,
+    'oc': _oc,
+    'destinatario': _destinatarioId,
+    'oc_documento': _ocDocumento.text,
+    'ops': _ops.toList(),
+    'pesos': Map.of(_pesosBrutos),
+    'asignaciones': {
+      for (final i in _asignaciones.entries)
+        i.key: {
+          for (final e in i.value.entries)
+            e.key: {'empaque': e.value.empaqueId, 'prendas': e.value.prendas},
+        },
+    },
+    'siguiente_empaque': _siguienteEmpaque,
+    'masivo': _empaqueMasivo,
+    'motivo': _motivoCorreccion.text,
+    'filtro_op': _opEmpaque,
+    'filtro_talla': _tallaEmpaque,
+    'grupos': Map.of(_gruposOpAbiertos),
+    'tarjetas': Map.of(_opAbierta),
+    'rotulos': Map.of(_rotulosGenerados),
+    'solicitud': _solicitud,
+    'pendiente': _pendiente,
+    'empaques_pendientes': _empaquesPendientes,
+  };
+
+  bool _localPreparado = false;
+  String? get _claveLocal {
+    final user = ref.read(transporteBorradorUsuarioProvider);
+    return user == null
+        ? null
+        : jsonEncode([user, 'despacho-refresh', _claveBorrador]);
+  }
+
+  void _aplicarBorrador(Map<String, dynamic> d) {
+    if (widget.inventario != null && d['inventario'] is Map) {
+      _inventarioRecuperado = Map<String, dynamic>.from(d['inventario'] as Map);
+    }
+    _cliente = d['cliente'] as String?;
+    _oc = d['oc'] as String?;
+    _destinatarioId = d['destinatario'] as String?;
+    _ocDocumento.text = d['oc_documento'] as String? ?? '';
+    _ops
+      ..clear()
+      ..addAll((d['ops'] as List).cast<String>());
+    _pesosBrutos
+      ..clear()
+      ..addAll(Map<String, String>.from(d['pesos'] as Map));
+    _asignaciones.clear();
+    for (final i in (d['asignaciones'] as Map).entries) {
+      _asignaciones[i.key as String] = {
+        for (final e in (i.value as Map).entries)
+          e.key as String: _EmpaqueAsignado(e.value['empaque'] as String)
+            ..prendas = e.value['prendas'] as String,
+      };
+    }
+    _siguienteEmpaque = (d['siguiente_empaque'] as num).toInt();
+    _empaqueMasivo = d['masivo'] == true;
+    _motivoCorreccion.text = d['motivo'] as String? ?? '';
+    _opEmpaque = d['filtro_op'] as String?;
+    _tallaEmpaque = d['filtro_talla'] as String?;
+    _gruposOpAbiertos
+      ..clear()
+      ..addAll(Map<String, bool>.from(d['grupos'] as Map? ?? {}));
+    _opAbierta
+      ..clear()
+      ..addAll(Map<String, bool>.from(d['tarjetas'] as Map? ?? {}));
+    _rotulosGenerados
+      ..clear()
+      ..addAll(Map<String, String>.from(d['rotulos'] as Map? ?? {}));
+    _solicitud = d['solicitud'] as String?;
+    _pendiente =
+        (d['pendiente'] as List?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+    _empaquesPendientes =
+        (d['empaques_pendientes'] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+    _paso = (d['paso'] as int).clamp(0, 3);
+    _planRevisado = null;
+    _confirmadas =
+        _pendiente?.fold<int>(
+          0,
+          (n, l) => n + (l['cantidad'] as num).toInt(),
+        ) ??
+        0;
+    _bultosConfirmados = _bultos.length;
+  }
+
+  void _guardarLocal() {
+    if (!kIsWeb ||
+        !_localPreparado ||
+        _cargandoBorrador ||
+        _errorBorrador ||
+        _permitirSalida) {
+      return;
+    }
+    final key = _claveLocal;
+    if (key == null) return;
+    try {
+      escribirTextoBorrador(
+        key,
+        jsonEncode(
+          _exito
+              ? {'completo': true}
+              : {'version': _versionBorrador, 'datos': _datosBorrador()},
+        ),
+      );
+    } catch (_) {
+      _avisoBorrador =
+          'No se pudo guardar el avance local. Usa Guardar antes de cerrar o actualizar.';
+    }
+  }
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _guardarLocal();
+  }
+
+  Future<void> _cargarBorrador() async {
+    final repo = ref.read(despachoBorradorRepositoryProvider);
+    if (repo == null) return;
+    setState(() {
+      _cargandoBorrador = true;
+      _errorBorrador = false;
+      _avisoBorrador = null;
+    });
+    try {
+      final registro = await repo.cargar(_claveBorrador);
+      if (!mounted) return;
+      if (registro != null) {
+        final d = Map<String, dynamic>.from(registro['datos'] as Map);
+        if (d['formato'] != 1) {
+          throw const FormatException('Formato de borrador no compatible.');
+        }
+        _aplicarBorrador(d);
+        _versionBorrador = (registro['version'] as num).toInt();
+        _revisionEmpaques++;
+        _avisoBorrador =
+            'Borrador recuperado. Revisa la disponibilidad actual antes de confirmar.';
+      }
+      _estadoGuardado = jsonEncode(_datosBorrador());
+      if (kIsWeb && _claveLocal != null) {
+        final raw = leerTextoBorrador(_claveLocal!);
+        if (raw != null) {
+          final local = Map<String, dynamic>.from(jsonDecode(raw));
+          if (local['completo'] != true &&
+              local['version'] == _versionBorrador) {
+            final datos = Map<String, dynamic>.from(local['datos']);
+            if (datos['formato'] != 1) {
+              throw const FormatException('Borrador local incompatible');
+            }
+            _aplicarBorrador(datos);
+            _revisionEmpaques++;
+            _avisoBorrador =
+                'Avance recuperado de este dispositivo. Revisa antes de confirmar.';
+          }
+        }
+      }
+      _localPreparado = true;
+    } catch (_) {
+      if (mounted) {
+        _errorBorrador = true;
+        _avisoBorrador =
+            'No se pudo recuperar el borrador. Reintenta para continuar sin sobrescribirlo.';
+      }
+    } finally {
+      if (mounted) setState(() => _cargandoBorrador = false);
+    }
+  }
+
+  Future<void> _persistirBorrador() async {
+    final repo = ref.read(despachoBorradorRepositoryProvider);
+    if (repo == null) {
+      throw const FormatException(
+        'No está disponible el guardado de borradores.',
+      );
+    }
+    final r = await repo.guardar(
+      _claveBorrador,
+      _datosBorrador(),
+      version: _versionBorrador,
+    );
+    _versionBorrador = (r['version'] as num).toInt();
+    _estadoGuardado = jsonEncode(_datosBorrador());
+    _guardarLocal();
+  }
+
+  Future<void> _cerrar() async {
+    if (_permitirSalida ||
+        _cerrando ||
+        _cargandoBorrador ||
+        _guardandoBorrador ||
+        _ocupado ||
+        _preparando ||
+        _generandoRotulo ||
+        _sincronizandoDatos ||
+        _pendiente != null) {
+      return;
+    }
+    _cerrando = true;
+    try {
+      if (!_exito &&
+          !_errorBorrador &&
+          jsonEncode(_datosBorrador()) != _estadoGuardado) {
+        final accion = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (ctx) => AlertDialog(
+                title: const Text('¿Deseas guardar los cambios?'),
+                content: const Text(
+                  'Guarda el borrador para continuar este despacho desde cualquier equipo con tu usuario.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, 'cancelar'),
+                    child: const Text('Cancelar'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, 'descartar'),
+                    child: const Text('No guardar'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, 'guardar'),
+                    child: const Text('Guardar'),
+                  ),
+                ],
+              ),
+        );
+        if (!mounted || accion == null || accion == 'cancelar') return;
+        if (accion == 'guardar') {
+          setState(() => _guardandoBorrador = true);
+          try {
+            await _persistirBorrador();
+          } catch (e) {
+            if (mounted) {
+              _mensaje =
+                  e is PostgrestException
+                      ? e.message
+                      : 'No se pudo guardar el borrador. Tus cambios siguen abiertos; inténtalo de nuevo.';
+            }
+            return;
+          } finally {
+            if (mounted) setState(() => _guardandoBorrador = false);
+          }
+        }
+        if (accion == 'descartar' && kIsWeb && _claveLocal != null) {
+          escribirTextoBorrador(_claveLocal!, jsonEncode({'completo': true}));
+          _localPreparado = false;
+        }
+        // No guardar descarta solo la edición actual y conserva el último guardado.
+      }
+      _salir();
+    } finally {
+      _cerrando = false;
+    }
+  }
+
+  void _salir() {
+    if (!mounted || _permitirSalida) return;
+    setState(() => _permitirSalida = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.pop(context);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    if (widget.inventario case final origen?) {
+    _ocDocumento.addListener(_guardarLocal);
+    _motivoCorreccion.addListener(_guardarLocal);
+    _cargandoBorrador = ref.read(despachoBorradorRepositoryProvider) != null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _estadoGuardado = jsonEncode(_datosBorrador());
+      _cargarBorrador();
+    });
+    if (_inventario case final origen?) {
       _cliente = origen['cliente'] as String;
       for (final r in _origenesInventario) {
         _ops.add('${r['numero_op']}');
@@ -440,7 +836,6 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
 
   @override
   void dispose() {
-    _buscarOpEmpaque.dispose();
     _ocDocumento.dispose();
     _motivoCorreccion.dispose();
     _qr.dispose();
@@ -451,7 +846,9 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     _empaqueMasivo = false;
     _pesosBrutos.clear();
     _opAbierta.clear();
-    _buscarOpEmpaque.clear();
+    _gruposOpAbiertos.clear();
+    _tallaEmpaque = null;
+    _opEmpaque = null;
     _ocDocumento.clear();
     _rotulosGenerados.clear();
     _asignaciones.clear();
@@ -617,359 +1014,502 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         data:
             (catalogo) => LayoutBuilder(
               builder: (context, constraints) {
+                final grupos = <String, List<ItemKardex>>{};
+                for (final i in _lineas.where(
+                  (i) => _ops.contains(i.item.op),
+                )) {
+                  grupos.putIfAbsent(i.item.op, () => []).add(i);
+                }
+                final visibles = grupos.entries.where(
+                  (g) => g.value.any(
+                    (i) =>
+                        _coincideOp(i) &&
+                        (_tallaEmpaque == null ||
+                            i.item.talla == _tallaEmpaque),
+                  ),
+                );
                 final tarjetas = Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!_lineas.any(
-                      (i) => _ops.contains(i.item.op) && _coincideOp(i),
-                    ))
+                    if (visibles.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Text('No hay OP que coincidan con la búsqueda.'),
+                        child: Text(
+                          'No hay prendas que coincidan con los filtros.',
+                        ),
                       ),
-                    for (final i in _lineas.where(
-                      (i) => _ops.contains(i.item.op) && _coincideOp(i),
-                    ))
+                    for (final grupo in visibles)
                       _panel(
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             ListTile(
+                              key: ValueKey('grupo-op-${grupo.key}'),
                               contentPadding: EdgeInsets.zero,
-                              onTap:
-                                  () => setState(
-                                    () => _opAbierta[i.id] = !_abierta(i),
-                                  ),
-                              trailing: Icon(
-                                _abierta(i)
-                                    ? Icons.expand_less
-                                    : Icons.expand_more,
-                              ),
                               title: Text(
-                                'OP ${i.item.op} · ${i.item.descripcion} · Talla ${i.item.talla}',
+                                'OP ${grupo.key}',
                                 style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               subtitle: Text(
-                                i.disponibleParaDespacho <= 0
-                                    ? 'Sin prendas en bodega · ${max(0, i.producido - i.recibido)} por recibir · ${i.pendienteProduccion} en producción'
-                                    : '${_total(i)} de ${i.disponibleParaDespacho} en empaques · ${i.ubicaciones.keys.join(', ')}',
+                                '${grupo.value.length} referencias · ${grupo.value.fold<int>(0, (n, i) => n + _total(i))} prendas en empaques',
                                 style: const TextStyle(fontSize: 11),
                               ),
+                              trailing: Icon(
+                                (_gruposOpAbiertos[grupo.key] ?? true)
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
+                              ),
+                              onTap:
+                                  () => setState(
+                                    () =>
+                                        _gruposOpAbiertos[grupo.key] =
+                                            !(_gruposOpAbiertos[grupo.key] ??
+                                                true),
+                                  ),
                             ),
-                            if (_abierta(i))
-                              Column(
+                            Visibility(
+                              visible: _gruposOpAbiertos[grupo.key] ?? true,
+                              maintainState: true,
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  _indicadoresEmpaque(i),
-                                  const SizedBox(height: 14),
-                                  if ((_asignaciones[i.id]?.isEmpty ?? true))
-                                    const Padding(
-                                      padding: EdgeInsets.only(bottom: 12),
-                                      child: Text(
-                                        'Aún no hay empaques para esta OP. Elige el tipo para empezar.',
-                                        style: TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                  for (final entry
-                                      in (_asignaciones[i.id] ?? {}).entries)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 12,
-                                      ),
-                                      child: LayoutBuilder(
-                                        builder: (context, c) {
-                                          final tipo = DropdownButtonFormField<
-                                            String
-                                          >(
-                                            key: ValueKey(
-                                              'tipo-${i.id}-${entry.key}-${entry.value.empaqueId}',
-                                            ),
-                                            initialValue:
-                                                catalogo.any(
-                                                      (e) =>
-                                                          e['id'] ==
-                                                          entry.value.empaqueId,
-                                                    )
-                                                    ? entry.value.empaqueId
-                                                    : null,
-                                            isExpanded: true,
-                                            decoration: InputDecoration(
-                                              labelText:
-                                                  'Empaque ${_numeros[entry.key]}',
-                                              isDense: true,
-                                            ),
-                                            items: [
-                                              for (final e in catalogo)
-                                                DropdownMenuItem(
-                                                  value: '${e['id']}',
-                                                  child: Text(
-                                                    descripcionEmpaque(e),
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
+                                  for (final i in grupo.value.where(
+                                    (i) =>
+                                        _tallaEmpaque == null ||
+                                        i.item.talla == _tallaEmpaque,
+                                  ))
+                                    _panel(
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            onTap:
+                                                () => setState(
+                                                  () =>
+                                                      _opAbierta[i.id] =
+                                                          !_abierta(i),
                                                 ),
-                                            ],
-                                            onChanged:
-                                                congelado
-                                                    ? null
-                                                    : (tipo) {
-                                                      if (tipo != null) {
-                                                        setState(() {
-                                                          for (final a
-                                                              in _asignaciones
-                                                                  .values) {
-                                                            if (a[entry.key] !=
-                                                                null) {
-                                                              a[entry.key]!
-                                                                      .empaqueId =
-                                                                  tipo;
-                                                            }
-                                                          }
-                                                        });
-                                                      }
-                                                    },
-                                          );
-                                          final cantidad = Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                tooltip: 'Restar prenda',
-                                                onPressed:
-                                                    congelado
-                                                        ? null
-                                                        : () => setState(() {
-                                                          final n =
-                                                              int.tryParse(
-                                                                entry
-                                                                    .value
-                                                                    .prendas,
-                                                              ) ??
-                                                              0;
-                                                          entry.value.prendas =
-                                                              '${n > 0 ? n - 1 : 0}';
-                                                          _revisionEmpaques++;
-                                                        }),
-                                                icon: const Icon(
-                                                  Icons.remove,
-                                                  size: 18,
-                                                ),
+                                            trailing: Icon(
+                                              _abierta(i)
+                                                  ? Icons.expand_less
+                                                  : Icons.expand_more,
+                                            ),
+                                            title: Text(
+                                              'OP ${i.item.op} · ${i.item.descripcion} · Talla ${i.item.talla}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
                                               ),
-                                              SizedBox(
-                                                width: 62,
-                                                child: TextFormField(
-                                                  key: ValueKey(
-                                                    'prendas-${i.id}-${entry.key}-$_revisionEmpaques',
+                                            ),
+                                            subtitle: Text(
+                                              i.disponibleParaDespacho <= 0
+                                                  ? 'Sin prendas en bodega · ${max(0, i.producido - i.recibido)} por recibir · ${i.pendienteProduccion} en producción'
+                                                  : '${_total(i)} de ${i.disponibleParaDespacho} en empaques · ${i.ubicaciones.keys.join(', ')}',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ),
+                                          if (_abierta(i))
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                _indicadoresEmpaque(i),
+                                                const SizedBox(height: 14),
+                                                if ((_asignaciones[i.id]
+                                                        ?.isEmpty ??
+                                                    true))
+                                                  const Padding(
+                                                    padding: EdgeInsets.only(
+                                                      bottom: 12,
+                                                    ),
+                                                    child: Text(
+                                                      'Aún no hay empaques para esta OP. Elige el tipo para empezar.',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
                                                   ),
-                                                  initialValue:
-                                                      entry.value.prendas,
-                                                  enabled: !congelado,
-                                                  textAlign: TextAlign.center,
-                                                  keyboardType:
-                                                      TextInputType.number,
-                                                  inputFormatters: [
-                                                    FilteringTextInputFormatter
-                                                        .digitsOnly,
+                                                for (final entry
+                                                    in (_asignaciones[i.id] ??
+                                                            {})
+                                                        .entries)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          bottom: 12,
+                                                        ),
+                                                    child: LayoutBuilder(
+                                                      builder: (context, c) {
+                                                        final tipo = DropdownButtonFormField<
+                                                          String
+                                                        >(
+                                                          key: ValueKey(
+                                                            'tipo-${i.id}-${entry.key}-${entry.value.empaqueId}',
+                                                          ),
+                                                          initialValue:
+                                                              catalogo.any(
+                                                                    (e) =>
+                                                                        e['id'] ==
+                                                                        entry
+                                                                            .value
+                                                                            .empaqueId,
+                                                                  )
+                                                                  ? entry
+                                                                      .value
+                                                                      .empaqueId
+                                                                  : null,
+                                                          isExpanded: true,
+                                                          decoration:
+                                                              InputDecoration(
+                                                                labelText:
+                                                                    'Empaque ${_numeros[entry.key]}',
+                                                                isDense: true,
+                                                              ),
+                                                          items: [
+                                                            for (final e
+                                                                in catalogo)
+                                                              DropdownMenuItem(
+                                                                value:
+                                                                    '${e['id']}',
+                                                                child: Text(
+                                                                  descripcionEmpaque(
+                                                                    e,
+                                                                  ),
+                                                                  overflow:
+                                                                      TextOverflow
+                                                                          .ellipsis,
+                                                                ),
+                                                              ),
+                                                          ],
+                                                          onChanged:
+                                                              congelado
+                                                                  ? null
+                                                                  : (tipo) {
+                                                                    if (tipo !=
+                                                                        null) {
+                                                                      setState(() {
+                                                                        for (final a
+                                                                            in _asignaciones.values) {
+                                                                          if (a[entry.key] !=
+                                                                              null) {
+                                                                            a[entry.key]!.empaqueId =
+                                                                                tipo;
+                                                                          }
+                                                                        }
+                                                                      });
+                                                                    }
+                                                                  },
+                                                        );
+                                                        final cantidad = Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: [
+                                                            IconButton(
+                                                              tooltip:
+                                                                  'Restar prenda',
+                                                              onPressed:
+                                                                  congelado
+                                                                      ? null
+                                                                      : () => setState(() {
+                                                                        final n =
+                                                                            int.tryParse(
+                                                                              entry.value.prendas,
+                                                                            ) ??
+                                                                            0;
+                                                                        entry.value.prendas =
+                                                                            '${n > 0 ? n - 1 : 0}';
+                                                                        _revisionEmpaques++;
+                                                                      }),
+                                                              icon: const Icon(
+                                                                Icons.remove,
+                                                                size: 18,
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 62,
+                                                              child: TextFormField(
+                                                                key: ValueKey(
+                                                                  'prendas-${i.id}-${entry.key}-$_revisionEmpaques',
+                                                                ),
+                                                                initialValue:
+                                                                    entry
+                                                                        .value
+                                                                        .prendas,
+                                                                enabled:
+                                                                    !congelado,
+                                                                textAlign:
+                                                                    TextAlign
+                                                                        .center,
+                                                                keyboardType:
+                                                                    TextInputType
+                                                                        .number,
+                                                                inputFormatters: [
+                                                                  FilteringTextInputFormatter
+                                                                      .digitsOnly,
+                                                                ],
+                                                                decoration:
+                                                                    const InputDecoration(
+                                                                      labelText:
+                                                                          'Prendas',
+                                                                      isDense:
+                                                                          true,
+                                                                    ),
+                                                                onChanged:
+                                                                    (
+                                                                      v,
+                                                                    ) => setState(
+                                                                      () =>
+                                                                          entry.value.prendas =
+                                                                              v,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                            IconButton(
+                                                              tooltip:
+                                                                  'Sumar prenda',
+                                                              onPressed:
+                                                                  congelado
+                                                                      ? null
+                                                                      : () => setState(() {
+                                                                        entry.value.prendas =
+                                                                            '${(int.tryParse(entry.value.prendas) ?? 0) + 1}';
+                                                                        _revisionEmpaques++;
+                                                                      }),
+                                                              icon: const Icon(
+                                                                Icons.add,
+                                                                size: 18,
+                                                              ),
+                                                            ),
+                                                            IconButton(
+                                                              tooltip:
+                                                                  'Quitar empaque',
+                                                              onPressed:
+                                                                  congelado
+                                                                      ? null
+                                                                      : () => setState(() {
+                                                                        _asignaciones[i.id]!.remove(
+                                                                          entry
+                                                                              .key,
+                                                                        );
+                                                                        _revisionEmpaques++;
+                                                                      }),
+                                                              icon: const Icon(
+                                                                Icons.close,
+                                                                color:
+                                                                    Colors.red,
+                                                                size: 18,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        );
+                                                        return c.maxWidth < 500
+                                                            ? Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .stretch,
+                                                              children: [
+                                                                tipo,
+                                                                const SizedBox(
+                                                                  height: 8,
+                                                                ),
+                                                                Align(
+                                                                  alignment:
+                                                                      Alignment
+                                                                          .centerRight,
+                                                                  child:
+                                                                      cantidad,
+                                                                ),
+                                                              ],
+                                                            )
+                                                            : Row(
+                                                              children: [
+                                                                Expanded(
+                                                                  child: tipo,
+                                                                ),
+                                                                const SizedBox(
+                                                                  width: 8,
+                                                                ),
+                                                                cantidad,
+                                                              ],
+                                                            );
+                                                      },
+                                                    ),
+                                                  ),
+                                                Wrap(
+                                                  spacing: 8,
+                                                  runSpacing: 8,
+                                                  children: [
+                                                    for (final e in catalogo
+                                                        .take(2))
+                                                      OutlinedButton.icon(
+                                                        onPressed:
+                                                            congelado ||
+                                                                    i.disponibleParaDespacho <=
+                                                                        0
+                                                                ? null
+                                                                : () =>
+                                                                    _agregarRapido(
+                                                                      i,
+                                                                      e,
+                                                                    ),
+                                                        icon: Icon(
+                                                          e['categoria'] ==
+                                                                  'CAJA'
+                                                              ? Icons
+                                                                  .inventory_2_outlined
+                                                              : Icons
+                                                                  .shopping_bag_outlined,
+                                                          size: 15,
+                                                        ),
+                                                        label: Text(
+                                                          '+ ${textoEmpaque(e['nombre'])}',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 11,
+                                                              ),
+                                                        ),
+                                                      ),
                                                   ],
+                                                ),
+                                                const SizedBox(height: 10),
+                                                DropdownButtonFormField<String>(
+                                                  key: ValueKey(
+                                                    'agregar-${i.id}-$_revisionEmpaques',
+                                                  ),
+                                                  isExpanded: true,
                                                   decoration:
                                                       const InputDecoration(
-                                                        labelText: 'Prendas',
+                                                        labelText:
+                                                            'Agregar empaque',
                                                         isDense: true,
                                                       ),
-                                                  onChanged:
-                                                      (v) => setState(
-                                                        () =>
-                                                            entry
-                                                                .value
-                                                                .prendas = v,
+                                                  items: [
+                                                    for (final b in _bultos
+                                                        .entries
+                                                        .where(
+                                                          (b) =>
+                                                              !(_asignaciones[i
+                                                                          .id] ??
+                                                                      {})
+                                                                  .containsKey(
+                                                                    b.key,
+                                                                  ),
+                                                        ))
+                                                      DropdownMenuItem(
+                                                        value: 'usar:${b.key}',
+                                                        child: Text(
+                                                          'Usar empaque ${_numeros[b.key]}',
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
                                                       ),
+                                                    for (final e in catalogo)
+                                                      DropdownMenuItem(
+                                                        value:
+                                                            'nuevo:${e['id']}',
+                                                        child: Text(
+                                                          'Nuevo · ${descripcionEmpaque(e)}',
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                  onChanged:
+                                                      congelado
+                                                          ? null
+                                                          : (id) {
+                                                            if (id == null) {
+                                                              return;
+                                                            }
+                                                            setState(() {
+                                                              final existe = id
+                                                                  .startsWith(
+                                                                    'usar:',
+                                                                  );
+                                                              final key =
+                                                                  existe
+                                                                      ? id.substring(
+                                                                        5,
+                                                                      )
+                                                                      : (_siguienteEmpaque++)
+                                                                          .toString();
+                                                              final tipo =
+                                                                  existe
+                                                                      ? _bultos[key]!
+                                                                      : id.substring(
+                                                                        6,
+                                                                      );
+                                                              _asignaciones
+                                                                      .putIfAbsent(
+                                                                        i.id,
+                                                                        () =>
+                                                                            {},
+                                                                      )[key] =
+                                                                  _EmpaqueAsignado(
+                                                                    tipo,
+                                                                  );
+                                                              _revisionEmpaques++;
+                                                            });
+                                                          },
                                                 ),
-                                              ),
-                                              IconButton(
-                                                tooltip: 'Sumar prenda',
-                                                onPressed:
-                                                    congelado
-                                                        ? null
-                                                        : () => setState(() {
-                                                          entry.value.prendas =
-                                                              '${(int.tryParse(entry.value.prendas) ?? 0) + 1}';
-                                                          _revisionEmpaques++;
-                                                        }),
-                                                icon: const Icon(
-                                                  Icons.add,
-                                                  size: 18,
-                                                ),
-                                              ),
-                                              IconButton(
-                                                tooltip: 'Quitar empaque',
-                                                onPressed:
-                                                    congelado
-                                                        ? null
-                                                        : () => setState(() {
-                                                          _asignaciones[i.id]!
-                                                              .remove(
-                                                                entry.key,
-                                                              );
-                                                          _revisionEmpaques++;
-                                                        }),
-                                                icon: const Icon(
-                                                  Icons.close,
-                                                  color: Colors.red,
-                                                  size: 18,
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                          return c.maxWidth < 500
-                                              ? Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.stretch,
-                                                children: [
-                                                  tipo,
-                                                  const SizedBox(height: 8),
-                                                  Align(
-                                                    alignment:
-                                                        Alignment.centerRight,
-                                                    child: cantidad,
+                                                if (catalogo.isEmpty)
+                                                  const Text(
+                                                    'No hay empaques activos. Créalos en Administración → Empaques.',
                                                   ),
-                                                ],
-                                              )
-                                              : Row(
-                                                children: [
-                                                  Expanded(child: tipo),
-                                                  const SizedBox(width: 8),
-                                                  cantidad,
-                                                ],
-                                              );
-                                        },
-                                      ),
-                                    ),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      for (final e in catalogo.take(2))
-                                        OutlinedButton.icon(
-                                          onPressed:
-                                              congelado ||
-                                                      i.disponibleParaDespacho <=
-                                                          0
-                                                  ? null
-                                                  : () => _agregarRapido(i, e),
-                                          icon: Icon(
-                                            e['categoria'] == 'CAJA'
-                                                ? Icons.inventory_2_outlined
-                                                : Icons.shopping_bag_outlined,
-                                            size: 15,
-                                          ),
-                                          label: Text(
-                                            '+ ${textoEmpaque(e['nombre'])}',
-                                            style: const TextStyle(
-                                              fontSize: 11,
+                                                const SizedBox(height: 10),
+                                                Align(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: TextButton(
+                                                    onPressed:
+                                                        congelado ||
+                                                                (_asignaciones[i
+                                                                            .id]
+                                                                        ?.isEmpty ??
+                                                                    true)
+                                                            ? null
+                                                            : () => setState(() {
+                                                              final maximo =
+                                                                  i.disponibleParaDespacho <
+                                                                          i.pendienteDisponibleDespacho
+                                                                      ? i.disponibleParaDespacho
+                                                                      : i.pendienteDisponibleDespacho;
+                                                              final falta =
+                                                                  maximo -
+                                                                  _total(i);
+                                                              if (falta > 0) {
+                                                                final ultima =
+                                                                    _asignaciones[i
+                                                                            .id]!
+                                                                        .values
+                                                                        .last;
+                                                                ultima.prendas =
+                                                                    '${(int.tryParse(ultima.prendas) ?? 0) + falta}';
+                                                                _revisionEmpaques++;
+                                                              }
+                                                            }),
+                                                    child: const Text(
+                                                      'Repartir lo que falta',
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  DropdownButtonFormField<String>(
-                                    key: ValueKey(
-                                      'agregar-${i.id}-$_revisionEmpaques',
-                                    ),
-                                    isExpanded: true,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Agregar empaque',
-                                      isDense: true,
-                                    ),
-                                    items: [
-                                      for (final b in _bultos.entries.where(
-                                        (b) =>
-                                            !(_asignaciones[i.id] ?? {})
-                                                .containsKey(b.key),
-                                      ))
-                                        DropdownMenuItem(
-                                          value: 'usar:${b.key}',
-                                          child: Text(
-                                            'Usar empaque ${_numeros[b.key]}',
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      for (final e in catalogo)
-                                        DropdownMenuItem(
-                                          value: 'nuevo:${e['id']}',
-                                          child: Text(
-                                            'Nuevo · ${descripcionEmpaque(e)}',
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                    ],
-                                    onChanged:
-                                        congelado
-                                            ? null
-                                            : (id) {
-                                              if (id == null) return;
-                                              setState(() {
-                                                final existe = id.startsWith(
-                                                  'usar:',
-                                                );
-                                                final key =
-                                                    existe
-                                                        ? id.substring(5)
-                                                        : (_siguienteEmpaque++)
-                                                            .toString();
-                                                final tipo =
-                                                    existe
-                                                        ? _bultos[key]!
-                                                        : id.substring(6);
-                                                _asignaciones.putIfAbsent(
-                                                  i.id,
-                                                  () => {},
-                                                )[key] = _EmpaqueAsignado(tipo);
-                                                _revisionEmpaques++;
-                                              });
-                                            },
-                                  ),
-                                  if (catalogo.isEmpty)
-                                    const Text(
-                                      'No hay empaques activos. Créalos en Administración → Empaques.',
-                                    ),
-                                  const SizedBox(height: 10),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: TextButton(
-                                      onPressed:
-                                          congelado ||
-                                                  (_asignaciones[i.id]
-                                                          ?.isEmpty ??
-                                                      true)
-                                              ? null
-                                              : () => setState(() {
-                                                final maximo =
-                                                    i.disponibleParaDespacho <
-                                                            i.pendienteDisponibleDespacho
-                                                        ? i.disponibleParaDespacho
-                                                        : i.pendienteDisponibleDespacho;
-                                                final falta =
-                                                    maximo - _total(i);
-                                                if (falta > 0) {
-                                                  final ultima =
-                                                      _asignaciones[i.id]!
-                                                          .values
-                                                          .last;
-                                                  ultima.prendas =
-                                                      '${(int.tryParse(ultima.prendas) ?? 0) + falta}';
-                                                  _revisionEmpaques++;
-                                                }
-                                              }),
-                                      child: const Text(
-                                        'Repartir lo que falta',
+                                        ],
                                       ),
                                     ),
-                                  ),
                                 ],
                               ),
+                            ),
                           ],
                         ),
                       ),
@@ -1164,9 +1704,9 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
 
   // Proyección exclusiva para empacar el saldo elegido; no altera el kardex.
   List<InventarioFila> get _origenesInventario =>
-      widget.inventario?['origenes'] is List
-          ? (widget.inventario!['origenes'] as List).cast<InventarioFila>()
-          : [widget.inventario!];
+      _inventario?['origenes'] is List
+          ? (_inventario!['origenes'] as List).cast<InventarioFila>()
+          : [_inventario!];
 
   List<ItemKardex> get _itemsInventario {
     final grupos = <String, List<InventarioFila>>{};
@@ -1185,7 +1725,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         item: ItemOrden(
           id: e.key,
           op: '${r['numero_op']}',
-          cliente: '${widget.inventario!['cliente']}',
+          cliente: '${_inventario!['cliente']}',
           oc: _ocVisible,
           codigo: '${r['codigo'] ?? ''}',
           descripcion: '${r['producto']}',
@@ -1229,7 +1769,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   }
 
   List<ItemKardex> get _items =>
-      widget.inventario != null
+      _inventario != null
           ? _itemsInventario
           : (ref.read(wmsSnapshotProvider).value?.kardex ?? [])
               .where((i) => !i.eliminada)
@@ -1269,7 +1809,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
           .where(
             (i) =>
                 i.item.cliente == _cliente &&
-                (widget.inventario != null || i.item.oc == _oc),
+                (_inventario != null || i.item.oc == _oc),
           )
           .toList();
   void _seleccionar(String op, bool seleccionar) {
@@ -1383,6 +1923,13 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     }
     setState(() => _preparando = true);
     try {
+      if (_asignaciones.keys.any(
+        (id) => !_lineas.any((i) => i.id == id && _ops.contains(i.item.op)),
+      )) {
+        throw const FormatException(
+          'Una prenda del borrador ya no está disponible. Revisa la selección antes de confirmar.',
+        );
+      }
       if (_faltaDestino) {
         throw const FormatException(
           'Selecciona el destinatario antes de empacar.',
@@ -1425,7 +1972,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
           cantidades[i.id] = (cantidades[i.id] ?? 0) + n;
         }
       }
-      if (widget.inventario?['origenes'] is List &&
+      if (_inventario?['origenes'] is List &&
           _lineas.any(
             (i) => cantidades[i.id] != i.pendienteDisponibleDespacho,
           )) {
@@ -1509,21 +2056,24 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     setState(() => _ocupado = true);
 
     try {
-      if (widget.inventario != null) {
+      // Conserva el identificador de reintento antes de una escritura real.
+      // Si falla el borrado posterior, retomar no puede duplicar el despacho.
+      await _persistirBorrador();
+      if (_inventario != null) {
         final inventarioRepo = ref.read(inventarioRepositoryProvider);
         if (inventarioRepo == null) {
           throw StateError('Inventario no disponible');
         }
         await inventarioRepo.ejecutar(
-          widget.inventario!['origenes'] is List
+          _inventario!['origenes'] is List
               ? 'inventario_empacar_multiple'
               : 'inventario_empacar_flujo',
           {
             'p_solicitud': _solicitud!,
-            if (widget.inventario!['origenes'] is List)
+            if (_inventario!['origenes'] is List)
               'p_asignaciones': _asignacionesInventario()
             else
-              'p_transferencia': widget.inventario!['id'],
+              'p_transferencia': _inventario!['id'],
             'p_oc': _ocVisible,
             'p_destinatario': _destinatarioId,
             'p_destinatario_version': _destino?['version'],
@@ -1573,6 +2123,19 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
           _exito = true;
         });
       }
+      if (_versionBorrador > 0) {
+        try {
+          await ref
+              .read(despachoBorradorRepositoryProvider)!
+              .eliminar(_claveBorrador, version: _versionBorrador);
+          _versionBorrador = 0;
+        } catch (_) {
+          if (mounted) {
+            _mensaje =
+                'El despacho se confirmó, pero no se pudo limpiar su borrador. Si lo retomas, se verificará la misma solicitud.';
+          }
+        }
+      }
     } on PostgrestException catch (e) {
       _pendiente = null;
       _solicitud = null;
@@ -1588,7 +2151,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     } finally {
       if (mounted) setState(() => _ocupado = false);
     }
-    if (mounted && _correccionGuardada) Navigator.pop(context);
+    if (mounted && _correccionGuardada) _salir();
   }
 
   static const _navy = Color(0xff123e4f);
@@ -1717,7 +2280,8 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
       _empaqueMasivo = true;
       _planRevisado = null;
       _revisionEmpaques++;
-      _buscarOpEmpaque.clear();
+      _opEmpaque = null;
+      _tallaEmpaque = null;
       _mensaje =
           'OC agrupada en una caja. Indica su peso bruto y revisa antes de confirmar.';
     });
@@ -1729,47 +2293,96 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         'Reparte las prendas en cajas o paquetes',
         'Cada empaque tiene su número, su peso y su rótulo.',
       );
-      final buscador = TextField(
-        controller: _buscarOpEmpaque,
-        decoration: InputDecoration(
-          labelText: 'Buscar por OP',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon:
-              _buscarOpEmpaque.text.isEmpty
-                  ? null
-                  : IconButton(
-                    tooltip: 'Limpiar búsqueda de OP',
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => setState(_buscarOpEmpaque.clear),
-                  ),
-        ),
-        onChanged: (_) => setState(() {}),
+      final ops =
+          _lineas
+              .where((i) => _ops.contains(i.item.op))
+              .map((i) => i.item.op)
+              .toSet()
+              .toList()
+            ..sort();
+      final filtroOp = DropdownButtonFormField<String>(
+        key: ValueKey('filtro-op-empaque-${_opEmpaque ?? "todas"}'),
+        initialValue: ops.contains(_opEmpaque) ? _opEmpaque : null,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Filtrar por OP'),
+        hint: const Text('Todas las OP'),
+        items: [
+          for (final op in ops)
+            DropdownMenuItem(value: op, child: Text('OP $op')),
+        ],
+        onChanged:
+            (op) => setState(() {
+              _opEmpaque = op;
+              _tallaEmpaque = null;
+              if (op != null) _gruposOpAbiertos[op] = true;
+            }),
       );
-      return c.maxWidth < 950
+      final tallas =
+          _lineas
+              .where((i) => _ops.contains(i.item.op) && _coincideOp(i))
+              .map((i) => i.item.talla)
+              .toSet()
+              .toList()
+            ..sort();
+      final filtroTalla = DropdownButtonFormField<String>(
+        key: ValueKey('filtro-talla-empaque-${_tallaEmpaque ?? "todas"}'),
+        initialValue: tallas.contains(_tallaEmpaque) ? _tallaEmpaque : null,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Filtrar por talla'),
+        hint: const Text('Todas las tallas'),
+        items: [
+          for (final talla in tallas)
+            DropdownMenuItem(value: talla, child: Text(talla)),
+        ],
+        onChanged:
+            (talla) => setState(() {
+              _tallaEmpaque = talla;
+              for (final i in _lineas.where(
+                (i) =>
+                    _ops.contains(i.item.op) &&
+                    i.item.talla == talla &&
+                    _coincideOp(i),
+              )) {
+                _gruposOpAbiertos[i.item.op] = true;
+              }
+            }),
+      );
+      final acciones = Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (_admin)
+            TextButton.icon(
+              onPressed: _ocupado || _preparando ? null : _empacarOcMasiva,
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const Text('Empacar OC completa'),
+            ),
+          SizedBox(width: min(200, c.maxWidth), child: filtroTalla),
+          SizedBox(width: min(200, c.maxWidth), child: filtroOp),
+          TextButton.icon(
+            key: const ValueKey('limpiar-filtros-empaque'),
+            onPressed:
+                () => setState(() {
+                  _opEmpaque = null;
+                  _tallaEmpaque = null;
+                }),
+            icon: const Icon(Icons.filter_alt_off_outlined),
+            label: const Text('Limpiar filtros'),
+          ),
+        ],
+      );
+      return c.maxWidth < 1350
           ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              titulo,
-              buscador,
-              if (_admin)
-                TextButton.icon(
-                  onPressed: _ocupado || _preparando ? null : _empacarOcMasiva,
-                  icon: const Icon(Icons.inventory_2_outlined),
-                  label: const Text("Empacar OC completa"),
-                ),
-            ],
+            children: [titulo, acciones],
           )
           : Row(
             children: [
-              Expanded(child: titulo),
+              SizedBox(width: 360, child: titulo),
               const SizedBox(width: 20),
-              SizedBox(width: 240, child: buscador),
-              if (_admin)
-                TextButton.icon(
-                  onPressed: _ocupado || _preparando ? null : _empacarOcMasiva,
-                  icon: const Icon(Icons.inventory_2_outlined),
-                  label: const Text("Empacar OC completa"),
-                ),
+              acciones,
+              const Spacer(),
             ],
           );
     },
@@ -1839,7 +2452,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     },
   );
   Widget _destinoPaso(bool bloqueado) {
-    if (widget.inventario != null) {
+    if (_inventario != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1852,20 +2465,20 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                     for (final dato in [
                       ('Cliente', '$_cliente'),
                       (
-                        widget.inventario!['origenes'] is List
+                        _inventario!['origenes'] is List
                             ? 'Fichas técnicas'
                             : 'Ficha técnica',
-                        widget.inventario!['origenes'] is List
+                        _inventario!['origenes'] is List
                             ? '${_origenesInventario.map((r) => r['ficha']).toSet().length}'
-                            : '${widget.inventario!['ficha']}',
+                            : '${_inventario!['ficha']}',
                       ),
                       (
-                        widget.inventario!['origenes'] is List
+                        _inventario!['origenes'] is List
                             ? 'Prendas seleccionadas'
                             : 'OP origen',
-                        widget.inventario!['origenes'] is List
+                        _inventario!['origenes'] is List
                             ? '${_itemsInventario.fold<int>(0, (a, i) => a + i.recibido)} unidades'
-                            : '${widget.inventario!['numero_op']}',
+                            : '${_inventario!['numero_op']}',
                       ),
                     ])
                       Container(
@@ -2152,7 +2765,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                           bloqueado
                               ? null
                               : () => setState(() {
-                                if (_oc != oc && widget.inventario == null) {
+                                if (_oc != oc && _inventario == null) {
                                   _limpiar();
                                 }
                                 _oc = oc;
@@ -2403,7 +3016,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
             spacing: 12,
             runSpacing: 12,
             children: [
-              if (widget.inventario == null)
+              if (_inventario == null)
                 OutlinedButton(
                   onPressed:
                       () => setState(() {
@@ -2445,11 +3058,29 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     final puedeSeguimiento = _puedeSeguimiento;
     final estado = ref.watch(wmsSnapshotProvider);
     final congelado =
-        _ocupado || _preparando || _generandoRotulo || _pendiente != null;
+        _cargandoBorrador ||
+        _guardandoBorrador ||
+        _errorBorrador ||
+        _ocupado ||
+        _preparando ||
+        _generandoRotulo ||
+        _sincronizandoDatos ||
+        _pendiente != null;
     return PopScope(
-      canPop: !congelado,
+      canPop: _permitirSalida,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _cerrar();
+      },
       child: WmsDialogShell(
-        canClose: !congelado,
+        canClose:
+            !_cargandoBorrador &&
+            !_guardandoBorrador &&
+            !_ocupado &&
+            !_preparando &&
+            !_generandoRotulo &&
+            !_sincronizandoDatos &&
+            _pendiente == null,
+        onClose: _cerrar,
         mobileCatalog: true,
         fullscreen: _pantallaCompleta,
         onToggleFullscreen:
@@ -2457,7 +3088,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         expand: true,
         maxWidth: 1100,
         title:
-            widget.inventario != null
+            _inventario != null
                 ? 'Despacho desde inventario'
                 : widget.correccion == null
                 ? 'Despachos por orden de compra'
@@ -2504,30 +3135,62 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                             ? _resultado(tabContext)
                             : Column(
                               children: [
+                                if (_avisoBorrador != null)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    child: Wrap(
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      spacing: 12,
+                                      children: [
+                                        Text(_avisoBorrador!),
+                                        if (_errorBorrador)
+                                          TextButton(
+                                            onPressed: _cargarBorrador,
+                                            child: const Text(
+                                              'Reintentar borrador',
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                _sincronizarEnDialogo(),
                                 _pasos(),
-                                if (estado.isLoading || _ocupado || _preparando)
+                                if (estado.isLoading ||
+                                    _ocupado ||
+                                    _preparando ||
+                                    _cargandoBorrador ||
+                                    _guardandoBorrador)
                                   const WmsLoadingStrip(),
                                 Expanded(
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 18,
+                                  child: AbsorbPointer(
+                                    absorbing:
+                                        _cargandoBorrador ||
+                                        _guardandoBorrador ||
+                                        _errorBorrador,
+                                    child: SingleChildScrollView(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 18,
+                                      ),
+                                      child:
+                                          _paso == 0
+                                              ? _destinoPaso(congelado)
+                                              : _paso == 1
+                                              ? _prendasPaso(congelado)
+                                              : _paso == 2
+                                              ? Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  _cabeceraEmpaque(),
+                                                  const SizedBox(height: 12),
+                                                  _detalleSeleccion(congelado),
+                                                ],
+                                              )
+                                              : _revision(),
                                     ),
-                                    child:
-                                        _paso == 0
-                                            ? _destinoPaso(congelado)
-                                            : _paso == 1
-                                            ? _prendasPaso(congelado)
-                                            : _paso == 2
-                                            ? Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                _cabeceraEmpaque(),
-                                                const SizedBox(height: 12),
-                                                _detalleSeleccion(congelado),
-                                              ],
-                                            )
-                                            : _revision(),
                                   ),
                                 ),
                                 Container(
@@ -2549,13 +3212,17 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                           foregroundColor: Colors.white,
                                         ),
                                         onPressed:
-                                            _ocupado ||
+                                            _cargandoBorrador ||
+                                                    _guardandoBorrador ||
+                                                    _errorBorrador ||
+                                                    _sincronizandoDatos ||
+                                                    _ocupado ||
                                                     _preparando ||
                                                     _generandoRotulo ||
                                                     (_paso == 0 &&
                                                         (_cliente == null ||
                                                             _faltaDestino ||
-                                                            (widget.inventario !=
+                                                            (_inventario !=
                                                                     null &&
                                                                 _ocVisible
                                                                     .isEmpty))) ||
@@ -2595,10 +3262,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                         style: OutlinedButton.styleFrom(
                                           backgroundColor: Colors.white,
                                         ),
-                                        onPressed:
-                                            congelado
-                                                ? null
-                                                : () => Navigator.pop(context),
+                                        onPressed: congelado ? null : _cerrar,
                                         child: const Text('Cancelar'),
                                       );
                                       final atras = OutlinedButton.icon(

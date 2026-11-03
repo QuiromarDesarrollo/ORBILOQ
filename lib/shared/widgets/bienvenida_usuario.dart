@@ -14,7 +14,7 @@ class BienvenidaUsuario extends ConsumerWidget {
                 ''
             : '';
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Text.rich(
         TextSpan(
           text: nombre.isEmpty ? 'Bienvenido' : 'Bienvenido, ',

@@ -8,8 +8,9 @@ import '../../../shared/widgets/wms_dialog.dart';
 import '../../../shared/widgets/wms_loader.dart';
 
 class EmpaqueEditor extends ConsumerStatefulWidget {
-  const EmpaqueEditor({super.key, this.fila});
+  const EmpaqueEditor({super.key, this.fila, this.mostrarPesoMasiva = false});
   final Map<String, dynamic>? fila;
+  final bool mostrarPesoMasiva;
   @override
   ConsumerState<EmpaqueEditor> createState() => _EmpaqueEditorState();
 }
@@ -23,6 +24,7 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
       'ancho_cm',
       'alto_cm',
       'peso_neto_kg',
+      if (widget.mostrarPesoMasiva) 'peso_promedio_masiva_kg',
     ])
       k: TextEditingController(
         text:
@@ -47,19 +49,35 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
       double.tryParse(valor.trim().replaceAll(',', '.'));
   Widget _campo(String key, String label, {bool numero = true}) =>
       TextFormField(
+        key: ValueKey('empaque-$key'),
         controller: _campos[key],
         enabled: !_ocupado,
         keyboardType:
             numero
                 ? const TextInputType.numberWithOptions(decimal: true)
                 : TextInputType.text,
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(
+          labelText: label,
+          errorMaxLines: key == 'peso_promedio_masiva_kg' ? 3 : null,
+        ),
         onChanged: (_) => setState(() {}),
         validator: (v) {
           if (!numero) {
             return (v ?? '').trim().isEmpty || v!.trim().length > 150
                 ? 'Indica un nombre de 1 a 150 caracteres.'
                 : null;
+          }
+          if (key == 'peso_promedio_masiva_kg') {
+            if ((v ?? '').trim().isEmpty) return null;
+            try {
+              validarPesoBruto(v!, _numero(_campos['peso_neto_kg']!.text) ?? 0);
+              return null;
+            } on FormatException catch (e) {
+              return e.message.replaceAll(
+                'peso bruto',
+                'peso promedio de Masiva',
+              );
+            }
           }
           final n = _numero(v ?? '');
           return n == null || !n.isFinite || n <= 0 || n > 100000
@@ -117,7 +135,7 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
         mobileCatalog: true,
         title: widget.fila == null ? 'Agregar empaque' : 'Editar empaque',
         subtitle:
-            'Catálogo de empaques${widget.fila == null ? '' : ' · ${textoEmpaque(widget.fila!['nombre'])}'}',
+            '${widget.mostrarPesoMasiva ? 'Catálogo compartido de Despacho' : 'Catálogo de empaques'}${widget.fila == null ? '' : ' · ${textoEmpaque(widget.fila!['nombre'])}'}',
         icon: Icons.inventory_2_outlined,
         iconColor: Theme.of(context).colorScheme.primary,
         maxWidth: 600,
@@ -176,11 +194,19 @@ class _EmpaqueEditorState extends ConsumerState<EmpaqueEditor> {
               const SizedBox(height: 24),
               const Text('Peso', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
-              CatalogoCampos(children: [_campo('peso_neto_kg', 'Tara (kg) *')]),
+              CatalogoCampos(
+                children: [
+                  _campo('peso_neto_kg', 'Tara (kg) *'),
+                  if (widget.mostrarPesoMasiva)
+                    _campo('peso_promedio_masiva_kg', 'Promedio Masiva (kg)'),
+                ],
+              ),
               const SizedBox(height: 8),
-              const Text(
-                'El peso bruto se asigna a cada caja o paquete al preparar el despacho.',
-                style: TextStyle(fontSize: 12),
+              Text(
+                widget.mostrarPesoMasiva
+                    ? 'El promedio corresponde al empaque lleno y se usa solo en Masiva. Puede quedar pendiente, pero debes configurarlo antes de crear contenedores nuevos. Debe ser igual o mayor que la tara.'
+                    : 'El peso bruto se asigna a cada caja o paquete al preparar el despacho.',
+                style: const TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 24),
               CatalogoEstado(

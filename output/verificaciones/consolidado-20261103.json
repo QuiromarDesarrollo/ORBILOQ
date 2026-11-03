@@ -1,0 +1,15 @@
+{
+  "cambio": "Recepción lee exclusivamente CONSOLIDADO",
+  "ambiente": "ORBILOQ-DEV",
+  "proyecto": "igfuafcekcpugpmsoqbe",
+  "archivo": "INFORME MATERIAL A RECIBIR TERCERA MASIVA 3-26 (3).xlsx",
+  "columnas": ["Código material", "Descripción", "Cantidad", "ORDEN DE COMPRA", "PROVEEDOR"],
+  "filas": 1590,
+  "cantidad_total": 34961,
+  "proveedores": 10,
+  "errores_lector": [],
+  "validacion": ["Lector Dart con archivo real", "Worker JavaScript compilado con archivo real", "37 pruebas de importación, repositorio y flujo", "Análisis Dart sin incidencias"],
+  "base_datos_modificada": false,
+  "produccion_publicada": false,
+  "notas": "Cantidades originales sin conversión. Unidad técnica UN por ausencia de columna en el formato. TD no aporta horarios. No se realizó una recepción real en la base compartida."
+}

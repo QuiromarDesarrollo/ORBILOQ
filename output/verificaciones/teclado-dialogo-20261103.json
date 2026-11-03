@@ -1,0 +1,15 @@
+{
+  "cambio": "Mantener estructura del dialogo al abrir teclado",
+  "pruebas": 47,
+  "analisis": "sin incidencias",
+  "entorno_pruebas": "igfuafcekcpugpmsoqbe",
+  "pruebas_http_verificado": true,
+  "produccion_publicada": true,
+  "base_datos_modificada": false,
+  "pendiente": "Validacion en iPhone fisico",
+  "commit": "fbde70a",
+  "archivos_http_verificados": [
+    "flutter_bootstrap.20261103-teclado-dialogo.js",
+    "main.20261103-teclado-dialogo.dart.js"
+  ]
+}

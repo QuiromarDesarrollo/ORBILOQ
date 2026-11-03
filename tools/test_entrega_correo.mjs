@@ -3,8 +3,25 @@ import assert from 'node:assert/strict';
 import { crearHandler } from '../supabase/functions/entrega-correo/handler.mjs';
 import { plantillaEntrega } from '../supabase/functions/entrega-correo/plantilla.mjs';
 import { mensajeGmail, REMITENTE } from '../supabase/functions/entrega-correo/gmail.mjs';
+import { tokenGmail } from '../supabase/functions/entrega-correo/oauth.mjs';
 const id='11111111-1111-4111-8111-111111111111';
 const request=()=>new Request('https://local.test',{method:'POST',headers:{authorization:'Bearer test'},body:JSON.stringify({id})});
+test('OAuth distingue autorización revocada de caídas temporales sin exponer secretos',async()=>{
+ for (const [error,codigo] of [['invalid_grant','gmail_autorizacion_vencida'],['invalid_client','gmail_configuracion'],['server_error','gmail_temporal']]) {
+  await assert.rejects(tokenGmail({},async()=>new Response(JSON.stringify({error,error_description:'privado'}),{status:400})),e=>e.codigo===codigo && e.noEnviado===true && !e.message.includes('privado'));
+ }
+ assert.equal(await tokenGmail({},async()=>new Response(JSON.stringify({access_token:'token-simulado'}))), 'token-simulado');
+});
+test('Autorización vencida no inicia envío ni descarga adjuntos y conserva diagnóstico',async()=>{
+ const {deps,calls}=setup();
+ deps.prepararEnvio=async()=>{throw Object.assign(Error('privado'),{codigo:'gmail_autorizacion_vencida',noEnviado:true});};
+ const response=await crearHandler(deps)(request());
+ assert.equal((await response.json()).codigo,'gmail_autorizacion_vencida');
+ assert.deepEqual(calls.map(c=>c[0]),['finish']);
+ assert.equal(calls[0][1].estado,'error');
+ assert.equal(calls[0][1].envio_iniciado,false);
+ assert.match(calls[0][1].error,/reconectar Gmail/);
+});
 function setup(adjuntos=[]) {
   const calls=[];
   const deps={habilitado:true,configurado:true,

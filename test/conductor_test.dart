@@ -9,7 +9,7 @@ import 'package:orbiloq_wms/features/conductor/presentation/conductor_page.dart'
 import 'package:orbiloq_wms/features/conductor/presentation/registro_conductor.dart';
 
 void main() {
-  test('Solo disponible en demo y DEV, sin permisos operativos implícitos', () {
+  test('Disponible en demo, DEV y producción, con permisos por usuario', () {
     expect(conductorHabilitado(''), isTrue);
     expect(
       conductorHabilitado('https://igfuafcekcpugpmsoqbe.supabase.co'),
@@ -17,8 +17,9 @@ void main() {
     );
     expect(
       conductorHabilitado('https://cxrflhgnxvomcvxzugda.supabase.co'),
-      isFalse,
+      isTrue,
     );
+    expect(conductorHabilitado('https://otro-proyecto.supabase.co'), isFalse);
     const usuario = UsuarioSesion(
       numeroUsuario: '1',
       nombre: 'Conductor',

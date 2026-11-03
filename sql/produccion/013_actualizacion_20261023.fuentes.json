@@ -1,0 +1,118 @@
+{
+  "baseline_fecha": "2026-10-23T22:46:44.291236+00:00",
+  "fuentes": [
+    {
+      "fuente": "sql/pruebas/101_inventario_ficha.sql",
+      "sha256": "dbfa0ff0a85451c062da605587cd1fc4d4c0d3e248a3286b954008c6f2dd8382"
+    },
+    {
+      "fuente": "sql/pruebas/102_inventario_origenes_visibles.sql",
+      "sha256": "f45bfd85234e5fe4d8e569b66040a13b41cf083bbf2dc8685b823386a8a994a1"
+    },
+    {
+      "fuente": "sql/pruebas/103_inventario_consulta_agrupada.sql",
+      "sha256": "0d567bf9fc36e4dab93f757bde5e93edccd0f6644d0687c27052f0938c751f56"
+    },
+    {
+      "fuente": "sql/pruebas/104_inventario_despacho_flujo.sql",
+      "sha256": "d18f815790f21cb2c1526556c2eb29d57b146dc793a1896abcab7b9cf0aa8cec"
+    },
+    {
+      "fuente": "sql/pruebas/105_inventario_excel.sql",
+      "sha256": "1aaf5da7b294c9c7490539925ec57888debd677048c2ab22756a577909fa5819"
+    },
+    {
+      "fuente": "sql/pruebas/106_inventario_solo_ingresadas.sql",
+      "sha256": "03ed1ab03ace6755346440a0607a15344fc3e8915d888f06cd6c024b4e12ace0"
+    },
+    {
+      "fuente": "sql/pruebas/107_inventario_por_talla.sql",
+      "sha256": "307991bb780f6879707446aba2716c11e196e4a919870cea1db2ff023159aba3"
+    },
+    {
+      "fuente": "sql/pruebas/108_inventario_estante_destino.sql",
+      "sha256": "8b277a990b600d08bb856e6ed954df4631443e8d8678071584a2ceabef171351"
+    },
+    {
+      "fuente": "sql/pruebas/109_inventario_historial.sql",
+      "sha256": "ce3caf34d21a8757b1d456060276ec8597b67b89865aac8a6d9c0065b490e37c"
+    },
+    {
+      "fuente": "sql/pruebas/110_inventario_eliminar_excel.sql",
+      "sha256": "bbf40ae11e0649249b13a71367a491e4b7e104955eb82db26c9a83f73a8788bb"
+    },
+    {
+      "fuente": "sql/pruebas/111_inventario_despacho_multiple.sql",
+      "sha256": "a73c539f59b56e8e0bbe0c21d6f83bcccf49a5f0563db8aa3813e3715efe906c"
+    },
+    {
+      "fuente": "sql/pruebas/112_inventario_cliente_despacho_mixto.sql",
+      "sha256": "ef3f1efe81b6bdc94497ad2e50189be6a87ea3e73472e3f9e3eff55a6f6dbb05"
+    },
+    {
+      "fuente": "sql/pruebas/113_historial_despacho_completo.sql",
+      "sha256": "9c0d969cfe4ab62d1354967b1b0e98a16c4cd1ad6443bf9fbec47791f5e6fbf3"
+    },
+    {
+      "fuente": "sql/pruebas/114_conductores.sql",
+      "sha256": "49d98b5058b5c6874c1f762f0b91291fd2e13fd2f3c34de9aa1639fa9edc4d18"
+    },
+    {
+      "fuente": "sql/pruebas/115_conductor_historial_privado.sql",
+      "sha256": "86bcd9587214d205b7031899deebd5673ae985b110954de96451bfc8c58fa4e4"
+    },
+    {
+      "fuente": "sql/pruebas/116_conductor_fotos_laterales.sql",
+      "sha256": "098e96202c470c8b1ed19da40ee95e33de758e1c97c6dbf035dc5389cf79aa70"
+    },
+    {
+      "fuente": "sql/pruebas/117_correo_entrega.sql",
+      "sha256": "8e64620b35ccda43a3b56d4805cb4b955249cf1db7eaeaa6b15cd629e605cefc"
+    },
+    {
+      "fuente": "sql/pruebas/118_conductor_kit_semanal.sql",
+      "sha256": "89cf05a73b2c1cce9c08971a1aa71e0bafe7787cccb643c7a210d58bc622e032"
+    },
+    {
+      "fuente": "sql/pruebas/119_conductor_autorizacion_salida.sql",
+      "sha256": "1ced14bd541c6a272f577b6b4551d80ef9c1c1abbbe66445d92892a1c4a4efb0"
+    },
+    {
+      "fuente": "sql/pruebas/120_consecutivo_le_manual.sql",
+      "sha256": "4e485898be688d7898d64785caea598156490e770dcac706eaf1aa488a06e3b5"
+    },
+    {
+      "fuente": "sql/pruebas/121_conductor_actividades_agrupadas.sql",
+      "sha256": "5e408086e53910d08ea7341a916677f34c9e413f2247f6fd28bdc177b7ee3c36"
+    },
+    {
+      "fuente": "sql/pruebas/122_conductor_motivos_atendidos.sql",
+      "sha256": "1428f9174ff174d9fbbe37e31867b865e2f20a4f5108851f5154efcb8a9f2749"
+    },
+    {
+      "fuente": "sql/pruebas/123_conductor_panel_flota.sql",
+      "sha256": "1d323e8af402923a1bc10620056b7cdcc8c1a263fd04251c825818a9b1531c92"
+    },
+    {
+      "fuente": "sql/pruebas/124_conductor_ficha_documentos.sql",
+      "sha256": "86803b8c9ad3218850d4e777e246ce7151a0706b197fd80c97322e62f54fccee"
+    },
+    {
+      "fuente": "sql/pruebas/125_conductor_periodicidad_mantenimiento.sql",
+      "sha256": "e534cd4bfc5d2d65b2cd5711da73ed14f70b7c92c15ba4ca34e5e062cd42c938"
+    },
+    {
+      "fuente": "sql/pruebas/126_conductor_revision_preventiva.sql",
+      "sha256": "d53aa06fd159cf68e9b318eae8bb7a306141115a265ce894ab47c13c2e9261c3"
+    },
+    {
+      "fuente": "sql/pruebas/127_conductor_actividades_mantenimiento.sql",
+      "sha256": "0c5629b4ea415c5f93e06e26f7023ca2b98304e176816485e43ec1123cf66a85"
+    },
+    {
+      "fuente": "sql/pruebas/128_conductor_kit_admin_epp.sql",
+      "sha256": "1a9e85357c0e4e508c2d77da71726b23b890a768c664534be0af00fa54acde2b"
+    }
+  ],
+  "sql_sha256": "4fd2b4230c6e5167919035cacebe0a99d53c129eace33ec6234300d6c94f192c"
+}

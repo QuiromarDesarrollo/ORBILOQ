@@ -1,0 +1,11 @@
+{
+  "commit": "0e86a86",
+  "produccion_verificada": true,
+  "archivos_verificados": [
+    "flutter_bootstrap.20261103-tarjeta.js",
+    "main.20261103-tarjeta.dart.js",
+    "release-20261103-tarjeta/assets/fonts/MaterialIcons-Regular.otf",
+    "release-20261103-tarjeta/assets/AssetManifest.bin"
+  ],
+  "base_datos_modificada": false
+}

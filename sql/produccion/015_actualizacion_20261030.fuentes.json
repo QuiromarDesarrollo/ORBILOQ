@@ -1,0 +1,66 @@
+{
+  "estado": "aplicada_y_verificada_en_produccion",
+  "fuentes": [
+    {
+      "fuente": "sql\\pruebas\\129_masiva.sql",
+      "sha256": "26faaa4cc3f5366ce9d77d2e5a525f80fac71835b1046061750a564e3296be76"
+    },
+    {
+      "fuente": "sql\\pruebas\\130_masiva_recepcion.sql",
+      "sha256": "c38ba7f776bf79d4c6b81291f09e454795735179329ed528f8916a2c03468860"
+    },
+    {
+      "fuente": "sql\\pruebas\\131_masiva_validacion.sql",
+      "sha256": "75961fe8702e5ca5d5d9d0c6c1486a448a9af9fc24bda0fd8cd8ba829e730111"
+    },
+    {
+      "fuente": "sql\\pruebas\\132_masiva_listado_maestro.sql",
+      "sha256": "0262ca7c3bb1b236b759521cd0ed0cd73ef134a91f9673cfebd14293a90020a3"
+    },
+    {
+      "fuente": "sql\\pruebas\\133_masiva_conciliacion.sql",
+      "sha256": "df5d26b2e13e7f8100c9ef13cdf75999c2a89b90f6e399dd319e7567722f27db"
+    },
+    {
+      "fuente": "sql\\pruebas\\134_masiva_validacion_directa.sql",
+      "sha256": "2fd36e663a7b96070ed73e56c2c34ecdf1646a84f17f9e464872b71edb634fc3"
+    },
+    {
+      "fuente": "sql\\pruebas\\135_masiva_validador_empacador.sql",
+      "sha256": "3dbefcd5b3dab859bd49d1565b7a7a5ac28d669eb93fc95733e1cd7a2eeb1f6f"
+    },
+    {
+      "fuente": "sql\\pruebas\\136_masiva_catalogo_compartido.sql",
+      "sha256": "0a9d539e8a0b7c848fcc455a9a6cc6f2db7912b92c0e1234542061cb3189efa2"
+    },
+    {
+      "fuente": "sql\\pruebas\\137_masiva_logo_empresa_predeterminado.sql",
+      "sha256": "06556958178027c7506c06675d7dc87841212b3eaab03a9326580a93a609f851"
+    },
+    {
+      "fuente": "sql\\pruebas\\138_masiva_logo_empresa_update_seguro.sql",
+      "sha256": "9faa28e55fea4dd3a99cd96ff828a3adda9d10756918e234571df48719208ca0"
+    },
+    {
+      "fuente": "sql\\pruebas\\139_masiva_listas_empaque_masivas.sql",
+      "sha256": "e989b899b393729bbf3acadc31bed7fb16c3ce7b3bce82d9861f85267e7351be"
+    },
+    {
+      "fuente": "sql\\pruebas\\140_masiva_recepcion_historial.sql",
+      "sha256": "ee3031a1ba0ae5ea0c9a9661d602a2d79f58b296b40f7b24e793bd57d3bdece4"
+    },
+    {
+      "fuente": "sql\\pruebas\\141_despacho_fecha_salida_libre.sql",
+      "sha256": "981d92fe35931f19e986fd8bf60eba21974d25a31dea49184281024258a38090"
+    },
+    {
+      "fuente": "sql\\pruebas\\142_despacho_borradores.sql",
+      "sha256": "af403f2e2c47a7021a80dd9e02ed8bf13e02733f46183604c05608f665c2ef12"
+    },
+    {
+      "fuente": "sql\\pruebas\\143_seguimiento_placas_quiromar.sql",
+      "sha256": "8c3c4cbf3652dca7b0e8387cbb3b5e87478a7385061e0d940947001722772580"
+    }
+  ],
+  "sha256": "7a5531c0dc88276b8e6e830f858af95a0e7bb163e7898831e20eb0fe019c67d0"
+}

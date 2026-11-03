@@ -8,6 +8,7 @@ import '../conductor_model.dart';
 import '../conductor_repository.dart';
 import '../kit_semanal.dart';
 import 'conductor_design.dart';
+import 'borrador_transporte_mixin.dart';
 
 class KitSemanalPage extends ConsumerStatefulWidget {
   const KitSemanalPage({super.key, required this.vehiculo});
@@ -16,7 +17,49 @@ class KitSemanalPage extends ConsumerStatefulWidget {
   ConsumerState<KitSemanalPage> createState() => _KitSemanalState();
 }
 
-class _KitSemanalState extends ConsumerState<KitSemanalPage> {
+class _KitSemanalState extends ConsumerState<KitSemanalPage>
+    with BorradorTransporteMixin<KitSemanalPage> {
+  bool get ocupado => guardando || draftLoading;
+  @override
+  String get draftKey => 'kit-semanal|${widget.vehiculo.id}';
+  @override
+  bool get draftBusy => ocupado;
+  @override
+  bool get draftWeekly => true;
+  @override
+  Map<String, dynamic> draftSnapshot() => {
+    'inspector': inspector.text,
+    'lugar': lugar.text,
+    'notas': notas.text,
+    'fecha': fecha.toIso8601String(),
+    'categoria': categoria,
+    'respuestas': respuestas,
+    'detalles': detalles.map((k, v) => MapEntry(k, v.text)),
+  };
+  @override
+  void restoreDraft(Map<String, dynamic> data) {
+    inspector.text = data['inspector'] as String? ?? '';
+    lugar.text = data['lugar'] as String? ?? '';
+    notas.text = data['notas'] as String? ?? '';
+    fecha = DateTime.tryParse('${data['fecha']}') ?? hoyColombia();
+    categoria = ((data['categoria'] as num?)?.toInt() ?? 0).clamp(
+      0,
+      categorias.length - 1,
+    );
+    respuestas.clear();
+    for (final entry in (data['respuestas'] as Map? ?? {}).entries) {
+      respuestas[entry.key as String] = Map<String, dynamic>.from(
+        entry.value as Map,
+      );
+    }
+    for (final entry in (data['detalles'] as Map? ?? {}).entries) {
+      detalles
+          .putIfAbsent(entry.key as String, TextEditingController.new)
+          .text = entry.value as String;
+    }
+    modificado = true;
+  }
+
   final inspector = TextEditingController(),
       lugar = TextEditingController(),
       notas = TextEditingController();
@@ -33,6 +76,9 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
     super.initState();
     inspector.text =
         ref.read(usuarioSesionProvider).value?.nombre ?? 'Administrador';
+    for (final controller in [inspector, lugar, notas]) {
+      controller.addListener(saveDraft);
+    }
   }
 
   @override
@@ -47,6 +93,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
   }
 
   Future<void> guardar() async {
+    if (ocupado) return;
     final datos = <String, dynamic>{
       'inspector': inspector.text.trim(),
       'fecha': fechaKit(fecha),
@@ -67,6 +114,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
       await ref
           .read(conductorRepositoryProvider)
           .guardarKit(widget.vehiculo.id, datos);
+      await completeDraft();
       if (mounted) {
         setState(() => modificado = false);
         Navigator.pop(context, true);
@@ -85,7 +133,11 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
   }
 
   Future<void> salir() async {
-    if (guardando) return;
+    if (ocupado) return;
+    if (draftEnabled) {
+      await leaveDraft();
+      return;
+    }
     if (modificado) {
       final descartar = await confirmarAviso(
         context,
@@ -139,7 +191,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                       label: Text(estado),
                       selected: r['estado'] == estado,
                       onSelected:
-                          guardando
+                          ocupado
                               ? null
                               : (_) => setState(() {
                                 modificado = true;
@@ -186,7 +238,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                   nombre,
                   () => TextEditingController(),
                 ),
-                enabled: !guardando,
+                enabled: !ocupado,
                 maxLength: 120,
                 maxLines: 2,
                 decoration: const InputDecoration(
@@ -195,6 +247,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                 onChanged: (s) {
                   respuestas[nombre]!['detalle'] = s;
                   modificado = true;
+                  saveDraft();
                 },
               ),
             ),
@@ -210,7 +263,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                     r['vencimiento']?.toString() ?? 'Vencimiento (si aplica)',
                   ),
                   onPressed:
-                      guardando
+                      ocupado
                           ? null
                           : () async {
                             final d = await showDatePicker(
@@ -237,7 +290,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                   IconButton(
                     tooltip: 'Quitar vencimiento',
                     onPressed:
-                        guardando
+                        ocupado
                             ? null
                             : () => setState(() {
                               modificado = true;
@@ -274,7 +327,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
     return Theme(
       data: ConductorDesign.theme(),
       child: PopScope(
-        canPop: !guardando && !modificado,
+        canPop: !ocupado && (draftEnabled ? draftCanLeave : !modificado),
         onPopInvokedWithResult: (didPop, result) {
           if (!didPop) salir();
         },
@@ -286,7 +339,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
           appBar: AppBar(
             title: const Text('Kit de carretera · semanal'),
             leading: IconButton(
-              onPressed: guardando ? null : salir,
+              onPressed: ocupado ? null : salir,
               icon: const Icon(Icons.arrow_back),
             ),
           ),
@@ -299,6 +352,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    draftStatus(),
                     Text(
                       '${widget.vehiculo.placa} · ${widget.vehiculo.descripcion}',
                       style: const TextStyle(
@@ -317,7 +371,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                       children: [
                         TextField(
                           controller: inspector,
-                          enabled: !guardando,
+                          enabled: !ocupado,
                           maxLength: 120,
                           decoration: const InputDecoration(
                             labelText: 'Nombre del inspector *',
@@ -331,12 +385,18 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                             'Fecha de inspección: ${fechaKit(fecha)}',
                           ),
                           onPressed:
-                              guardando
+                              ocupado
                                   ? null
                                   : () async {
                                     final d = await showDatePicker(
                                       context: context,
-                                      initialDate: fecha,
+                                      initialDate:
+                                          fecha.isBefore(
+                                                    lunesKit(hoyColombia()),
+                                                  ) ||
+                                                  fecha.isAfter(hoyColombia())
+                                              ? hoyColombia()
+                                              : fecha,
                                       firstDate: lunesKit(hoyColombia()),
                                       lastDate: hoyColombia(),
                                     );
@@ -351,7 +411,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                         const SizedBox(height: 12),
                         TextField(
                           controller: lugar,
-                          enabled: !guardando,
+                          enabled: !ocupado,
                           maxLength: 160,
                           decoration: const InputDecoration(
                             labelText: 'Lugar de inspección (opcional)',
@@ -409,7 +469,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                                     ),
                                     selected: categoria == i,
                                     onSelected:
-                                        guardando
+                                        ocupado
                                             ? null
                                             : (_) =>
                                                 setState(() => categoria = i),
@@ -436,7 +496,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                               children: [
                                 OutlinedButton(
                                   onPressed:
-                                      categoria > 0 && !guardando
+                                      categoria > 0 && !ocupado
                                           ? () => setState(() => categoria--)
                                           : null,
                                   child: const Text('Anterior'),
@@ -444,7 +504,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                                 FilledButton(
                                   onPressed:
                                       categoria < categorias.length - 1 &&
-                                              !guardando
+                                              !ocupado
                                           ? () => setState(() => categoria++)
                                           : null,
                                   child: const Text('Siguiente categoría'),
@@ -460,7 +520,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                       children: [
                         TextField(
                           controller: notas,
-                          enabled: !guardando,
+                          enabled: !ocupado,
                           maxLength: 1000,
                           maxLines: 4,
                           decoration: const InputDecoration(
@@ -496,7 +556,7 @@ class _KitSemanalState extends ConsumerState<KitSemanalPage> {
                       child: AvisoFormulario(error!),
                     ),
                   FilledButton.icon(
-                    onPressed: guardando ? null : guardar,
+                    onPressed: ocupado ? null : guardar,
                     icon: const Icon(Icons.check),
                     label: Text(
                       guardando

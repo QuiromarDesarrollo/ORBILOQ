@@ -1,0 +1,17 @@
+{
+  "cambio": "Tarjeta compacta Produccion segun referencia",
+  "rama_local": "master",
+  "entorno": "ORBILOQ-DEV",
+  "url": "http://127.0.0.1:8765/",
+  "http_verificado": true,
+  "pruebas_tarjeta": 8,
+  "regresiones_kardex": 2,
+  "anchos": [
+    320,
+    390,
+    768
+  ],
+  "texto_ampliado": 1.3,
+  "produccion_modificada": false,
+  "base_datos_modificada": false
+}

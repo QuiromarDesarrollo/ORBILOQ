@@ -140,7 +140,21 @@ class WmsLoadingPanel extends StatelessWidget {
             liveRegion: true,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(label, textAlign: TextAlign.center),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                    inherit: false,
+                    color: Theme.of(context).colorScheme.primary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ),
             ),
           ),
         ],

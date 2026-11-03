@@ -1,3 +1,4 @@
+import 'borrador_transporte_mixin.dart';
 import '../../../shared/widgets/wms_alert.dart';
 import '../mantenimiento_preventivo.dart';
 import '../ficha_vehiculo.dart';
@@ -29,7 +30,8 @@ class RegistroConductorPage extends ConsumerStatefulWidget {
       _RegistroConductorPageState();
 }
 
-class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
+class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage>
+    with BorradorTransporteMixin<RegistroConductorPage> {
   final _form = GlobalKey<FormState>();
   final _campos = <String, TextEditingController>{};
   final _respuestas = <String, String>{};
@@ -38,7 +40,8 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
   final _evidenciasOcupadas = <String>{};
   final _evidencias = <String, EvidenciaSeleccionada>{};
   String? _progresoSubida;
-  bool get _ocupado => _guardando || _evidenciasOcupadas.isNotEmpty;
+  bool get _ocupado =>
+      draftLoading || _guardando || _evidenciasOcupadas.isNotEmpty;
   bool _siniestro = false;
   String? _error;
   DateTime _fecha = DateTime.now();
@@ -57,6 +60,67 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
     }
   }
 
+  @override
+  String get draftKey => [
+    'registro',
+    widget.vehiculo.id,
+    widget.tipo,
+    widget.servicioPreventivo ?? '',
+    widget.actividad?['id'] ?? '',
+  ].join('|');
+  @override
+  bool get draftBusy => _ocupado;
+  @override
+  bool get draftDaily => _check;
+  @override
+  Map<String, dynamic> draftSnapshot() => {
+    'campos': {for (final e in _campos.entries) e.key: e.value.text},
+    'respuestas': Map.of(_respuestas),
+    'categoria': _categoria,
+    'siniestro': _siniestro,
+    'fecha': _fecha.toIso8601String(),
+    'fechaFin': _fechaFin.toIso8601String(),
+    'hora': [_horaMantenimiento.hour, _horaMantenimiento.minute],
+    'horaFin': [_horaFin.hour, _horaFin.minute],
+    'servicio': _servicio?.id,
+    'evidencias': {
+      for (final e in _evidencias.entries) e.key: e.value.borrador(),
+    },
+  };
+  @override
+  void restoreDraft(Map<String, dynamic> data) {
+    for (final e in (data['campos'] as Map).entries) {
+      _ctrl(e.key as String).text = e.value as String;
+    }
+    _respuestas
+      ..clear()
+      ..addAll(Map<String, String>.from(data['respuestas'] as Map));
+    _categoria = (data['categoria'] as int).clamp(
+      0,
+      checklistConductor.length - 1,
+    );
+    _siniestro = data['siniestro'] == true;
+    _fecha = DateTime.parse(data['fecha'] as String);
+    _fechaFin = DateTime.parse(data['fechaFin'] as String);
+    final h = data['hora'] as List, hf = data['horaFin'] as List;
+    _horaMantenimiento = TimeOfDay(hour: h[0] as int, minute: h[1] as int);
+    _horaFin = TimeOfDay(hour: hf[0] as int, minute: hf[1] as int);
+    _servicio =
+        serviciosPreventivos.where((s) => s.id == data['servicio']).firstOrNull;
+    for (final e in (data['evidencias'] as Map).entries) {
+      _evidenciaController(
+        e.key as String,
+      ).restaurarBorrador(Map<String, dynamic>.from(e.value as Map));
+    }
+  }
+
+  EvidenciaSeleccionada _evidenciaController(String key) =>
+      _evidencias.putIfAbsent(key, () {
+        final value = EvidenciaSeleccionada();
+        value.addListener(saveDraft);
+        return value;
+      });
+
   bool get _preventivo => widget.tipo == 'Mantenimiento preventivo';
   bool get _tanqueoPreventivo => _preventivo && _servicio?.id == 'combustible';
   String _horaTexto(TimeOfDay h) =>
@@ -69,7 +133,11 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
   bool get _documentos => widget.tipo == 'Documentos';
   bool get _mantenimiento => widget.tipo.startsWith('Mantenimiento');
   TextEditingController _ctrl(String key, [String valor = '']) =>
-      _campos.putIfAbsent(key, () => TextEditingController(text: valor));
+      _campos.putIfAbsent(key, () {
+        final c = TextEditingController(text: valor);
+        c.addListener(saveDraft);
+        return c;
+      });
 
   Widget _evidencia(
     String campo,
@@ -80,7 +148,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
     String? ayuda,
   }) => EvidenciaConductorField(
     key: ValueKey('evidencia-$campo'),
-    controller: _evidencias.putIfAbsent(campo, EvidenciaSeleccionada.new),
+    controller: _evidenciaController(campo),
     etiqueta: etiqueta,
     enabled: !_ocupado,
     obligatorio: obligatorio,
@@ -134,7 +202,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
           child: TextFormField(
             key: ValueKey('campo-$key'),
             controller: _ctrl(key, valor),
-            enabled: !_guardando,
+            enabled: !_ocupado,
             readOnly: key == 'servicio' && widget.actividad != null,
             keyboardType:
                 numero
@@ -470,6 +538,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                     : 'Sin novedades',
         },
       );
+      await completeDraft();
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
@@ -491,7 +560,10 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
     child: Builder(
       builder:
           (context) => PopScope(
-            canPop: !_ocupado,
+            canPop: !_ocupado && draftCanLeave,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop && !_ocupado) leaveDraft();
+            },
             child: TransporteScaffold(
               loadingLabel:
                   _guardando
@@ -573,6 +645,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                       child: ListView(
                         padding: const EdgeInsets.all(16),
                         children: [
+                          draftStatus(),
                           ConductorHeading(
                             widget.tipo,
                             'Registra el estado y conserva la trazabilidad de tu vehículo.',
@@ -1004,10 +1077,7 @@ class _RegistroConductorPageState extends ConsumerState<RegistroConductorPage> {
                                     ? [
                                       for (final lado
                                           in fotosVehiculoConductor.keys)
-                                        _evidencias.putIfAbsent(
-                                          'foto_$lado',
-                                          EvidenciaSeleccionada.new,
-                                        ),
+                                        _evidenciaController('foto_$lado'),
                                     ]
                                     : const [],
                             fotoBuilder:

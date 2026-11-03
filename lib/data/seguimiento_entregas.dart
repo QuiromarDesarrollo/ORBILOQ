@@ -2,6 +2,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../application/auth_providers.dart';
 
+final placasSeguimientoProvider = FutureProvider.autoDispose<List<String>>((
+  ref,
+) async {
+  if (!ref.watch(usarSupabaseProvider)) return [];
+  final rows = await Supabase.instance.client.rpc(
+    'seguimiento_placas_quiromar',
+  );
+  return (rows as List)
+      .map((row) => (row as Map)['placa'] as String)
+      .toSet()
+      .toList()
+    ..sort();
+});
+
 final verEntregasProvider = StateProvider.autoDispose<bool>((ref) => false);
 final entregasProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>(
   (ref) async {

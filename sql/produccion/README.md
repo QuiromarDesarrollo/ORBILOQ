@@ -1,5 +1,69 @@
 # Preparación del despliegue de ORBILOQ
 
+## Actualización 20261030 aplicada; publicación web completada el 3 de noviembre
+
+**SQL 015 aplicado y verificado. NO volver a ejecutarlo.**
+
+- Proyectos conservados: producción `cxrflhgnxvomcvxzugda`; DEV `igfuafcekcpugpmsoqbe`.
+- Migración 129–143 incremental, sin copiar datos DEV. SQL 016 comprobó esquema,
+  RLS y permisos. COMMIT confirmado en el registro de migración.
+- Respaldo final privado: `D:\ORBILOQ-respaldos\final-20261030-120539-1\produccion-20261030-120540-b16720d6`.
+  `resultado.json`: aplicada_y_verificada; `comparacion-final.csv`: **100 tablas,
+  17.402 filas originales, cero diferencias** en todas las columnas anteriores.
+  Contiene metadatos Storage; no incluye una nueva copia de archivos físicos.
+- Ensayo previo con respaldo de producción restaurado: 99 tablas y 17.404 filas
+  conservadas. El conteo final anterior es el correspondiente al respaldo definitivo.
+- Intentos previos interrumpidos por conexión/NOTICE no confirmaron transacción.
+  Se corrigió compatibilidad PowerShell y manejo de stderr, manteniendo ON_ERROR_STOP.
+- Frontend publicado en gh-pages, commit `550394e`, desde `build/produccion-20261030`.
+  GitHub Pages sirve index/bootstrap 20261030, JavaScript idéntico al build tras
+  normalizar saltos de línea, worker Masiva, assets y favicon con HTTP 200.
+- Actualizadas `admin-crear-usuario` y `entrega-correo` en producción. Dashboard
+  confirmó actualización; ambas rechazan solicitudes sin sesión con HTTP 401.
+  Las otras dos funciones no cambiaron. No se enviaron correos en esta publicación.
+- OAuth Gmail sigue pendiente: desplegar código no renueva la autorización Google.
+  Consultar `docs/correo-entrega.md`; no considerar el envío real restablecido.
+- Pruebas: 624 pasaron inicialmente y seis fallaron; los archivos corregidos pasaron
+  sus repeticiones. Análisis sin errores, nueve avisos informativos. Pruebas Node
+  de usuarios, correo y evidencias correctas. No se afirma una nueva suite completa.
+- Versiones web previas conservadas para recuperación. No volver a ejecutar el
+  lanzador de migración para repetir la publicación del frontend.
+
+## Despliegue del 23 de octubre de 2026
+
+**SQL 013 ya aplicado en producción. NO volver a ejecutarlo.**
+
+Destino conservado: `cxrflhgnxvomcvxzugda`. DEV sigue siendo
+`igfuafcekcpugpmsoqbe`; no se copiaron datos de DEV a producción.
+
+- `013_actualizacion_20261023.sql` integra 101–128 en una transacción y compara
+  las columnas y filas originales antes del COMMIT. Manifiesto de fuentes junto al SQL.
+- Ensayo local completo: `D:\ORBILOQ-restauracion-20261023-175638`, restauración,
+  migración, conservación y consultas/permisos de `014` correctos.
+- Respaldo final privado:
+  `D:\ORBILOQ-respaldos\final-20261023-175821\produccion-20261023-175821-1e4cec97`.
+  Incluye dump, roles sin contraseñas, 33 adjuntos actuales (rutas/tamaños verificados,
+  CRC ZIP y SHA256 local), código anterior de `admin-crear-usuario` y evidencia SQL.
+- Conservación final: **83 tablas y 14.745 filas originales idénticas**, incluyendo
+  Auth, Storage y Vault. El comparador estricto señaló únicamente
+  `realtime.subscription` (12→6 conexiones temporales); se revisó y documentó
+  esta excepción en `resultado.json`. No representa registros de negocio eliminados.
+  No se reejecutó la migración tras esa alerta.
+- Cuatro Edge Functions desplegadas, con JWT validado mediante Auth.getUser y
+  permisos internos. Las cuatro rechazan invocación sin sesión (401). Las integraciones
+  Google se copiaron a secretos del servidor con autorización explícita; renovación
+  de ambos tokens comprobada sin enviar correos ni subir documentos de prueba.
+- 32 pruebas locales de funciones correctas. Suite Flutter inicial: 486 correctas
+  y 8 fallidas; se corrigieron y repitieron sus archivos, además de la prueba de
+  entornos. Todas las repeticiones pasaron. Análisis: sin errores, 9 avisos informativos.
+- Build release con el mismo proyecto y clave publicable del despliegue anterior.
+  Commit enviado a gh-pages: `f2601ef91bd2eb1eb7f0b9289b3a2d0849068d85`.
+  Reversión del frontend: commit anterior `31f9f8793bd8464b119ee638cb6bcdfb298ba810`;
+  no restaurar la base completa para revertir solamente la interfaz.
+- Revisión autenticada detectó caché de la versión anterior (Fecha esperada y menú sin Transporte). Se corrigió con entradas y recursos versionados; revisión final `c5d8346`. La sesión ya muestra FECHA PACTADA, bienvenida y Transporte. Se revisaron Resumen, Vehículos, Actividades, Mantenimiento, Documentos, Historial, Notificaciones y Perfil. Flota vacía en producción: no se crearon registros de prueba.
+- Pages comprobado: aplicación, bootstrap y tres workers servidos coinciden con el build publicado. Navegación privada de Producción y Transporte revisada con administrador. Recursos versionados publicados y confirmados visualmente (incluidos iconos); sin nuevos errores de consola. Captura: `.dart_tool/revision-produccion-final-20261023.png`. No se probaron escrituras ni flujos con vehículos porque la flota de producción está vacía.
+
+
 ## Preparación del 15 de octubre de 2026
 
 El último despliegue verificado corresponde al 13 de octubre: `gh-pages`
@@ -298,3 +362,11 @@ Evidencia privada, fuera de Git:
 
 Mantener pausa de operaciones hasta publicar y validar el build preparado en D:.
 No volver a ejecutar 002 ni intentar crear preservacion en public para silenciar el error.
+
+Nota de verificación web (actualización 20261030): Producción cargó y sincronizó sus datos. Masiva cargó el estado inicial vacío esperado, sin importar datos DEV. Su pie conserva el texto estático ENTORNO DE PRUEBAS; es una etiqueta visual pendiente, no el destino real de conexión. El build verificado usa cxrflhgnxvomcvxzugda.
+
+### Pendientes del despliegue: avance del 3 de noviembre
+
+Etiqueta Masiva corregida por SUPABASE_URL, sin cambios de estilo ni base de datos. Compilación release 20261103, análisis dirigido sin errores. Frontend `ab686fc`, política aprobada `7b4dd29`, ambos publicados en gh-pages. JavaScript servido idéntico al build normalizando saltos de línea. Verificación en web: Masiva muestra PRODUCCIÓN / Datos de la operación. Google Auth Platform pasó a En producción con autorización expresa; renovación Gmail todavía pendiente de completar por el titular. Ver docs/correo-entrega.md para estado exacto del correo.
+
+Cierre de pendientes: correo renovado e instalado en producción el 3 de noviembre a las 12:57 UTC, con huellas verificadas y secretos de Drive intactos. Prueba ficticia autorizada aceptada por Gmail. No hubo migraciones, cambios de inventario ni eliminación de registros en esta corrección. Política y etiqueta disponibles en el frontend 7b4dd29.

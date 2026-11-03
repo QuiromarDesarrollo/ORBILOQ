@@ -89,7 +89,8 @@ void main() {
       await expectLater(subir(), throwsFormatException);
       expect(campos['frontal']!.enlace, isNotNull);
       expect(campos['trasera']!.pendiente, true);
-      expect(progreso, ['1/2', '2/2']);
+      // El progreso cuenta subidas completadas; la fallida sigue pendiente.
+      expect(progreso, ['1/2']);
       subidas[1].fallar = false;
       await subir();
       // También reutiliza las URLs si falló el guardado posterior en base de datos.

@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:image/image.dart' as img;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:orbiloq_wms/features/conductor/conductor_model.dart';
+import 'package:orbiloq_wms/features/conductor/borrador_local.dart';
 import 'package:orbiloq_wms/features/conductor/conductor_repository.dart';
 import 'package:orbiloq_wms/features/conductor/evidencia_conductor.dart';
 import 'package:orbiloq_wms/features/conductor/presentation/evidencia_conductor_field.dart';
@@ -73,7 +74,10 @@ void main() {
       final repo = _Repository(client);
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [conductorRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            conductorRepositoryProvider.overrideWithValue(repo),
+            transporteBorradorUsuarioProvider.overrideWithValue(null),
+          ],
           child: MaterialApp(
             home: Builder(
               builder:
@@ -144,6 +148,8 @@ void main() {
       expect(archivos, 3);
       expect(repo.intentos, 1);
       expect(repo.guardado, isNull);
+      await tester.tap(find.text('Cerrar aviso'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Guardar registro'));
       await tester.pumpAndSettle();
       expect(client.functions.sesiones, 3);

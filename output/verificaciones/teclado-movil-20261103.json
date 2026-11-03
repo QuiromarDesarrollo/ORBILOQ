@@ -1,0 +1,8 @@
+{
+  "alcance": "WmsScanField: ingreso manual visible en Android e iOS; conexión de teclado de texto al cambiar modo; lector físico conservado",
+  "pruebas_componente": 5,
+  "pruebas_consumidores_camara_formularios": 6,
+  "analisis": "sin incidencias",
+  "validacion_teclado_fisico_dispositivo": "pendiente; pruebas automatizadas de conexión de teclado",
+  "base_datos_modificada": false
+}

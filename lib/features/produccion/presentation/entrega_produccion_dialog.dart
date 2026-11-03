@@ -1,3 +1,4 @@
+import '../../../shared/borrador_operativo.dart';
 import '../../../shared/widgets/wms_camera_scanner.dart';
 import '../../../shared/widgets/wms_empty_state.dart';
 import '../../../shared/widgets/wms_scan_field.dart';
@@ -17,7 +18,6 @@ import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/action_button.dart';
 import '../../../shared/widgets/feedback_banner.dart';
 
-import '../../../shared/widgets/status_chip.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 
 Future<void> showEntregaProduccionDialog(BuildContext context) =>
@@ -31,11 +31,8 @@ class EntregaProduccionDialog extends ConsumerWidget {
     final mobile = MediaQuery.sizeOf(context).width < 600;
     return WmsDialogShell(
       title: 'Entregas de Producción',
-      subtitle:
-          mobile
-              ? 'Operario: ${ref.watch(nombreOperarioProvider)}'
-              : 'Arma el lote de lo que producción entrega a logística.',
-      showHeaderIcon: !mobile,
+      subtitle: 'Operario: ${ref.watch(nombreOperarioProvider)}',
+      showHeaderIcon: true,
       mobileCatalog: true,
       icon: Icons.precision_manufacturing,
       iconColor: AppColors.actionGreen,
@@ -48,8 +45,13 @@ class EntregaProduccionDialog extends ConsumerWidget {
             LayoutBuilder(
               builder: (context, c) {
                 final tabs = TabBar(
-                  isScrollable: !mobile,
-                  tabAlignment: mobile ? TabAlignment.fill : TabAlignment.start,
+                  isScrollable: false,
+                  tabAlignment: TabAlignment.fill,
+                  indicator: const UnderlineTabIndicator(
+                    borderSide: BorderSide(color: Color(0xFFC4D600), width: 3),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  unselectedLabelColor: Color(0xFF64757C),
                   labelColor: Theme.of(context).colorScheme.primary,
                   labelPadding: const EdgeInsets.symmetric(horizontal: 10),
                   labelStyle: const TextStyle(
@@ -87,33 +89,7 @@ class EntregaProduccionDialog extends ConsumerWidget {
                       ),
                   ],
                 );
-                final actor = Consumer(
-                  builder:
-                      (context, ref, _) => Chip(
-                        avatar: const Icon(Icons.person_outline, size: 14),
-                        label: Text(
-                          'Operario: ${ref.watch(nombreOperarioProvider)}',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        side: BorderSide.none,
-                      ),
-                );
-                if (mobile) return tabs;
-                return c.maxWidth < 650
-                    ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        tabs,
-                        Align(alignment: Alignment.centerRight, child: actor),
-                      ],
-                    )
-                    : Row(
-                      children: [
-                        Expanded(child: tabs),
-                        const SizedBox(width: 10),
-                        actor,
-                      ],
-                    );
+                return tabs;
               },
             ),
             const SizedBox(height: 8),
@@ -159,7 +135,11 @@ Future<Result<Lote>> _validarYCrearLote({
 }) async {
   for (final t in pendientes) {
     final kardex = ref.read(wmsSnapshotProvider).value?.kardexPorId(t.itemId);
-    if (kardex == null) continue;
+    if (kardex == null) {
+      return const Err<Lote>(
+        'Una prenda ya no está disponible. Revisa el lote antes de enviarlo.',
+      );
+    }
     final cantidad = int.tryParse(t.cantidadCtrl.text.trim()) ?? 0;
     if (cantidad <= 0) {
       return Err<Lote>(
@@ -196,16 +176,50 @@ class _NuevaEntregaTab extends ConsumerStatefulWidget {
 }
 
 class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, BorradorOperativo<_NuevaEntregaTab> {
   final _qrCtrl = TextEditingController();
   final _codigoManual = TextEditingController();
   final _manualFocus = FocusNode();
   final _qrFocus = FocusNode();
+  final _qrFieldKey = GlobalKey();
 
   String get _operario => ref.read(nombreOperarioProvider);
   final List<_TarjetaEntrega> _tarjetas = [];
   FeedbackMessage? _msgGeneral;
   bool _despachandoTodo = false;
+
+  @override
+  String get borradorProceso => 'produccion-qr';
+  @override
+  bool get operacionEnCurso => _despachandoTodo;
+  @override
+  Iterable<TextEditingController> get controlesBorrador => [
+    _codigoManual,
+    ..._tarjetas.map((t) => t.cantidadCtrl),
+  ];
+  @override
+  Map<String, dynamic> capturarBorrador() => {
+    'busqueda': _codigoManual.text,
+    'tarjetas': [
+      for (final t in _tarjetas.where((t) => !t.enviada))
+        {'id': t.itemId, 'cantidad': t.cantidadCtrl.text, 'conteo': t.conteo},
+    ],
+  };
+  @override
+  void recuperarBorrador(Map<String, dynamic> datos) {
+    _codigoManual.text = datos['busqueda'] as String? ?? '';
+    for (final t in _tarjetas) {
+      t.dispose();
+    }
+    _tarjetas.clear();
+    for (final d in (datos['tarjetas'] as List? ?? [])) {
+      _tarjetas.add(
+        _TarjetaEntrega(itemId: d['id'] as String)
+          ..cantidadCtrl.text = d['cantidad'] as String
+          ..conteo = (d['conteo'] as num).toInt(),
+      );
+    }
+  }
 
   @override
   bool get wantKeepAlive => true;
@@ -313,7 +327,7 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
   /// Despacha TODAS las tarjetas activas (no enviadas) como UN solo lote.
   Future<void> _despacharTodo() async {
     final pendientes = _tarjetas.where((t) => !t.enviada).toList();
-    if (pendientes.isEmpty) return;
+    if (pendientes.isEmpty || _despachandoTodo || borradorBloqueado) return;
     setState(() {
       _despachandoTodo = true;
       _msgGeneral = null;
@@ -321,6 +335,10 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
         t.enviando = true;
       }
     });
+    if (!await asegurarBorrador()) {
+      if (mounted) setState(() => _despachandoTodo = false);
+      return;
+    }
     final res = await _validarYCrearLote(
       ref: ref,
       pendientes: pendientes,
@@ -357,7 +375,9 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
       tarjetas: _tarjetas,
       ocupado: _despachandoTodo,
       operario: _operario,
-      onDespachar: pendientes == 0 ? null : _despacharTodo,
+      onDespachar: pendientes == 0 || borradorBloqueado ? null : _despacharTodo,
+      estado: estadoBorrador(),
+      bloqueado: borradorBloqueado,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -413,6 +433,7 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
                       ),
                     );
                     final lector = WmsScanField(
+                      key: _qrFieldKey,
                       mostrarIngresoManual: false,
                       controller: _qrCtrl,
                       focusNode: _qrFocus,
@@ -511,10 +532,7 @@ class _NuevaEntregaTabState extends ConsumerState<_NuevaEntregaTab>
               ),
             )
           else ...[
-            Text(
-              'Lote para logística · $pendientes productos',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
+            _ResumenEntrega(tarjetas: _tarjetas),
             const SizedBox(height: 10),
             for (final t in _tarjetas) ...[
               _TarjetaWidget(
@@ -542,7 +560,7 @@ class _EntregaManualTab extends ConsumerStatefulWidget {
 }
 
 class _EntregaManualTabState extends ConsumerState<_EntregaManualTab>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, BorradorOperativo<_EntregaManualTab> {
   final _opCtrl = TextEditingController();
   String get _operario => ref.read(nombreOperarioProvider);
   List<ItemKardex> _resultados = [];
@@ -551,6 +569,39 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab>
   String? _errorBusqueda;
   FeedbackMessage? _msgGeneral;
   bool _despachandoTodo = false;
+
+  @override
+  String get borradorProceso => 'produccion-manual';
+  @override
+  bool get operacionEnCurso => _despachandoTodo;
+  @override
+  Iterable<TextEditingController> get controlesBorrador => [
+    _opCtrl,
+    ..._tarjetas.map((t) => t.cantidadCtrl),
+  ];
+  @override
+  Map<String, dynamic> capturarBorrador() => {
+    'busqueda': _opCtrl.text,
+    'tarjetas': [
+      for (final t in _tarjetas.where((t) => !t.enviada))
+        {'id': t.itemId, 'cantidad': t.cantidadCtrl.text, 'conteo': t.conteo},
+    ],
+  };
+  @override
+  void recuperarBorrador(Map<String, dynamic> datos) {
+    _opCtrl.text = datos['busqueda'] as String? ?? '';
+    for (final t in _tarjetas) {
+      t.dispose();
+    }
+    _tarjetas.clear();
+    for (final d in (datos['tarjetas'] as List? ?? [])) {
+      _tarjetas.add(
+        _TarjetaEntrega(itemId: d['id'] as String)
+          ..cantidadCtrl.text = d['cantidad'] as String
+          ..conteo = (d['conteo'] as num).toInt(),
+      );
+    }
+  }
 
   @override
   bool get wantKeepAlive => true;
@@ -621,7 +672,7 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab>
 
   Future<void> _despacharTodo() async {
     final pendientes = _tarjetas.where((t) => !t.enviada).toList();
-    if (pendientes.isEmpty) return;
+    if (pendientes.isEmpty || _despachandoTodo || borradorBloqueado) return;
     setState(() {
       _despachandoTodo = true;
       _msgGeneral = null;
@@ -629,6 +680,10 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab>
         t.enviando = true;
       }
     });
+    if (!await asegurarBorrador()) {
+      if (mounted) setState(() => _despachandoTodo = false);
+      return;
+    }
     final res = await _validarYCrearLote(
       ref: ref,
       pendientes: pendientes,
@@ -665,7 +720,9 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab>
       tarjetas: _tarjetas,
       ocupado: _despachandoTodo,
       operario: _operario,
-      onDespachar: pendientes == 0 ? null : _despacharTodo,
+      onDespachar: pendientes == 0 || borradorBloqueado ? null : _despacharTodo,
+      estado: estadoBorrador(),
+      bloqueado: borradorBloqueado,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -701,7 +758,7 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab>
                 ActionButton(
                   icon: Icons.search,
                   label: 'BUSCAR',
-                  color: AppColors.primaryNavy,
+                  color: AppColors.actionGreen,
                   onPressed: _despachandoTodo ? null : _buscar,
                 ),
             ],
@@ -771,10 +828,7 @@ class _EntregaManualTabState extends ConsumerState<_EntregaManualTab>
               ),
             )
           else if (_tarjetas.isNotEmpty) ...[
-            Text(
-              'Lote para logística · $pendientes productos',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
+            _ResumenEntrega(tarjetas: _tarjetas),
             const SizedBox(height: 10),
             for (final t in _tarjetas) ...[
               _TarjetaWidget(
@@ -832,415 +886,351 @@ class _TarjetaWidget extends StatelessWidget {
             k.cantidadPedida > 0
                 ? ((k.producido + cantidad) / k.cantidadPedida).clamp(0.0, 1.0)
                 : 0.0;
-        final metricas = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              spacing: 14,
-              runSpacing: 4,
-              children: [
-                for (final texto in [
-                  'Meta OP ${k.cantidadPedida}',
-                  'Entregadas ${k.producido}',
-                  'Límite máximo $maximo',
-                  'Avance ${(progreso * 100).toStringAsFixed(0)} %',
-                ])
-                  Text(
-                    texto,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF425F6D),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Stack(
-                children: [
-                  LinearProgressIndicator(
-                    value: enviada ? progreso : previsto,
-                    minHeight: 7,
-                    color: const Color(0xFFCBE7D7),
-                    backgroundColor: const Color(0xFFE3EDF1),
-                  ),
-                  LinearProgressIndicator(
-                    value: progreso,
-                    minHeight: 7,
-                    color: const Color(0xFF62AF86),
-                    backgroundColor: Colors.transparent,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 5),
-            const Text(
-              'La franja clara muestra lo que sumarás con este envío.',
-              style: TextStyle(fontSize: 10, color: Color(0xFF57707C)),
-            ),
-          ],
-        );
-        final cantidadWidget = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Cantidad a enviar · máx. $maximo',
-              style: const TextStyle(fontSize: 11),
-            ),
-            const SizedBox(height: 5),
-            Row(
-              children: [
-                IconButton.outlined(
-                  tooltip: 'Disminuir cantidad',
-                  onPressed:
-                      bloqueado || cantidad <= 1
-                          ? null
-                          : () => cambiar(cantidad - 1),
-                  icon: const Icon(Icons.remove, size: 16),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: TextField(
-                    controller: tarjeta.cantidadCtrl,
-                    enabled: !bloqueado,
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 5,
-                      ),
-                      errorText: cantidad > maximo ? 'Máx. $maximo' : null,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                IconButton.outlined(
-                  tooltip: 'Aumentar cantidad',
-                  onPressed:
-                      bloqueado || cantidad >= maximo
-                          ? null
-                          : () => cambiar(cantidad + 1),
-                  icon: const Icon(Icons.add, size: 16),
-                ),
-                const SizedBox(width: 4),
-                TextButton(
-                  onPressed:
-                      bloqueado || maximo <= 0 ? null : () => cambiar(maximo),
-                  child: Text(
-                    'Todo ($maximo)',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-        if (MediaQuery.sizeOf(context).width < 600) {
-          final botonStyle = IconButton.styleFrom(
-            minimumSize: const Size(32, 36),
-            padding: EdgeInsets.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          );
-          return Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFDCE6EC)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 3,
-                            children: [
-                              Text(
-                                'OP ${k.item.op}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                'Talla ${k.item.talla}',
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            k.item.descripcion,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          Text(
-                            'OC ${k.item.oc} · ${k.item.cliente}',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Color(0xFF57707C),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!enviada) ...[
-                      IconButton.outlined(
-                        tooltip: 'Recontar',
-                        style: botonStyle,
-                        onPressed: bloqueado ? null : onRecontear,
-                        icon: const Icon(Icons.refresh, size: 15),
-                      ),
-                      IconButton(
-                        tooltip: 'Quitar esta tarjeta',
-                        style: botonStyle,
-                        onPressed: bloqueado ? null : onQuitar,
-                        icon: const Icon(
-                          Icons.close,
-                          size: 15,
-                          color: AppColors.alertRed,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 7),
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  spacing: 8,
-                  children: [
-                    Text(
-                      'Entregadas ${k.producido} de ${k.cantidadPedida}',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    Text(
-                      'Límite $maximo · ${(progreso * 100).toStringAsFixed(0)} %',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Color(0xFF57707C),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Stack(
-                  children: [
-                    LinearProgressIndicator(
-                      value: enviada ? progreso : previsto,
-                      minHeight: 5,
-                      color: const Color(0xFFCBE7D7),
-                      backgroundColor: const Color(0xFFE3EDF1),
-                    ),
-                    LinearProgressIndicator(
-                      value: progreso,
-                      minHeight: 5,
-                      color: const Color(0xFF62AF86),
-                      backgroundColor: Colors.transparent,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (enviada)
-                  Text(
-                    'Enviada · ${tarjeta.loteId}',
-                    style: const TextStyle(fontSize: 11),
-                  )
-                else
-                  Row(
-                    children: [
-                      const Text('Enviar', style: TextStyle(fontSize: 11)),
-                      const Spacer(),
-                      IconButton.outlined(
-                        tooltip: 'Disminuir cantidad',
-                        style: botonStyle,
-                        onPressed:
-                            bloqueado || cantidad <= 1
-                                ? null
-                                : () => cambiar(cantidad - 1),
-                        icon: const Icon(Icons.remove, size: 14),
-                      ),
-                      const SizedBox(width: 4),
-                      SizedBox(
-                        width: 45,
-                        child: TextField(
-                          controller: tarjeta.cantidadCtrl,
-                          enabled: !bloqueado,
-                          textAlign: TextAlign.center,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              vertical: 9,
-                              horizontal: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton.outlined(
-                        tooltip: 'Aumentar cantidad',
-                        style: botonStyle,
-                        onPressed:
-                            bloqueado || cantidad >= maximo
-                                ? null
-                                : () => cambiar(cantidad + 1),
-                        icon: const Icon(Icons.add, size: 14),
-                      ),
-                      const SizedBox(width: 4),
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          minimumSize: const Size(36, 36),
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                        ),
-                        onPressed:
-                            bloqueado || maximo <= 0
-                                ? null
-                                : () => cambiar(maximo),
-                        child: const Text(
-                          'Todo',
-                          style: TextStyle(fontSize: 10),
-                        ),
-                      ),
-                    ],
-                  ),
-                if (!enviada && cantidad > maximo)
-                  Text(
-                    'La cantidad supera el máximo de $maximo.',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.alertRed,
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }
         return Container(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(
+            MediaQuery.sizeOf(context).width < 600 ? 12 : 16,
+          ),
           decoration: BoxDecoration(
-            color: enviada ? const Color(0xFFF5F8F9) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFDCE6EC)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFDDE3E5)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               LayoutBuilder(
-                builder: (context, c) {
-                  final titulo = Column(
+                builder: (context, constraints) {
+                  final title = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
+                        spacing: 12,
+                        runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
-                            'OP ${k.item.op} · ${k.item.descripcion}',
+                            'OP ${k.item.op}',
                             style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          StatusChip(
-                            label: 'Talla ${k.item.talla}',
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          if (enviada)
-                            StatusChip(
-                              label: 'Enviada · ${tarjeta.loteId}',
-                              color: AppColors.actionGreen,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 5,
                             ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD7E8FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'Talla ${k.item.talla}',
+                              style: const TextStyle(
+                                color: Color(0xFF245C96),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
+                        k.item.descripcion,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
                         'OC ${k.item.oc} · ${k.item.cliente}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF57707C),
-                        ),
+                        style: const TextStyle(color: Color(0xFF64757C)),
                       ),
                     ],
                   );
-                  final acciones = Row(
-                    mainAxisSize: MainAxisSize.min,
+                  final actions = Wrap(
+                    spacing: 4,
+                    runSpacing: 8,
                     children: [
-                      OutlinedButton.icon(
-                        onPressed: bloqueado ? null : onRecontear,
-                        icon: const Icon(Icons.refresh, size: 15),
-                        label: const Text('Recontar'),
+                      Tooltip(
+                        message: 'Recontar',
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF173E4C),
+                          ),
+                          onPressed: bloqueado ? null : onRecontear,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Recontar'),
+                        ),
                       ),
-                      IconButton(
+                      const SizedBox(width: 8),
+                      IconButton.outlined(
                         tooltip: 'Quitar esta tarjeta',
                         onPressed: bloqueado ? null : onQuitar,
                         icon: const Icon(
                           Icons.close,
-                          size: 17,
                           color: AppColors.alertRed,
+                          size: 18,
                         ),
                       ),
                     ],
                   );
-                  if (c.maxWidth < 550) {
+                  if (constraints.maxWidth < 560) {
                     return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        titulo,
-                        if (!enviada)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: acciones,
-                          ),
+                        title,
+                        if (!enviada) ...[const SizedBox(height: 12), actions],
                       ],
                     );
                   }
                   return Row(
-                    children: [Expanded(child: titulo), if (!enviada) acciones],
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [Expanded(child: title), if (!enviada) actions],
                   );
                 },
               ),
               const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, c) {
-                  if (enviada) return metricas;
-                  if (c.maxWidth < 600) {
-                    return Column(
+              Wrap(
+                spacing: 24,
+                runSpacing: 10,
+                children: [
+                  for (final metric in [
+                    (Icons.flag_outlined, 'Meta OP ${k.cantidadPedida}'),
+                    (Icons.inventory_2_outlined, 'Entregadas ${k.producido}'),
+                    (Icons.rule, 'Límite máximo $maximo'),
+                  ])
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        metricas,
-                        const SizedBox(height: 12),
-                        cantidadWidget,
+                        Icon(
+                          metric.$1,
+                          size: 17,
+                          color: const Color(0xFF64757C),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(metric.$2),
+                      ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  const Text(
+                    'Avance de producción',
+                    style: TextStyle(color: Color(0xFF64757C)),
+                  ),
+                  Text(
+                    '${k.producido + (enviada ? 0 : cantidad)} de ${k.cantidadPedida} uds · ${((enviada ? progreso : previsto) * 100).round()} %',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Stack(
+                  children: [
+                    LinearProgressIndicator(
+                      value: enviada ? progreso : previsto,
+                      color: const Color(0xFFC4D600),
+                      backgroundColor: const Color(0xFFF3F5F5),
+                      minHeight: 8,
+                    ),
+                    LinearProgressIndicator(
+                      value: progreso,
+                      color: const Color(0xFF0C3D50),
+                      backgroundColor: Colors.transparent,
+                      minHeight: 8,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'La franja lima es lo que sumarás con este envío.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64757C)),
+              ),
+              if (enviada)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text('Enviada · ${tarjeta.loteId}'),
+                )
+              else ...[
+                const Divider(height: 20, color: Color(0xFFDDE3E5)),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final label = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Cantidad a enviar',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Máximo $maximo unidades',
+                          style: const TextStyle(color: Color(0xFF64757C)),
+                        ),
                       ],
                     );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(child: metricas),
-                      const SizedBox(width: 20),
-                      SizedBox(width: 255, child: cantidadWidget),
-                    ],
-                  );
-                },
-              ),
+                    final allButton = FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFC4D600),
+                        foregroundColor: const Color(0xFF0C3D50),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      onPressed:
+                          bloqueado || maximo <= 0
+                              ? null
+                              : () => cambiar(maximo),
+                      child: Text('Todo ($maximo)'),
+                    );
+                    final controls = Row(
+                      children: [
+                        IconButton.outlined(
+                          tooltip: 'Disminuir cantidad',
+                          onPressed:
+                              bloqueado || cantidad <= 1
+                                  ? null
+                                  : () => cambiar(cantidad - 1),
+                          icon: const Icon(Icons.remove, size: 18),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: TextField(
+                            controller: tarjeta.cantidadCtrl,
+                            enabled: !bloqueado,
+                            textAlign: TextAlign.center,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: InputDecoration(
+                              isDense: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 14,
+                                horizontal: 5,
+                              ),
+                              errorText:
+                                  cantidad > maximo ? 'Máx. $maximo' : null,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton.outlined(
+                          tooltip: 'Aumentar cantidad',
+                          onPressed:
+                              bloqueado || cantidad >= maximo
+                                  ? null
+                                  : () => cambiar(cantidad + 1),
+                          icon: const Icon(Icons.add, size: 18),
+                        ),
+                        const SizedBox(width: 6),
+                        if (constraints.maxWidth >= 300) allButton,
+                      ],
+                    );
+                    if (constraints.maxWidth < 600) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          label,
+                          const SizedBox(height: 12),
+                          controls,
+                          if (constraints.maxWidth < 300) ...[
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: allButton,
+                            ),
+                          ],
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: label),
+                        SizedBox(width: 350, child: controls),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ],
           ),
         );
       },
     );
   }
+}
+
+class _ResumenEntrega extends StatelessWidget {
+  const _ResumenEntrega({required this.tarjetas});
+  final List<_TarjetaEntrega> tarjetas;
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: Listenable.merge(tarjetas.map((t) => t.cantidadCtrl)),
+    builder: (context, _) {
+      final pending = tarjetas.where((t) => !t.enviada).toList();
+      final units = pending.fold<int>(
+        0,
+        (sum, t) => sum + (int.tryParse(t.cantidadCtrl.text) ?? 0),
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Arma el lote de lo que producción entrega a logística.',
+            style: TextStyle(color: Color(0xFF64757C)),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              for (final metric in [
+                ('Productos en el lote', pending.length),
+                ('Unidades a enviar', units),
+              ])
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7F9F9),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          metric.$1,
+                          style: const TextStyle(color: Color(0xFF64757C)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${metric.$2}',
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
+      );
+    },
+  );
 }
 
 class _EntregaLayout extends StatelessWidget {
@@ -1250,7 +1240,11 @@ class _EntregaLayout extends StatelessWidget {
     required this.operario,
     required this.onDespachar,
     required this.child,
+    required this.estado,
+    required this.bloqueado,
   });
+  final Widget estado;
+  final bool bloqueado;
   final List<_TarjetaEntrega> tarjetas;
   final bool ocupado;
   final String operario;
@@ -1259,7 +1253,13 @@ class _EntregaLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      Expanded(child: SingleChildScrollView(child: child)),
+      estado,
+      Expanded(
+        child: AbsorbPointer(
+          absorbing: bloqueado,
+          child: SingleChildScrollView(child: child),
+        ),
+      ),
       const Divider(height: 20),
       AnimatedBuilder(
         animation: Listenable.merge(tarjetas.map((t) => t.cantidadCtrl)),

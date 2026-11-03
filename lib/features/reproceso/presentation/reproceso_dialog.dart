@@ -1,3 +1,4 @@
+import '../../../shared/borrador_operativo.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import '../../../shared/widgets/wms_scan_field.dart';
 import 'package:orbiloq_wms/shared/widgets/wms_loader.dart';
@@ -82,7 +83,42 @@ class _ListaTab extends ConsumerStatefulWidget {
   ConsumerState<_ListaTab> createState() => _ListaTabState();
 }
 
-class _ListaTabState extends ConsumerState<_ListaTab> {
+class _ListaTabState extends ConsumerState<_ListaTab>
+    with BorradorOperativo<_ListaTab> {
+  @override
+  String get borradorProceso => 'reproceso';
+  @override
+  bool get operacionEnCurso => _liberando.values.any((v) => v);
+  @override
+  Iterable<TextEditingController> get controlesBorrador => [
+    _opCtrl,
+    ..._cantidadCtrls.values,
+  ];
+  @override
+  Map<String, dynamic> capturarBorrador() => {
+    'buscar': _opCtrl.text,
+    'filtro': _filtroOp,
+    'cantidades': {for (final e in _cantidadCtrls.entries) e.key: e.value.text},
+    'recibido': _recibidoPorLogistica,
+  };
+  @override
+  void recuperarBorrador(Map<String, dynamic> d) {
+    _opCtrl.text = d['buscar'] as String? ?? '';
+    _filtroOp = d['filtro'] as String? ?? '';
+    for (final c in _cantidadCtrls.values) {
+      c.dispose();
+    }
+    _cantidadCtrls.clear();
+    for (final e in (d['cantidades'] as Map? ?? {}).entries) {
+      _cantidadCtrls[e.key as String] = TextEditingController(
+        text: e.value as String,
+      );
+    }
+    _recibidoPorLogistica
+      ..clear()
+      ..addAll(Map<String, String?>.from(d['recibido'] as Map? ?? {}));
+  }
+
   final _opCtrl = TextEditingController();
   final _qrCtrl = TextEditingController();
   final Map<String, TextEditingController> _cantidadCtrls = {};
@@ -125,7 +161,9 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
 
   TextEditingController _ctrlPara(ItemKardex k) => _cantidadCtrls.putIfAbsent(
     k.id,
-    () => TextEditingController(text: '${k.pendienteReproceso}'),
+    () =>
+        TextEditingController(text: '${k.pendienteReproceso}')
+          ..addListener(guardarBorrador),
   );
 
   void _buscarOp() {
@@ -223,6 +261,7 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
   }
 
   Future<void> _liberar(ItemKardex k) async {
+    if (borradorBloqueado || operacionEnCurso) return;
     final ctrl = _ctrlPara(k);
     final cantidad = int.tryParse(ctrl.text.trim()) ?? 0;
     if (cantidad <= 0) {
@@ -258,6 +297,10 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
       _msgGeneral = null;
       _liberando[k.id] = true;
     });
+    if (!await asegurarBorrador()) {
+      if (mounted) setState(() => _liberando[k.id] = false);
+      return;
+    }
     final res = await ref
         .read(wmsRepositoryProvider)
         .liberarNoConforme(
@@ -284,7 +327,8 @@ class _ListaTabState extends ConsumerState<_ListaTab> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => envolverBorrador(_contenido(context));
+  Widget _contenido(BuildContext context) {
     final datos = ref.watch(wmsSnapshotProvider);
     if (datos.isLoading && !datos.hasValue) return const WmsLoadingPanel();
     if (datos.hasError && !datos.hasValue) {

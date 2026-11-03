@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../data/seguimiento_entregas.dart';
 import '../../../data/despachos_oc_repository.dart';
 import '../../../shared/widgets/wms_alert.dart';
+import 'placa_quiromar_field.dart';
 
 class SeguimientoPanel extends ConsumerWidget {
   const SeguimientoPanel({super.key, required this.pendientes});
@@ -294,7 +295,10 @@ class _TablaState extends ConsumerState<TablaEntregas> {
       await mostrarAviso(
         context,
         'Seguimiento de LE ${f.d['le']} guardado.${f.avisoCorreo == null ? '' : '\n${f.avisoCorreo}'}',
-        tipo: TipoAviso.exito,
+        tipo:
+            notificar && (f.d['correo'] as Map?)?['estado'] != 'enviado'
+                ? TipoAviso.advertencia
+                : TipoAviso.exito,
       );
     }
   });
@@ -313,16 +317,36 @@ class _TablaState extends ConsumerState<TablaEntregas> {
       }
       correo['estado'] = 'enviado';
       f.avisoCorreo = 'Correo aceptado por el servicio para su envío.';
-    } catch (_) {
+    } catch (error) {
       // La transacción de entrega ya terminó: no presentar el correo como fallo del guardado.
       f.avisoCorreo =
-          'Entrega guardada. Correo pendiente: comprueba la configuración del servicio y reintenta.';
+          'Entrega guardada. No se confirmó el correo; consulta su estado antes de reintentar.';
+      if (error is FunctionException && error.details is Map) {
+        final codigo = (error.details as Map)['codigo'];
+        f.avisoCorreo = switch (codigo) {
+          'gmail_autorizacion_vencida' =>
+            'Entrega guardada. La autorización de Gmail venció o fue revocada. Un administrador debe reconectar el correo.',
+          'gmail_configuracion' =>
+            'Entrega guardada. Falta completar la configuración de Gmail en este entorno.',
+          'gmail_temporal' =>
+            'Entrega guardada. Google no está disponible; el correo sigue pendiente para reintentar.',
+          _ => f.avisoCorreo,
+        };
+      }
       try {
         final actual = await Supabase.instance.client.rpc(
           'entrega_correo_consultar',
           params: {'p_id': correo['id']},
         );
-        if (actual is Map) f.d['correo'] = Map<String, dynamic>.from(actual);
+        if (actual is Map) {
+          f.d['correo'] = Map<String, dynamic>.from(actual);
+          if (actual['estado'] == 'enviado') {
+            f.avisoCorreo = 'Correo aceptado por el servicio para su envío.';
+          } else if (actual['error'] is String &&
+              (actual['error'] as String).isNotEmpty) {
+            f.avisoCorreo = 'Entrega guardada. ${actual['error']}';
+          }
+        }
       } catch (_) {
         // Sin conexión se conserva el pendiente local; se recuperará al actualizar.
       }
@@ -372,6 +396,8 @@ class _TablaState extends ConsumerState<TablaEntregas> {
                 'Envío en proceso. Actualiza para consultar el resultado.',
               'revision_manual' =>
                 'Requiere revisión: ${correo['error'] ?? 'verifica el envío con el proveedor.'}',
+              'error' =>
+                'Correo pendiente: ${correo['error'] ?? 'no se pudo completar el envío.'}',
               _ => 'Correo pendiente de envío.',
             }),
             if (estado != 'enviado' && estado != 'revision_manual')
@@ -601,12 +627,94 @@ class _TablaState extends ConsumerState<TablaEntregas> {
                                 ),
                                 const SizedBox(height: 8),
                                 pareja(
-                                  campo(f, f.transporte, 'Transportadora', 150),
+                                  DropdownButtonFormField<String>(
+                                    key: ValueKey(
+                                      'transportadora-${f.transporte.text}',
+                                    ),
+                                    initialValue:
+                                        f.transporte.text.trim().isEmpty
+                                            ? null
+                                            : f.transporte.text
+                                                .trim()
+                                                .toUpperCase(),
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Transportadora',
+                                      isDense: true,
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    hint: const Text(
+                                      'Selecciona transportadora',
+                                    ),
+                                    items: [
+                                      if (f.transporte.text.trim().isNotEmpty &&
+                                          ![
+                                            'QUIROMAR',
+                                            'COORDINADORA',
+                                            'TCC',
+                                          ].contains(
+                                            f.transporte.text
+                                                .trim()
+                                                .toUpperCase(),
+                                          ))
+                                        DropdownMenuItem(
+                                          value:
+                                              f.transporte.text
+                                                  .trim()
+                                                  .toUpperCase(),
+                                          enabled: false,
+                                          child: Text(
+                                            '${f.transporte.text} · anterior',
+                                          ),
+                                        ),
+                                      for (final nombre in [
+                                        'Quiromar',
+                                        'Coordinadora',
+                                        'TCC',
+                                      ])
+                                        DropdownMenuItem(
+                                          value: nombre.toUpperCase(),
+                                          child: Text(nombre),
+                                        ),
+                                    ],
+                                    onChanged:
+                                        f.ocupado
+                                            ? null
+                                            : (value) => redibujar(() {
+                                              if (value == null) return;
+                                              if (value !=
+                                                  f.transporte.text
+                                                      .trim()
+                                                      .toUpperCase()) {
+                                                f.placa.clear();
+                                              }
+                                              f.transporte.text =
+                                                  {
+                                                    'QUIROMAR': 'Quiromar',
+                                                    'COORDINADORA':
+                                                        'Coordinadora',
+                                                    'TCC': 'TCC',
+                                                  }[value]!;
+                                              f.cambiado = true;
+                                            }),
+                                  ),
                                   campo(f, f.guia, 'N° de guía', 150),
                                   compacta,
                                 ),
                                 const SizedBox(height: 14),
-                                campo(f, f.placa, 'Placa', 150),
+                                if (f.transporte.text.trim().toUpperCase() ==
+                                    'QUIROMAR')
+                                  PlacaQuiromarField(
+                                    value: f.placa.text,
+                                    enabled: !f.ocupado,
+                                    onChanged:
+                                        (value) => redibujar(() {
+                                          f.placa.text = value;
+                                          f.cambiado = true;
+                                        }),
+                                  )
+                                else
+                                  campo(f, f.placa, 'Placa', 150),
                                 if ('${f.d['placa_guia'] ?? ''}'.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 12),

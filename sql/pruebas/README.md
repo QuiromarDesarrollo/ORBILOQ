@@ -1,5 +1,15 @@
 # Edición administrativa — v55, solo pruebas
 
+## Borradores de Despacho — 142 (aplicado en DEV, 30/10/2026)
+
+Aplicado `142_despacho_borradores.sql` en `igfuafcekcpugpmsoqbe`.
+Guarda un borrador privado por usuario y contexto (nuevo, inventario o corrección),
+con versión para evitar sobrescrituras entre equipos. No reserva existencias ni confirma despachos.
+`142_despacho_borradores_verificar.sql` pasó en el servidor: guardar, recuperar,
+actualizar, conflicto de versión, RLS, aislamiento entre dos usuarios y eliminación.
+La prueba se revirtió con `ROLLBACK`. Evidencia: `output/verificaciones/dev-borradores-20261030.png`.
+No se aplicó a producción.
+
 ## Decisión del propietario
 
 Trabajar en `master` y aplicar cambios de base de datos **únicamente en DEV**.
@@ -543,3 +553,22 @@ Validación local: `tools/test_actividades_mantenimiento.sql` cubre permisos, am
 ### 128 · Kit semanal administrativo y EPP diario
 
 `128_conductor_kit_admin_epp.sql`: aplicar en ORBILOQ-DEV después de 127. Restringe el registro semanal al administrador, añade Kit antiderrames obligatorio (51 puntos) y exige botas de lluvia, impermeable, guantes de trabajo y chaleco reflectivo en salida y regreso (31 puntos). No modifica registros anteriores. Pendiente de aplicación en DEV.
+
+Masiva 135: permite que el empacador también valide su propio kit, por solicitud operativa. Conserva identidad autenticada, permisos de Masiva, consumo de inventario, auditoría e incidencia MAL EMPAQUE por asignación tardía. Aplicar 135_masiva_validador_empacador.sql después de 134, solo DEV. Ensayo local: sql/tests/135_masiva_validador_empacador_test.sql (misma persona, registro previo/tardío, reintentos, exceso, empaque y reinicio).
+
+Masiva 136 (aplicada solo en ORBILOQ-DEV): usa public.empaques, el catálogo de Despacho, sin copiar registros. Agrega peso_promedio_masiva_kg opcional, editable desde Masiva; al omitirlo, el editor de Despacho conserva su valor. Nuevos contenedores Masiva exigen promedio configurado. Los antiguos conservan empaque_id y snapshot; los nuevos usan empaque_catalogo_id. Editar o desactivar un empaque no altera cajas ni documentos emitidos. Se deshabilita guardar_empaque del catálogo duplicado. Verificación remota: 21 tablas y 70.298 filas originales conservadas. Ensayo local: sql/tests/136_masiva_catalogo_compartido_test.sql; pruebas de interfaz: test/masiva_catalogo_compartido_test.dart.
+
+Masiva 137 (aplicada solo en ORBILOQ-DEV): el logo de Quiromar queda compartido como predeterminado para las operaciones existentes y las nuevas después de cargarlo desde Identidad de los documentos. El logo de cliente sigue perteneciendo a cada operación. Los snapshots de documentos ya emitidos no se modifican.
+
+Masiva 138 (instalación confirmada en ORBILOQ-DEV el 2026-10-30): corrige el cambio del logo predeterminado de Quiromar incluyendo `WHERE logo_empresa IS DISTINCT FROM ...` en la actualización global. Sin este parche, el entorno rechaza el guardado con `UPDATE requires a WHERE clause`. Aplicar `138_masiva_logo_empresa_update_seguro.sql` después de 137; no modifica producción.
+
+Masiva 139 (aplicada y verificada en ORBILOQ-DEV el 2026-10-30): fecha de PDF por lista, actualizada en generación y reimpresión. Recupera la última fecha de los documentos existentes. Se normalizan saltos CRLF al modificar las funciones del servidor. Prueba remota de reimpresión y actualización de fecha ejecutada dentro de una transacción revertida.
+
+Masiva 140 (aplicada y verificada en ORBILOQ-DEV el 2026-10-30): agrega `masiva_recepcion_historial`, consulta paginada de los movimientos de recepción confirmados para la pestaña Historial del puesto de recepción. Devuelve fecha, SKU, prenda, proveedor, orden, remisión, cantidad y operario. Aplicar `140_masiva_recepcion_historial.sql` después de 139; no modifica movimientos existentes ni producción. Se comprobó la consulta con una operación existente.
+
+Despacho 141 (aplicada y verificada en ORBILOQ-DEV el 2026-10-30): elimina el límite de fechas del ajuste administrativo de salida para que el calendario permita días anteriores o posteriores a hoy. Aplicar `141_despacho_fecha_salida_libre.sql` después de 120. La fecha seleccionada se guarda en el despacho, sus movimientos, el historial y la lista de empaque. Se comprobó que 1999-01-15 y una fecha 30 días posterior a hoy superan la validación de fecha; la prueba utilizó un despacho inexistente y no confirmó una salida real.
+
+### 143 · Placas de Quiromar en Seguimiento (2026-10-30)
+Aplicada y verificada en ORBILOQ-DEV (`igfuafcekcpugpmsoqbe`) mediante el editor SQL autenticado. `seguimiento_placas_quiromar()` reutiliza `seguimiento_acceso()` y devuelve exclusivamente las placas de `conductor_vehiculos`; no expone documentos, conductor, kilometraje ni checklist. No modifica vehículos ni entregas.
+
+Verificación: 2 placas / 2 vehículos, acceso anónimo bloqueado y consulta sin sesión rechazada. Ver `143_seguimiento_placas_quiromar_verificar.sql` y `output/verificaciones/seguimiento-placas-dev.png`.

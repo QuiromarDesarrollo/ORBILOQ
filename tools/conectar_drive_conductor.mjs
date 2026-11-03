@@ -114,6 +114,7 @@ body{margin:0;background:#f1f6f7;color:#123d4c;font:16px system-ui}main{max-widt
 <p class="notice">Solo se solicita acceso a los archivos y carpetas que autorices para ORBILOQ. No se cambia quién puede ver la carpeta.</p>
 <button id="connect" ${completed ? 'disabled' : ''}>${connected ? 'Volver a conectar Google' : 'Conectar con Google'}</button>
 <button id="pick" disabled>Seleccionar TRANSPORTE</button>
+<button id="verify-existing" ${!connected || completed ? 'disabled' : ''}>Verificar carpeta TRANSPORTE existente</button>
 <p id="status" role="status">${completed ? 'Carpeta verificada. Credenciales guardadas localmente para Supabase DEV. Falta activar y probar la función de subida.' : connected ? 'Google conectado. Selecciona TRANSPORTE para continuar.' : 'Pendiente de autorización de Google.'}</p>
 <p>Mientras la aplicación esté en modo Pruebas de Google, la autorización puede requerir renovación a los siete días.</p></main>
 <script nonce="${nonce}">
@@ -122,6 +123,7 @@ const status=document.getElementById('status'), pick=document.getElementById('pi
 document.addEventListener('securitypolicyviolation',e=>{status.textContent='El selector bloqueó un recurso: '+e.effectiveDirective+' · '+e.blockedURI.split('?')[0];});
 async function post(path,body){const r=await fetch(path,{method:'POST',headers:{'X-Setup-CSRF':csrf,'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(!r.ok)throw new Error(await r.text());return r.json();}
 document.getElementById('connect').onclick=async()=>{try{const r=await post('/oauth/start');location.assign(r.url);}catch(e){status.textContent=e.message;}};
+document.getElementById('verify-existing').onclick=async()=>{try{status.textContent='Verificando la carpeta previamente autorizada…';await post('/verify',{folderId:${JSON.stringify(FOLDER)}});location.replace('/');}catch(e){status.textContent=e.message+' Si falta permiso, usa Seleccionar TRANSPORTE.';}};
 window.pickerLoaded=()=>gapi.load('picker',()=>{pick.disabled=!connected||completed;});
 pick.onclick=async()=>{pick.disabled=true;try{const c=await post('/picker-config');const view=new google.picker.DocsView(google.picker.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true);
 const picker=new google.picker.PickerBuilder().addView(view).setOAuthToken(c.token).setDeveloperKey(c.key).setAppId(c.appId).setOrigin(location.origin).setTitle('Selecciona la carpeta TRANSPORTE').setCallback(async(data)=>{

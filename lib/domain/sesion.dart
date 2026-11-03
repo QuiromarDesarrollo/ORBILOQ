@@ -10,6 +10,7 @@ enum RolCuenta {
   seguimiento('seguimiento', 'Seguimiento'),
   gerencia('gerencia', 'Gerencia'),
   conductor('conductor', 'Conductor'),
+  masiva('masiva', 'Masiva'),
   admin('admin', 'Administrador');
 
   const RolCuenta(this.valorBd, this.etiqueta);
@@ -33,6 +34,7 @@ enum RolCuenta {
     despacho,
     gerencia,
     conductor,
+    masiva,
   ];
   static List<RolCuenta> deFila(Map<String, dynamic> fila) {
     final valores =
