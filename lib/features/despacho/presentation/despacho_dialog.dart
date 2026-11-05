@@ -2768,22 +2768,44 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     );
   }
 
-  Widget _avanceProduccion(Iterable<ItemKardex> lineas, String alcance) {
+  Widget _avanceProduccion(
+    Iterable<ItemKardex> lineas,
+    String alcance, {
+    bool mostrarBarra = true,
+  }) {
     final total = lineas.fold<int>(0, (s, i) => s + i.cantidadPedida);
     final entregado = lineas.fold<int>(0, (s, i) => s + i.producido);
     final avance = total > 0 ? entregado / total : 0.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Producción $alcance: $entregado de $total prendas · ${(avance * 100).toStringAsFixed(1)} %',
-          ),
-          const SizedBox(height: 5),
-          LinearProgressIndicator(value: avance.clamp(0.0, 1.0)),
-        ],
-      ),
+    final texto = Text(
+      'Producción $alcance: $entregado de $total prendas · ${(avance * 100).toStringAsFixed(1)} %',
+      style: const TextStyle(fontSize: 12, color: AppColors.slate600),
+    );
+    if (!mostrarBarra) return texto;
+    final barra = LinearProgressIndicator(
+      value: avance.clamp(0.0, 1.0),
+      minHeight: 5,
+      borderRadius: BorderRadius.circular(4),
+      backgroundColor: AppColors.slate200,
+      color: AppColors.petroleo,
+      semanticsLabel:
+          'Avance de producción $alcance: $entregado de $total prendas',
+    );
+    return LayoutBuilder(
+      builder: (context, c) {
+        final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+        return c.maxWidth >= 550 * escala
+            ? Row(
+              children: [
+                texto,
+                const SizedBox(width: 12),
+                Expanded(child: barra),
+              ],
+            )
+            : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [texto, const SizedBox(height: 6), barra],
+            );
+      },
     );
   }
 
@@ -2800,135 +2822,482 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
             )
             .toList();
     final ocs = items.map((i) => i.item.oc).toSet().toList()..sort();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _titulo(
-          '¿Qué OP van en este despacho?',
-          '$_cliente · Solo aparecen prendas disponibles en bodega. Se empaca una OC a la vez.',
+
+    Widget tarjeta(Widget contenido, {Key? key}) => Container(
+      key: key,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.cardBorder),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: contenido,
+    );
+
+    Widget chip(String texto, {bool disponible = false}) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: disponible ? AppColors.tealSoft : AppColors.slate200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        texto,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: disponible ? _green : AppColors.slate600,
         ),
-        for (final oc in ocs)
-          _panel(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      ),
+    );
+
+    Widget tallasYUbicaciones(List<ItemKardex> lineas) {
+      final ubicaciones = lineas.first.ubicaciones.keys.toSet();
+      final mismasUbicaciones = lineas.every(
+        (i) => setEquals(ubicaciones, i.ubicaciones.keys.toSet()),
+      );
+      Widget talla(ItemKardex i) => chip(
+        'T. ${i.item.talla} · ${i.disponibleParaDespacho} en bodega',
+        disponible: true,
+      );
+      if (mismasUbicaciones) {
+        return Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final i in lineas) talla(i),
+            for (final ubicacion in ubicaciones) chip(ubicacion),
+          ],
+        );
+      }
+      // Si las ubicaciones difieren, cada talla conserva su propia asociación.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var n = 0; n < lineas.length; n++) ...[
+            if (n > 0) const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      oc.isEmpty ? 'Sin OC' : oc,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    OutlinedButton(
-                      onPressed:
-                          bloqueado
-                              ? null
-                              : () => setState(() {
-                                if (_oc != oc && _inventario == null) {
-                                  _limpiar();
-                                }
-                                _oc = oc;
-                                _ops.addAll(
-                                  items
-                                      .where((i) => i.item.oc == oc)
-                                      .map((i) => i.item.op),
-                                );
-                              }),
-                      child: const Text('Elegir toda la OC'),
-                    ),
-                  ],
+                talla(lineas[n]),
+                for (final ubicacion in lineas[n].ubicaciones.keys)
+                  chip(ubicacion),
+              ],
+            ),
+          ],
+        ],
+      );
+    }
+
+    Widget opcionOp(String oc, String op) {
+      final disponibles =
+          items.where((i) => i.item.oc == oc && i.item.op == op).toList();
+      final descripciones =
+          disponibles.map((i) => i.item.descripcion).toSet().toList();
+      final elegida = _oc == oc && _ops.contains(op);
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Material(
+          color: elegida ? _soft : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: elegida ? AppColors.petroleo : AppColors.cardBorder,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: CheckboxListTile(
+            key: ValueKey('despacho-op-$oc-$op'),
+            titleAlignment: ListTileTitleAlignment.top,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+            activeColor: AppColors.petroleo,
+            checkColor: Colors.white,
+            value: elegida,
+            title: Wrap(
+              spacing: 10,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'OP $op',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: _navy,
+                  ),
                 ),
-                _avanceProduccion(todas.where((i) => i.item.oc == oc), 'OC'),
-                for (final op
-                    in items
-                        .where((i) => i.item.oc == oc)
-                        .map((i) => i.item.op)
-                        .toSet())
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    value: _oc == oc && _ops.contains(op),
-                    title: Text(
-                      'OP $op',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                if (descripciones.length == 1)
+                  Text(
+                    descripciones.single,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.slate600,
                     ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          items
-                              .where((i) => i.item.oc == oc && i.item.op == op)
-                              .map(
-                                (i) =>
-                                    '${i.item.descripcion} · Talla ${i.item.talla} · ${i.disponibleParaDespacho} en bodega · ${i.ubicaciones.keys.join(', ')}',
-                              )
-                              .join('\n'),
-                        ),
-                        _avanceProduccion(
-                          todas.where(
-                            (i) => i.item.oc == oc && i.item.op == op,
-                          ),
-                          'OP $op',
-                        ),
-                      ],
-                    ),
-                    onChanged:
-                        bloqueado
-                            ? null
-                            : (v) {
-                              if (_oc != oc) {
-                                setState(() {
-                                  _limpiar();
-                                  _oc = oc;
-                                });
-                              }
-                              _seleccionar(op, v == true);
-                            },
                   ),
               ],
             ),
-          ),
-        if (ocs.isEmpty)
-          const Text('No hay prendas disponibles para este cliente.'),
-        _panel(
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _titulo(
-                '¿Tienes las prendas en la mano?',
-                'Escanéalas y se marcan solas.',
-              ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed:
-                        bloqueado
-                            ? null
-                            : () => showDialog<void>(
-                              context: context,
-                              builder:
-                                  (_) => WmsCameraScanner(onRead: _leerCamara),
-                            ),
-                    icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                    label: const Text('Cámara'),
-                  ),
-                  OutlinedButton(
-                    onPressed: bloqueado ? null : _entradaCodigo,
-                    child: const Text('Lector'),
-                  ),
-                  OutlinedButton(
-                    onPressed: bloqueado ? null : _entradaCodigo,
-                    child: const Text('Escribir código'),
+                  if (descripciones.length == 1)
+                    tallasYUbicaciones(disponibles)
+                  else
+                    for (var n = 0; n < descripciones.length; n++) ...[
+                      if (n > 0) const SizedBox(height: 8),
+                      Text(
+                        descripciones[n],
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.slate600,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      tallasYUbicaciones(
+                        disponibles
+                            .where(
+                              (i) => i.item.descripcion == descripciones[n],
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  const SizedBox(height: 10),
+                  _avanceProduccion(
+                    todas.where((i) => i.item.oc == oc && i.item.op == op),
+                    'OP $op',
                   ),
                 ],
               ),
-            ],
+            ),
+            onChanged:
+                bloqueado
+                    ? null
+                    : (v) {
+                      if (_oc != oc) {
+                        setState(() {
+                          _limpiar();
+                          _oc = oc;
+                        });
+                      }
+                      _seleccionar(op, v == true);
+                    },
           ),
         ),
+      );
+    }
+
+    Widget tarjetaOc(String oc) => Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: tarjeta(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(
+              builder: (context, c) {
+                final encabezado = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      oc.isEmpty
+                          ? 'Sin OC'
+                          : oc.toUpperCase().startsWith('OC')
+                          ? oc
+                          : 'OC $oc',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _avanceProduccion(
+                      todas.where((i) => i.item.oc == oc),
+                      'OC',
+                      mostrarBarra: false,
+                    ),
+                  ],
+                );
+                final elegir = OutlinedButton(
+                  key: ValueKey('elegir-oc-$oc'),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.petroleo,
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  onPressed:
+                      bloqueado
+                          ? null
+                          : () => setState(() {
+                            if (_oc != oc && _inventario == null) {
+                              _limpiar();
+                            }
+                            _oc = oc;
+                            _ops.addAll(
+                              items
+                                  .where((i) => i.item.oc == oc)
+                                  .map((i) => i.item.op),
+                            );
+                          }),
+                  child: const Text(
+                    'Elegir toda la OC',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                );
+                final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+                return c.maxWidth >= 500 * escala
+                    ? Row(
+                      children: [
+                        Expanded(child: encabezado),
+                        const SizedBox(width: 12),
+                        elegir,
+                      ],
+                    )
+                    : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [encabezado, const SizedBox(height: 8), elegir],
+                    );
+              },
+            ),
+            for (final op
+                in items
+                    .where((i) => i.item.oc == oc)
+                    .map((i) => i.item.op)
+                    .toSet())
+              opcionOp(oc, op),
+          ],
+        ),
+        key: ValueKey('despacho-oc-$oc'),
+      ),
+    );
+
+    Widget panelEscaneo({required bool compacto}) => tarjeta(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '¿Tienes las prendas en la mano?',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _navy,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Escanéalas y se marcan solas.',
+            style: TextStyle(fontSize: 12, color: AppColors.slate600),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, c) {
+              final camara = FilledButton.icon(
+                key: const ValueKey('despacho-prendas-camara'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.lima,
+                  foregroundColor: AppColors.petroleo,
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                onPressed:
+                    bloqueado
+                        ? null
+                        : () => showDialog<void>(
+                          context: context,
+                          builder: (_) => WmsCameraScanner(onRead: _leerCamara),
+                        ),
+                icon: const Icon(Icons.camera_alt_outlined, size: 17),
+                label: const Text('Cámara', style: TextStyle(fontSize: 12)),
+              );
+              Widget entrada(String texto, String key, IconData icono) =>
+                  OutlinedButton.icon(
+                    key: ValueKey(key),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.petroleo,
+                      minimumSize: const Size(0, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    onPressed: bloqueado ? null : _entradaCodigo,
+                    icon: Icon(icono, size: 17),
+                    label: Text(texto, style: const TextStyle(fontSize: 12)),
+                  );
+              final lector = entrada(
+                'Lector',
+                'despacho-prendas-lector',
+                Icons.qr_code_scanner,
+              );
+              final codigo = entrada(
+                'Escribir código',
+                'despacho-prendas-codigo',
+                Icons.keyboard_outlined,
+              );
+              final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+              return compacto && c.maxWidth / escala >= 200
+                  ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: camara),
+                          const SizedBox(width: 8),
+                          Expanded(child: lector),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      codigo,
+                    ],
+                  )
+                  : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      camara,
+                      const SizedBox(height: 8),
+                      lector,
+                      const SizedBox(height: 8),
+                      codigo,
+                    ],
+                  );
+            },
+          ),
+        ],
+      ),
+      key: const ValueKey('despacho-prendas-escaneo'),
+    );
+
+    final seleccion = tarjeta(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Selección',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _navy,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'OP elegidas',
+                  style: TextStyle(fontSize: 12, color: AppColors.slate600),
+                ),
+              ),
+              Text(
+                '${_ops.length}',
+                key: const ValueKey('despacho-prendas-resumen-cantidad'),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _navy,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 16, color: AppColors.cardBorder),
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Siguiente',
+                style: TextStyle(fontSize: 12, color: AppColors.slate600),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Armar empaques',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _navy,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      key: const ValueKey('despacho-prendas-seleccion'),
+    );
+
+    Widget titulo() => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '¿Qué OP van en este despacho?',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _navy,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$_cliente · Solo aparecen prendas disponibles en bodega. Se empaca una OC a la vez.',
+            style: const TextStyle(fontSize: 12, color: AppColors.slate600),
+          ),
+        ],
+      ),
+    );
+    Widget listado() => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final oc in ocs) tarjetaOc(oc),
+        if (ocs.isEmpty)
+          tarjeta(const Text('No hay prendas disponibles para este cliente.')),
       ],
+    );
+    return LayoutBuilder(
+      builder: (context, c) {
+        final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+        return c.maxWidth >= 850 * escala
+            ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [titulo(), listado()],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 300,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      panelEscaneo(compacto: false),
+                      const SizedBox(height: 14),
+                      seleccion,
+                    ],
+                  ),
+                ),
+              ],
+            )
+            : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                titulo(),
+                panelEscaneo(compacto: true),
+                const SizedBox(height: 12),
+                seleccion,
+                const SizedBox(height: 12),
+                listado(),
+              ],
+            );
+      },
     );
   }
 
@@ -3205,7 +3574,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                 Expanded(
                                   child: ColoredBox(
                                     color:
-                                        _paso == 0 && _inventario == null
+                                        _paso <= 1 && _inventario == null
                                             ? _soft
                                             : Colors.white,
                                     child: SingleChildScrollView(
@@ -3226,7 +3595,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                           ),
                                           ColoredBox(
                                             color:
-                                                _paso == 0 &&
+                                                _paso <= 1 &&
                                                         _inventario == null
                                                     ? _soft
                                                     : Colors.white,
@@ -3238,9 +3607,9 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                               child: Padding(
                                                 padding: EdgeInsets.symmetric(
                                                   vertical:
-                                                      _paso == 0 ? 12 : 18,
+                                                      _paso <= 1 ? 12 : 18,
                                                   horizontal:
-                                                      _paso == 0 &&
+                                                      _paso <= 1 &&
                                                               _inventario ==
                                                                   null
                                                           ? 12
@@ -3294,7 +3663,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                     builder: (context, c) {
                                       final siguiente = FilledButton.icon(
                                         iconAlignment:
-                                            _paso == 0
+                                            _paso <= 1
                                                 ? IconAlignment.end
                                                 : IconAlignment.start,
                                         style: FilledButton.styleFrom(
@@ -3357,6 +3726,18 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                         child: const Text('Cancelar'),
                                       );
                                       final atras = OutlinedButton.icon(
+                                        style:
+                                            _paso == 1
+                                                ? OutlinedButton.styleFrom(
+                                                  backgroundColor: Colors.white,
+                                                  foregroundColor:
+                                                      AppColors.petroleo,
+                                                  minimumSize: const Size(
+                                                    0,
+                                                    44,
+                                                  ),
+                                                )
+                                                : null,
                                         onPressed:
                                             congelado || _paso == 0
                                                 ? null

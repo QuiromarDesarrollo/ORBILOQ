@@ -777,7 +777,7 @@ void main() {
     );
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Armar empaques'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Armar empaques'));
     await tester.pumpAndSettle();
     expect(
       find.textContaining(
@@ -1169,7 +1169,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byType(CheckboxListTile));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Armar empaques'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Armar empaques'));
       await tester.pumpAndSettle();
       final agregar = find.widgetWithText(
         DropdownButtonFormField<String>,
@@ -1251,7 +1251,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byType(CheckboxListTile));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Armar empaques'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Armar empaques'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(agregar);
       await tester.pumpAndSettle();
@@ -1379,7 +1379,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Armar empaques'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Armar empaques'));
     await tester.pumpAndSettle();
     final agregar = find.widgetWithText(
       DropdownButtonFormField<String>,
@@ -1555,7 +1555,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Elegir prendas'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Armar empaques'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Armar empaques'));
       await tester.pumpAndSettle();
       final agregar = find.widgetWithText(
         DropdownButtonFormField<String>,

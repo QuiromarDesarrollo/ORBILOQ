@@ -321,7 +321,10 @@ void main() {
       await tester.ensureVisible(_siguiente);
       await tester.tap(_siguiente);
       await tester.pumpAndSettle();
-      expect(find.text('Armar empaques'), findsOneWidget);
+      expect(
+        find.widgetWithText(FilledButton, 'Armar empaques'),
+        findsOneWidget,
+      );
       expect(find.textContaining('90005'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
