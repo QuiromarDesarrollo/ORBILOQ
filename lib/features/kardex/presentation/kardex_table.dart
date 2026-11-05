@@ -360,114 +360,13 @@ class _KardexTableState extends ConsumerState<KardexTable> {
             ),
           ),
           for (final item in filas)
-            if (esProduccion)
-              _TarjetaProduccion(item: item, esAdmin: esAdmin, extraer: extraer)
-            else
-              Card(
-                margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'OP ${item.item.op} · ${item.item.descripcion}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: pal.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${item.item.codigo} · Talla ${item.item.talla} · OC ${item.item.oc}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: pal.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'CLIENTE / OC',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: pal.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        item.item.cliente,
-                        style: TextStyle(fontSize: 12, color: pal.textPrimary),
-                      ),
-                      const Divider(height: 20),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          for (final n in [
-                            for (var n = 3; n < labels.length; n++)
-                              if (!labels[n].contains('ESTADO') &&
-                                  !labels[n].contains('CUMPLIMIENTO'))
-                                n,
-                            for (var n = 3; n < labels.length; n++)
-                              if (labels[n].contains('ESTADO') ||
-                                  labels[n].contains('CUMPLIMIENTO'))
-                                n,
-                          ])
-                            SizedBox(
-                              width: ((constraints.maxWidth - 56) / 2).clamp(
-                                0.0,
-                                double.infinity,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    labels[n],
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: pal.textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    extraer[campos[n]]?.call(item) ?? '',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color:
-                                          campos[n] == ColKardex.entregado
-                                              ? pal.chipGreen
-                                              : pal.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                      const Divider(height: 22),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextButton.icon(
-                              onPressed:
-                                  () => showObservacionDialog(context, item),
-                              icon: const Icon(
-                                Icons.comment_outlined,
-                                size: 17,
-                              ),
-                              label: const Text(
-                                'Observaciones',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ),
-                          if (esAdmin) _AccionesFila(item: item),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            _TarjetaOperativa(
+              item: item,
+              rol: rol,
+              anchoDisponible: constraints.maxWidth,
+              esAdmin: esAdmin,
+              extraer: extraer,
+            ),
           _BarraPaginacion(
             pagina: pagina,
             totalPaginas: totalPaginas,
@@ -574,15 +473,19 @@ class _KardexTableState extends ConsumerState<KardexTable> {
   }
 }
 
-/// La vista compacta conserva las columnas y acciones de Producción.
-class _TarjetaProduccion extends StatelessWidget {
-  const _TarjetaProduccion({
+/// Composición compacta compartida, con los datos propios de cada área.
+class _TarjetaOperativa extends StatelessWidget {
+  const _TarjetaOperativa({
     required this.item,
+    required this.rol,
+    required this.anchoDisponible,
     required this.esAdmin,
     required this.extraer,
   });
 
   final ItemKardex item;
+  final Rol rol;
+  final double anchoDisponible;
   final bool esAdmin;
   final Map<String, String Function(ItemKardex)> extraer;
 
@@ -593,9 +496,18 @@ class _TarjetaProduccion extends StatelessWidget {
     final pal = palOf(context);
     final oscuro = Theme.of(context).brightness == Brightness.dark;
     final fondo = oscuro ? pal.card : Colors.white;
-    final estado = item.estadoProduccion;
+    final escalaTexto = MediaQuery.textScalerOf(context).scale(12) / 12;
+    // Mantener cifras, fechas y palabras completas con texto ampliado.
+    // 56 = márgenes de la tarjeta, padding del contenido y separación.
+    final apilarParejas = (anchoDisponible - 56) / 2 / escalaTexto < 120;
+    final apilarAcciones = apilarParejas && escalaTexto >= 1.6;
+    final esProduccion = rol == Rol.produccion;
+    final esBodega = rol == Rol.logistica;
+    final columnaEstado =
+        esProduccion ? ColKardex.estadoProduccion : ColKardex.estadoBodega;
+    final estado = esProduccion ? item.estadoProduccion : item.estadoLogistica;
     final (colorEstado, fondoEstado, iconoEstado) = switch (estado) {
-      EstadoProduccion.completado => (
+      EstadoProduccion.completado || EstadoLogistica.completado => (
         pal.chipGreen,
         pal.chipGreenBg,
         Icons.check_circle_outline,
@@ -605,13 +517,12 @@ class _TarjetaProduccion extends StatelessWidget {
         pal.chipRedBg,
         Icons.warning_amber_outlined,
       ),
-      EstadoProduccion.parcialPorEntregar => (
-        AppColors.petroleo,
-        AppColors.celesteSuave,
-        Icons.hourglass_bottom,
-      ),
+      _ => (AppColors.petroleo, AppColors.celesteSuave, Icons.hourglass_bottom),
     };
-    final cumplimiento = item.cumplimientoProduccion();
+    final cumplimiento =
+        esProduccion
+            ? item.cumplimientoProduccion()
+            : item.cumplimientoLogistica();
     final (
       colorCumplimiento,
       fondoCumplimiento,
@@ -638,14 +549,83 @@ class _TarjetaProduccion extends StatelessWidget {
         Icons.event_outlined,
       ),
     };
+    final unidadesAvance = switch (rol) {
+      Rol.produccion => item.producido,
+      Rol.logistica => item.recibido,
+      Rol.despacho => item.despachado,
+    };
+    final tituloAvance = switch (rol) {
+      Rol.produccion => 'Avance de entrega',
+      Rol.logistica => 'Avance de recepción',
+      Rol.despacho => 'Avance de despacho',
+    };
     final avance =
-        item.cantidadPedida > 0 ? item.producido / item.cantidadPedida : 0.0;
-    final colorAvance =
-        estado == EstadoProduccion.completado ? pal.chipGreen : pal.info;
+        item.cantidadPedida > 0 ? unidadesAvance / item.cantidadPedida : 0.0;
+    final colorAvance = avance >= 1 ? pal.chipGreen : pal.info;
     final colorPendiente =
         item.pendienteProduccion > 0 ? pal.chipRed : pal.textPrimary;
     final colorNoConforme =
         item.pendienteReproceso > 0 ? pal.warning : pal.textPrimary;
+    final metricas = <Widget>[
+      _metrica(
+        esProduccion ? 'CANTIDAD' : 'PEDIDAS',
+        esProduccion ? ColKardex.cantidad : ColKardex.pedidas,
+        Icons.bar_chart,
+        pal.info,
+        pal.info.withValues(alpha: .10),
+      ),
+      _metrica(
+        esProduccion
+            ? 'ENTREGADO A LOGÍSTICA'
+            : esBodega
+            ? 'ENTREGADO POR PRODUCCIÓN'
+            : 'DESPACHADAS',
+        esProduccion
+            ? ColKardex.entregado
+            : esBodega
+            ? ColKardex.produccion
+            : ColKardex.despachadas,
+        Icons.local_shipping_outlined,
+        pal.chipGreen,
+        pal.chipGreenBg,
+      ),
+      if (!esProduccion) ...[
+        _metrica(
+          'BODEGA',
+          ColKardex.bodega,
+          Icons.inventory_2_outlined,
+          pal.textPrimary,
+          pal.chipNeutralBg,
+        ),
+        _metrica(
+          'INVENTARIO',
+          ColKardex.inventario,
+          Icons.shelves,
+          pal.textPrimary,
+          pal.chipNeutralBg,
+        ),
+      ],
+      if (esProduccion || esBodega) ...[
+        _metrica(
+          esProduccion ? 'PENDIENTE' : 'PENDIENTE POR PRODUCCIÓN',
+          esProduccion
+              ? ColKardex.pendiente
+              : ColKardex.pendienteProduccionBodega,
+          Icons.schedule,
+          colorPendiente,
+          pal.chipNeutralBg,
+          detalle: item.pendienteProduccion == 0 ? 'Sin pendientes' : null,
+        ),
+        _metrica(
+          'PRODUCTO NO CONFORME',
+          esProduccion ? ColKardex.noConforme : ColKardex.noConformeBodega,
+          Icons.warning_amber_outlined,
+          colorNoConforme,
+          pal.chipNeutralBg,
+          detalle: item.pendienteReproceso == 0 ? 'Sin novedades' : null,
+        ),
+      ],
+    ];
 
     return Card(
       margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
@@ -679,7 +659,7 @@ class _TarjetaProduccion extends StatelessWidget {
                     const SizedBox(width: 12),
                     Flexible(
                       child: _etiqueta(
-                        _valor(ColKardex.estadoProduccion),
+                        _valor(columnaEstado),
                         colorEstado,
                         fondoEstado,
                         icono: iconoEstado,
@@ -766,12 +746,11 @@ class _TarjetaProduccion extends StatelessWidget {
                   runSpacing: 4,
                   children: [
                     Text(
-                      'Avance de entrega',
+                      tituloAvance,
                       style: TextStyle(fontSize: 11, color: pal.textSecondary),
                     ),
                     Text(
-                      '${_valor(ColKardex.entregado)} de '
-                      '${_valor(ColKardex.cantidad)} · '
+                      '$unidadesAvance de ${item.cantidadPedida} · '
                       '${(avance * 100).toStringAsFixed(0)} %',
                       style: TextStyle(
                         fontSize: 11,
@@ -789,107 +768,102 @@ class _TarjetaProduccion extends StatelessWidget {
                   color: colorAvance,
                   backgroundColor: pal.chipNeutralBg,
                   semanticsLabel:
-                      'Avance de entrega: ${_valor(ColKardex.entregado)} de '
-                      '${_valor(ColKardex.cantidad)} unidades',
+                      '$tituloAvance: $unidadesAvance de '
+                      '${item.cantidadPedida} unidades',
                 ),
                 const SizedBox(height: 12),
-                _pareja(
-                  _metrica(
-                    'CANTIDAD',
-                    ColKardex.cantidad,
-                    Icons.bar_chart,
-                    pal.info,
-                    pal.info.withValues(alpha: .10),
-                  ),
-                  _metrica(
-                    'ENTREGADO A LOGÍSTICA',
-                    ColKardex.entregado,
-                    Icons.local_shipping_outlined,
-                    pal.chipGreen,
-                    pal.chipGreenBg,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _pareja(
-                  _metrica(
-                    'PENDIENTE',
-                    ColKardex.pendiente,
-                    Icons.schedule,
-                    colorPendiente,
-                    pal.chipNeutralBg,
-                    detalle:
-                        item.pendienteProduccion == 0 ? 'Sin pendientes' : null,
-                  ),
-                  _metrica(
-                    'PRODUCTO NO CONFORME',
-                    ColKardex.noConforme,
-                    Icons.warning_amber_outlined,
-                    colorNoConforme,
-                    pal.chipNeutralBg,
-                    detalle:
-                        item.pendienteReproceso == 0 ? 'Sin novedades' : null,
-                  ),
-                ),
+                for (var i = 0; i < metricas.length; i += 2) ...[
+                  if (i > 0) const SizedBox(height: 8),
+                  _pareja(metricas[i], metricas[i + 1], apilar: apilarParejas),
+                ],
                 const SizedBox(height: 12),
-                _pareja(
-                  _fecha('FECHA PACTADA', ColKardex.fechaEsperada, pal),
-                  _fecha('ÚLTIMA ENTREGA', ColKardex.fechaEntrega, pal),
-                  separador: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Icon(
-                      Icons.arrow_forward,
-                      size: 16,
-                      color: pal.textMuted,
+                if (esBodega)
+                  _fecha('ÚLTIMA RECEPCIÓN', ColKardex.fechaRecibido, pal)
+                else ...[
+                  _pareja(
+                    _fecha(
+                      'FECHA PACTADA',
+                      esProduccion
+                          ? ColKardex.fechaEsperada
+                          : ColKardex.fechaEsperadaBodega,
+                      pal,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: fondoCumplimiento,
-                    border: Border.all(
-                      color: colorCumplimiento.withValues(alpha: .25),
+                    _fecha(
+                      esProduccion ? 'ÚLTIMA ENTREGA' : 'FECHA DE DESPACHO',
+                      esProduccion
+                          ? ColKardex.fechaEntrega
+                          : ColKardex.fechaEntregaBodega,
+                      pal,
                     ),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        iconoCumplimiento,
-                        size: 17,
-                        color: colorCumplimiento,
+                    apilar: apilarParejas,
+                    separador: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(
+                        Icons.arrow_forward,
+                        size: 16,
+                        color: pal.textMuted,
                       ),
-                      const SizedBox(width: 7),
-                      Expanded(
-                        child: Text.rich(
-                          TextSpan(
-                            text: 'Cumplimiento: ',
-                            children: [
-                              TextSpan(
-                                text: _valor(ColKardex.diasFaltantes),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: fondoCumplimiento,
+                      border: Border.all(
+                        color: colorCumplimiento.withValues(alpha: .25),
+                      ),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          iconoCumplimiento,
+                          size: 17,
+                          color: colorCumplimiento,
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              text: 'Cumplimiento: ',
+                              children: [
+                                TextSpan(
+                                  text: _valor(
+                                    esProduccion
+                                        ? ColKardex.diasFaltantes
+                                        : ColKardex.diasFaltantesBodega,
+                                  ),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          style: TextStyle(
-                            color: colorCumplimiento,
-                            fontSize: 11,
+                              ],
+                            ),
+                            style: TextStyle(
+                              color: colorCumplimiento,
+                              fontSize: 11,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
                 Divider(height: 24, color: pal.cardBorder),
-                Row(
+                Flex(
+                  direction: apilarAcciones ? Axis.vertical : Axis.horizontal,
+                  crossAxisAlignment:
+                      apilarAcciones
+                          ? CrossAxisAlignment.stretch
+                          : CrossAxisAlignment.center,
                   children: [
-                    Expanded(
+                    Flexible(
+                      flex: apilarAcciones ? 0 : 1,
+                      fit: apilarAcciones ? FlexFit.loose : FlexFit.tight,
                       child: FilledButton.icon(
                         onPressed: () => showObservacionDialog(context, item),
                         style: FilledButton.styleFrom(
@@ -909,13 +883,19 @@ class _TarjetaProduccion extends StatelessWidget {
                       ),
                     ),
                     if (esAdmin) ...[
-                      const SizedBox(width: 8),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: pal.cardBorder),
-                          borderRadius: BorderRadius.circular(9),
+                      SizedBox(
+                        width: apilarAcciones ? 0 : 8,
+                        height: apilarAcciones ? 8 : 0,
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: pal.cardBorder),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: _AccionesFila(item: item),
                         ),
-                        child: _AccionesFila(item: item),
                       ),
                     ],
                   ],
@@ -966,17 +946,31 @@ class _TarjetaProduccion extends StatelessWidget {
         ),
       );
 
-  Widget _pareja(Widget izquierda, Widget derecha, {Widget? separador}) =>
-      IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: izquierda),
-            separador ?? const SizedBox(width: 8),
-            Expanded(child: derecha),
-          ],
-        ),
-      );
+  Widget _pareja(
+    Widget izquierda,
+    Widget derecha, {
+    Widget? separador,
+    bool apilar = false,
+  }) =>
+      apilar
+          ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              IntrinsicHeight(child: izquierda),
+              const SizedBox(height: 8),
+              IntrinsicHeight(child: derecha),
+            ],
+          )
+          : IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: izquierda),
+                separador ?? const SizedBox(width: 8),
+                Expanded(child: derecha),
+              ],
+            ),
+          );
 
   Widget _metrica(
     String etiqueta,
