@@ -278,98 +278,108 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     }
   }
 
-  Widget _sincronizarEnDialogo() => Container(
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    decoration: BoxDecoration(
-      color:
-          _avisoBorrador == null
-              ? null
-              : _errorBorrador
-              ? AppColors.redChipBg
-              : AppColors.amberChipBg,
-      borderRadius: BorderRadius.circular(12),
+  Widget _botonSincronizarDatos() => FilledButton.icon(
+    key: const ValueKey('despacho-sincronizar-datos'),
+    style: FilledButton.styleFrom(
+      backgroundColor: AppColors.lima,
+      foregroundColor: AppColors.petroleo,
+      minimumSize: const Size(0, 44),
     ),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final mensajes = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_avisoBorrador != null)
-              Text(
-                _avisoBorrador!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color:
-                      _errorBorrador ? AppColors.alertRed : AppColors.amberChip,
-                ),
-              ),
-            if (_errorBorrador)
-              TextButton(
-                onPressed: _cargarBorrador,
-                child: const Text('Reintentar borrador'),
-              ),
-            if (_resultadoSincronizacion != null)
-              Text(
-                _resultadoSincronizacion!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color:
-                      _errorSincronizacion
-                          ? AppColors.alertRed
-                          : AppColors.slate600,
-                ),
-              ),
-          ],
-        );
-        final boton = FilledButton.icon(
-          key: const ValueKey('despacho-sincronizar-datos'),
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.lima,
-            foregroundColor: AppColors.petroleo,
-            minimumSize: const Size(0, 44),
-          ),
-          onPressed:
-              _sincronizandoDatos ||
-                      _ocupado ||
-                      _preparando ||
-                      _generandoRotulo ||
-                      _pendiente != null
-                  ? null
-                  : _sincronizarDatos,
-          icon:
-              _sincronizandoDatos
-                  ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                  : const Icon(Icons.sync, size: 18),
-          label: Text(
-            _sincronizandoDatos ? 'Sincronizando…' : 'Sincronizar datos',
-          ),
-        );
-        final hayMensaje =
-            _avisoBorrador != null || _resultadoSincronizacion != null;
-        return constraints.maxWidth < 600 && hayMensaje
-            ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                mensajes,
-                const SizedBox(height: 8),
-                Align(alignment: Alignment.centerRight, child: boton),
-              ],
+    onPressed:
+        _sincronizandoDatos ||
+                _ocupado ||
+                _preparando ||
+                _generandoRotulo ||
+                _pendiente != null
+            ? null
+            : _sincronizarDatos,
+    icon:
+        _sincronizandoDatos
+            ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
             )
-            : Row(
-              children: [
-                Expanded(child: mensajes),
-                const SizedBox(width: 12),
-                boton,
-              ],
-            );
-      },
-    ),
+            : const Icon(Icons.sync, size: 18),
+    label: Text(_sincronizandoDatos ? 'Sincronizando…' : 'Sincronizar datos'),
   );
+
+  Widget _sincronizarEnDialogo({bool mostrarBoton = true}) {
+    if (!mostrarBoton &&
+        _avisoBorrador == null &&
+        _resultadoSincronizacion == null) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color:
+            _avisoBorrador == null
+                ? null
+                : _errorBorrador
+                ? AppColors.redChipBg
+                : AppColors.amberChipBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final mensajes = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_avisoBorrador != null)
+                Text(
+                  _avisoBorrador!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color:
+                        _errorBorrador
+                            ? AppColors.alertRed
+                            : AppColors.amberChip,
+                  ),
+                ),
+              if (_errorBorrador)
+                TextButton(
+                  onPressed: _cargarBorrador,
+                  child: const Text('Reintentar borrador'),
+                ),
+              if (_resultadoSincronizacion != null)
+                Text(
+                  _resultadoSincronizacion!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color:
+                        _errorSincronizacion
+                            ? AppColors.alertRed
+                            : AppColors.slate600,
+                  ),
+                ),
+            ],
+          );
+          final boton = _botonSincronizarDatos();
+          if (!mostrarBoton) return mensajes;
+          final hayMensaje =
+              _avisoBorrador != null || _resultadoSincronizacion != null;
+          return constraints.maxWidth < 600 && hayMensaje
+              ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  mensajes,
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: boton),
+                ],
+              )
+              : Row(
+                children: [
+                  Expanded(child: mensajes),
+                  const SizedBox(width: 12),
+                  boton,
+                ],
+              );
+        },
+      ),
+    );
+  }
 
   Widget _selectorDestinoBuscable(
     List<Map<String, dynamic>> datos,
@@ -3301,50 +3311,223 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     );
   }
 
-  Widget _revision() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _titulo(
-        'Revisa antes de confirmar',
-        'Si algo no cuadra, vuelve al paso que corresponda. Nada se ha guardado todavía.',
-      ),
-      Wrap(
-        spacing: 12,
-        runSpacing: 4,
-        children: [
-          for (final dato in [
-            ('Destinatario', _nombreDestino),
-            ('Cliente', _cliente ?? ''),
-            ('Orden de compra', _ocVisible),
-            ('Se reserva en bodega', '$_cantidadTotal prendas'),
-          ])
-            SizedBox(
-              width: 220,
-              child: _panel(
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(dato.$1, style: const TextStyle(fontSize: 12)),
-                    const SizedBox(height: 4),
-                    Text(
-                      dato.$2,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
+  Widget _revision() {
+    Widget tarjeta(List<Widget> contenido, {Key? key, bool calida = false}) =>
+        Container(
+          key: key,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: calida ? AppColors.amberChipBg : Colors.white,
+            border: Border.all(
+              color:
+                  calida
+                      ? AppColors.amberChip.withValues(alpha: .25)
+                      : AppColors.cardBorder,
             ),
-        ],
-      ),
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              '${_bultos.length} empaques',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            borderRadius: BorderRadius.circular(16),
           ),
-          TextButton(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: contenido,
+          ),
+        );
+    Widget chip(String texto, {bool prendas = false}) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: prendas ? AppColors.tealSoft : AppColors.slate200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        texto,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: prendas ? _green : AppColors.slate600,
+        ),
+      ),
+    );
+    final datos = [
+      ('Destinatario', _nombreDestino),
+      ('Cliente', _cliente ?? ''),
+      ('Orden de compra', _ocVisible),
+      ('Se reserva en bodega', '$_cantidadTotal prendas'),
+    ];
+    final datosDespacho = tarjeta([
+      LayoutBuilder(
+        builder: (context, c) {
+          final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+          final columnas =
+              c.maxWidth >= 600 * escala
+                  ? 4
+                  : c.maxWidth >= 320 * escala
+                  ? 2
+                  : 1;
+          return Column(
+            children: [
+              for (
+                var inicio = 0;
+                inicio < datos.length;
+                inicio += columnas
+              ) ...[
+                if (inicio > 0) const SizedBox(height: 10),
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (
+                        var n = inicio;
+                        n < min(inicio + columnas, datos.length);
+                        n++
+                      ) ...[
+                        if (n > inicio) const SizedBox(width: 10),
+                        Expanded(
+                          flex: columnas == 4 ? [14, 10, 10, 8][n] : 1,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _soft,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  datos[n].$1,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.slate600,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  datos[n].$2,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    ], key: const ValueKey('despacho-confirmar-datos'));
+
+    Widget filaEmpaque(String pieza, String empaqueId) {
+      final modificado = _rotuloPendiente(pieza);
+      final generado = _rotulosGenerados.containsKey(pieza);
+      final textoRotulo =
+          modificado
+              ? 'Rótulo modificado: vuelve a generarlo'
+              : generado
+              ? 'Rótulo generado'
+              : 'Rótulo sin generar';
+      final titulo = Text(
+        'Empaque ${_numeros[pieza]} · ${descripcionEmpaque(ref.read(empaquesProvider).valueOrNull?.where((c) => c['id'] == empaqueId).firstOrNull ?? {'nombre': 'Empaque'})}',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: _navy,
+        ),
+      );
+      final estado = Container(
+        key: ValueKey('despacho-confirmar-rotulo-$pieza'),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color:
+              generado && !modificado
+                  ? AppColors.tealSoft
+                  : AppColors.amberChipBg,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          textoRotulo,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: generado && !modificado ? _green : AppColors.amberChip,
+          ),
+        ),
+      );
+      return Container(
+        key: ValueKey('despacho-confirmar-empaque-$pieza'),
+        margin: const EdgeInsets.only(top: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.cardBorder),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(
+              builder: (context, c) {
+                final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+                return c.maxWidth >= 600 * escala
+                    ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: titulo),
+                        const SizedBox(width: 12),
+                        estado,
+                      ],
+                    )
+                    : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [titulo, const SizedBox(height: 8), estado],
+                    );
+              },
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final peso in _resumenPeso(pieza, empaqueId).split(' · '))
+                  chip(peso),
+                for (final i in _lineas.where(
+                  (i) =>
+                      _ops.contains(i.item.op) &&
+                      _asignaciones[i.id]?[pieza] != null,
+                ))
+                  chip(
+                    'OP ${i.item.op} · Talla ${i.item.talla} · ${_asignaciones[i.id]![pieza]!.prendas} prendas',
+                    prendas: true,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    final empaques = tarjeta([
+      LayoutBuilder(
+        builder: (context, c) {
+          final titulo = Text(
+            '${_bultos.length} ${_bultos.length == 1 ? 'empaque' : 'empaques'}',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _navy,
+            ),
+          );
+          final editar = OutlinedButton(
+            key: const ValueKey('despacho-confirmar-editar'),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.petroleo,
+              minimumSize: const Size(0, 44),
+            ),
             onPressed:
                 _ocupado || _pendiente != null
                     ? null
@@ -3352,74 +3535,212 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                       _paso = 2;
                       _planRevisado = null;
                     }),
-            child: const Text('Editar empaques'),
+            child: const Text(
+              'Editar empaques',
+              style: TextStyle(fontSize: 12),
+            ),
+          );
+          final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+          return c.maxWidth >= 330 * escala
+              ? Row(
+                children: [
+                  Expanded(child: titulo),
+                  const SizedBox(width: 10),
+                  editar,
+                ],
+              )
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [titulo, const SizedBox(height: 8), editar],
+              );
+        },
+      ),
+      for (final b in _bultos.entries) filaEmpaque(b.key, b.value),
+      if (_planRevisado != null) ...[
+        const Divider(height: 24, color: AppColors.cardBorder),
+        LayoutBuilder(
+          key: const ValueKey('despacho-confirmar-origenes'),
+          builder: (context, c) {
+            const titulo = Text(
+              'Estantes de origen',
+              style: TextStyle(fontSize: 12, color: AppColors.slate600),
+            );
+            final lineas = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final l in _planRevisado!)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text(
+                      'OP ${l['op']} · Talla ${l['talla']} · ${l['cantidad']} desde ${l['ubicacion']}',
+                      textAlign:
+                          c.maxWidth >= 500 ? TextAlign.right : TextAlign.left,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _navy,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+            return c.maxWidth >= 500
+                ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titulo,
+                    const SizedBox(width: 16),
+                    Expanded(child: lineas),
+                  ],
+                )
+                : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [titulo, const SizedBox(height: 8), lineas],
+                );
+          },
+        ),
+      ],
+    ], key: const ValueKey('despacho-confirmar-empaques'));
+
+    final pasos = [
+      'Las prendas quedan reservadas en bodega.',
+      widget.correccion == null
+          ? 'Se crea la LE.'
+          : 'Se actualiza la LE existente.',
+      'La salida física se registra después en Seguimiento, cuando el transportador recoja.',
+    ];
+    final aviso = tarjeta([
+      const Text(
+        'Qué pasa al confirmar',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: _navy,
+        ),
+      ),
+      const SizedBox(height: 14),
+      for (var n = 0; n < pasos.length; n++) ...[
+        if (n > 0) const Divider(height: 22, color: AppColors.cardBorder),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: AppColors.petroleo,
+              child: Text(
+                '${n + 1}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                pasos[n],
+                style: const TextStyle(fontSize: 12, color: _navy),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ], calida: true);
+    final resumen = tarjeta([
+      const Text(
+        'Resumen',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: _navy,
+        ),
+      ),
+      const SizedBox(height: 10),
+      for (final dato in [
+        ('Prendas', '$_cantidadTotal'),
+        ('Empaques', '${_bultos.length}'),
+      ]) ...[
+        if (dato.$1 == 'Empaques')
+          const Divider(height: 16, color: AppColors.cardBorder),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                dato.$1,
+                style: const TextStyle(fontSize: 12, color: AppColors.slate600),
+              ),
+            ),
+            Text(
+              dato.$2,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: _navy,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ], key: const ValueKey('despacho-confirmar-resumen'));
+
+    final principal = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Revisa antes de confirmar',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: _navy,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Si algo no cuadra, vuelve al paso que corresponda. Nada se ha guardado todavía.',
+          style: TextStyle(fontSize: 12, color: AppColors.slate600),
+        ),
+        const SizedBox(height: 12),
+        datosDespacho,
+        const SizedBox(height: 12),
+        empaques,
+        if (widget.correccion != null) ...[
+          const SizedBox(height: 14),
+          TextField(
+            controller: _motivoCorreccion,
+            decoration: const InputDecoration(
+              labelText: 'Motivo de la corrección (obligatorio)',
+              helperText: 'Campo obligatorio para guardar los cambios.',
+              helperMaxLines: 3,
+            ),
           ),
         ],
-      ),
-      for (final b in _bultos.entries)
-        _panel(
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Empaque ${_numeros[b.key]} · ${descripcionEmpaque(ref.read(empaquesProvider).valueOrNull?.where((c) => c['id'] == b.value).firstOrNull ?? {'nombre': 'Empaque'})}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(_resumenPeso(b.key, b.value)),
-              for (final i in _lineas.where(
-                (i) =>
-                    _ops.contains(i.item.op) &&
-                    _asignaciones[i.id]?[b.key] != null,
-              ))
-                Text(
-                  'OP ${i.item.op} · Talla ${i.item.talla} · ${_asignaciones[i.id]![b.key]!.prendas} prendas',
-                ),
-              Text(
-                _rotuloPendiente(b.key)
-                    ? 'Rótulo modificado: vuelve a generarlo'
-                    : _rotulosGenerados.containsKey(b.key)
-                    ? 'Rótulo generado'
-                    : 'Rótulo sin generar',
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      if (_planRevisado != null)
-        _panel(
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Estantes de origen',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              for (final l in _planRevisado!)
-                Text(
-                  'OP ${l['op']} · Talla ${l['talla']} · ${l['cantidad']} desde ${l['ubicacion']}',
-                ),
-            ],
-          ),
-        ),
-      if (widget.correccion != null)
-        TextField(
-          controller: _motivoCorreccion,
-          decoration: const InputDecoration(
-            labelText: 'Motivo de la corrección (obligatorio)',
-          ),
-        ),
-      Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xfffff4dd),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Text(
-          'Al confirmar, las prendas quedan reservadas y se crea la LE. La salida física se registra después en Seguimiento, cuando el transportador recoja.',
-        ),
-      ),
-    ],
-  );
+      ],
+    );
+    final lateral = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [aviso, const SizedBox(height: 14), resumen],
+    );
+    return LayoutBuilder(
+      builder: (context, c) {
+        final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+        return c.maxWidth >= 900 * escala
+            ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: principal),
+                const SizedBox(width: 16),
+                SizedBox(width: 320, child: lateral),
+              ],
+            )
+            : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [principal, const SizedBox(height: 14), lateral],
+            );
+      },
+    );
+  }
+
   Widget _resultado(BuildContext tabContext) => Center(
     child: SingleChildScrollView(
       child: Column(
@@ -3495,6 +3816,12 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         _generandoRotulo ||
         _sincronizandoDatos ||
         _pendiente != null;
+    final escalaTexto = MediaQuery.textScalerOf(context).scale(12) / 12;
+    final sincronizarEnTabs =
+        _paso == 3 &&
+        !_exito &&
+        MediaQuery.sizeOf(context).width >= 900 * escalaTexto;
+    final fondoDePaso = (_paso <= 1 && _inventario == null) || _paso == 3;
     return PopScope(
       canPop: _permitirSalida,
       onPopInvokedWithResult: (didPop, _) {
@@ -3540,24 +3867,51 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
             builder:
                 (tabContext) => Column(
                   children: [
-                    TabBar(
-                      indicator: const UnderlineTabIndicator(
-                        borderSide: BorderSide(color: AppColors.lima, width: 3),
-                      ),
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      labelColor: _navy,
-                      unselectedLabelColor: Colors.blueGrey,
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-                      tabs: [
-                        const Tab(text: 'Despacho', height: 40),
-                        if (puedeSeguimiento)
-                          const Tab(text: 'Seguimiento', height: 40),
-                        if (puedeSeguimiento)
-                          const Tab(text: 'Facturación', height: 40),
-                        const Tab(text: 'Historial', height: 40),
-                      ],
+                    AnimatedBuilder(
+                      animation: DefaultTabController.of(tabContext),
+                      builder:
+                          (context, _) => Row(
+                            children: [
+                              Expanded(
+                                child: TabBar(
+                                  indicator: const UnderlineTabIndicator(
+                                    borderSide: BorderSide(
+                                      color: AppColors.lima,
+                                      width: 3,
+                                    ),
+                                  ),
+                                  indicatorSize: TabBarIndicatorSize.tab,
+                                  labelColor: _navy,
+                                  unselectedLabelColor: Colors.blueGrey,
+                                  isScrollable: true,
+                                  tabAlignment: TabAlignment.start,
+                                  labelPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  tabs: [
+                                    const Tab(text: 'Despacho', height: 40),
+                                    if (puedeSeguimiento)
+                                      const Tab(
+                                        text: 'Seguimiento',
+                                        height: 40,
+                                      ),
+                                    if (puedeSeguimiento)
+                                      const Tab(
+                                        text: 'Facturación',
+                                        height: 40,
+                                      ),
+                                    const Tab(text: 'Historial', height: 40),
+                                  ],
+                                ),
+                              ),
+                              if (sincronizarEnTabs &&
+                                  DefaultTabController.of(tabContext).index ==
+                                      0) ...[
+                                const SizedBox(width: 12),
+                                _botonSincronizarDatos(),
+                              ],
+                            ],
+                          ),
                     ),
                     Expanded(
                       child: _contenidoTabs(tabContext, [
@@ -3573,10 +3927,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                   const WmsLoadingStrip(),
                                 Expanded(
                                   child: ColoredBox(
-                                    color:
-                                        _paso <= 1 && _inventario == null
-                                            ? _soft
-                                            : Colors.white,
+                                    color: fondoDePaso ? _soft : Colors.white,
                                     child: SingleChildScrollView(
                                       child: Column(
                                         crossAxisAlignment:
@@ -3588,15 +3939,17 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.stretch,
                                               children: [
-                                                _sincronizarEnDialogo(),
+                                                _sincronizarEnDialogo(
+                                                  mostrarBoton:
+                                                      !sincronizarEnTabs,
+                                                ),
                                                 _pasos(),
                                               ],
                                             ),
                                           ),
                                           ColoredBox(
                                             color:
-                                                _paso <= 1 &&
-                                                        _inventario == null
+                                                fondoDePaso
                                                     ? _soft
                                                     : Colors.white,
                                             child: AbsorbPointer(
@@ -3607,13 +3960,9 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                               child: Padding(
                                                 padding: EdgeInsets.symmetric(
                                                   vertical:
-                                                      _paso <= 1 ? 12 : 18,
+                                                      _paso == 2 ? 18 : 12,
                                                   horizontal:
-                                                      _paso <= 1 &&
-                                                              _inventario ==
-                                                                  null
-                                                          ? 12
-                                                          : 0,
+                                                      fondoDePaso ? 12 : 0,
                                                 ),
                                                 child:
                                                     _paso == 0
@@ -3727,7 +4076,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                       );
                                       final atras = OutlinedButton.icon(
                                         style:
-                                            _paso == 1
+                                            _paso == 1 || _paso == 3
                                                 ? OutlinedButton.styleFrom(
                                                   backgroundColor: Colors.white,
                                                   foregroundColor:
@@ -3763,6 +4112,8 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                                 ? 'Paso 1 de 4 · Destino'
                                                 : _paso == 1
                                                 ? '${_ops.length} OP elegidas'
+                                                : _paso == 3
+                                                ? '$_cantidadTotal prendas · ${_bultos.length} ${_bultos.length == 1 ? 'empaque' : 'empaques'}'
                                                 : '$_cantidadTotal prendas · ${_bultos.length} empaques',
                                             textAlign:
                                                 _paso == 0
