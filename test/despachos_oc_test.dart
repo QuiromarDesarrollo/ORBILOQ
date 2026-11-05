@@ -417,10 +417,20 @@ void main() {
       );
       Future<void> elegirOp(String op) async {
         await tester.ensureVisible(buscar);
+        await tester.pumpAndSettle();
+        expect(buscar.hitTestable(), findsOneWidget);
         await tester.tap(buscar);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('OP $op').last);
+        final opcion = find.text('OP $op').last;
+        await tester.ensureVisible(opcion);
         await tester.pumpAndSettle();
+        expect(opcion.hitTestable(), findsOneWidget);
+        await tester.tap(opcion);
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<DropdownButtonFormField<String>>(buscar).initialValue,
+          op,
+        );
       }
 
       await elegirOp('1');
@@ -545,6 +555,14 @@ void main() {
         tester.view.viewInsets = const FakeViewPadding(bottom: 280);
         addTearDown(tester.view.resetViewInsets);
         await tester.pumpAndSettle();
+        await tester.runAsync(() async {
+          final imagen = await captura.toImage();
+          final bytes = await imagen.toByteData(format: ui.ImageByteFormat.png);
+          await File(
+            '.dart_tool/despacho-empaques-320-teclado.png',
+          ).writeAsBytes(bytes!.buffer.asUint8List());
+          imagen.dispose();
+        });
         await elegirOp('2');
         expect(find.textContaining('OP 2 ·'), findsOneWidget);
       }
@@ -728,9 +746,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Destinatario o sede *'), findsOneWidget);
-    await tester.tap(find.text('Buscar y seleccionar destinatario o sede'));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('despacho-destino-busqueda')),
+    );
+    await tester.tap(find.byKey(const ValueKey('despacho-destino-busqueda')));
     await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('DESTINATARIO NORTE').last);
+    await tester.tap(find.byKey(const ValueKey('destino-opcion-destino-1')));
     await tester.pumpAndSettle();
     expect(find.text('CALLE 9'), findsOneWidget);
     await tester.ensureVisible(
@@ -1520,9 +1541,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Buscar y seleccionar destinatario o sede'));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('despacho-destino-busqueda')),
+      );
+      await tester.tap(find.byKey(const ValueKey('despacho-destino-busqueda')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(ListTile));
+      await tester.tap(find.byKey(const ValueKey('destino-opcion-dest')));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.widgetWithText(TextField, 'Orden de compra de destino'),

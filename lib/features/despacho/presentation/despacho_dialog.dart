@@ -3,7 +3,6 @@ import '../../conductor/borrador_local.dart';
 import '../../../shared/borrador_texto_native.dart'
     if (dart.library.js_interop) '../../../shared/borrador_texto_web.dart';
 import '../../../data/inventario_repository.dart';
-import '../../../domain/destinatario_internacional.dart';
 import '../../../shared/widgets/wms_expandable_alert_dialog.dart';
 import 'historial_despachos_vista.dart';
 import '../../../data/seguimiento_entregas.dart';
@@ -34,6 +33,8 @@ import '../../../domain/sesion.dart';
 import '../../../domain/qr_prenda.dart';
 import '../../../shared/widgets/wms_camera_scanner.dart';
 import '../../../shared/widgets/wms_dialog.dart';
+import '../../../core/theme/app_theme.dart';
+import 'widgets/despacho_destino_selector.dart';
 
 Future<void> showDespachoDialog(BuildContext context) =>
     showWmsDialog<void>(context, (_) => const DespachoDialog());
@@ -277,206 +278,151 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
     }
   }
 
-  Widget _sincronizarEnDialogo() => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+  Widget _sincronizarEnDialogo() => Container(
+    margin: const EdgeInsets.symmetric(vertical: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color:
+          _avisoBorrador == null
+              ? null
+              : _errorBorrador
+              ? AppColors.redChipBg
+              : AppColors.amberChipBg,
+      borderRadius: BorderRadius.circular(12),
+    ),
     child: LayoutBuilder(
-      builder:
-          (context, constraints) => Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 10,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              if (_resultadoSincronizacion != null)
-                SizedBox(
-                  width:
-                      constraints.maxWidth < 600 ? constraints.maxWidth : null,
-                  child: Text(
-                    _resultadoSincronizacion!,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color:
-                          _errorSincronizacion
-                              ? Theme.of(context).colorScheme.error
-                              : Colors.blueGrey,
-                    ),
-                  ),
-                ),
-              OutlinedButton.icon(
-                key: const ValueKey('despacho-sincronizar-datos'),
-                onPressed:
-                    _sincronizandoDatos ||
-                            _ocupado ||
-                            _preparando ||
-                            _generandoRotulo ||
-                            _pendiente != null
-                        ? null
-                        : _sincronizarDatos,
-                icon:
-                    _sincronizandoDatos
-                        ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                        : const Icon(Icons.sync, size: 18),
-                label: Text(
-                  _sincronizandoDatos ? 'Sincronizando…' : 'Sincronizar datos',
+      builder: (context, constraints) {
+        final mensajes = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_avisoBorrador != null)
+              Text(
+                _avisoBorrador!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color:
+                      _errorBorrador ? AppColors.alertRed : AppColors.amberChip,
                 ),
               ),
-            ],
+            if (_errorBorrador)
+              TextButton(
+                onPressed: _cargarBorrador,
+                child: const Text('Reintentar borrador'),
+              ),
+            if (_resultadoSincronizacion != null)
+              Text(
+                _resultadoSincronizacion!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color:
+                      _errorSincronizacion
+                          ? AppColors.alertRed
+                          : AppColors.slate600,
+                ),
+              ),
+          ],
+        );
+        final boton = FilledButton.icon(
+          key: const ValueKey('despacho-sincronizar-datos'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.lima,
+            foregroundColor: AppColors.petroleo,
+            minimumSize: const Size(0, 44),
           ),
+          onPressed:
+              _sincronizandoDatos ||
+                      _ocupado ||
+                      _preparando ||
+                      _generandoRotulo ||
+                      _pendiente != null
+                  ? null
+                  : _sincronizarDatos,
+          icon:
+              _sincronizandoDatos
+                  ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Icon(Icons.sync, size: 18),
+          label: Text(
+            _sincronizandoDatos ? 'Sincronizando…' : 'Sincronizar datos',
+          ),
+        );
+        final hayMensaje =
+            _avisoBorrador != null || _resultadoSincronizacion != null;
+        return constraints.maxWidth < 600 && hayMensaje
+            ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                mensajes,
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: boton),
+              ],
+            )
+            : Row(
+              children: [
+                Expanded(child: mensajes),
+                const SizedBox(width: 12),
+                boton,
+              ],
+            );
+      },
     ),
   );
 
   Widget _selectorDestinoBuscable(
     List<Map<String, dynamic>> datos,
     bool congelado,
-  ) {
-    Future<void> elegir() async {
-      var consulta = '';
-      final id = await showDialog<String>(
-        context: context,
-        builder:
-            (ctx) => StatefulBuilder(
-              builder:
-                  (ctx, cambiar) => AlertDialog(
-                    title: const Text('Seleccionar destinatario o sede'),
-                    content: SizedBox(
-                      width: 560,
-                      height: MediaQuery.sizeOf(ctx).height * .5,
-                      child: Column(
-                        children: [
-                          TextField(
-                            autofocus: true,
-                            decoration: const InputDecoration(
-                              hintText: 'Buscar destinatario o sede',
-                              prefixIcon: Icon(Icons.search),
-                            ),
-                            onChanged:
-                                (v) => cambiar(
-                                  () => consulta = v.trim().toLowerCase(),
-                                ),
-                          ),
-                          const SizedBox(height: 12),
-                          Expanded(
-                            child: Builder(
-                              builder: (_) {
-                                final lista =
-                                    datos
-                                        .where(
-                                          (d) => '${d['datos']}'
-                                              .toLowerCase()
-                                              .contains(consulta),
-                                        )
-                                        .toList();
-                                if (lista.isEmpty) {
-                                  return const Center(
-                                    child: Text(
-                                      'No hay destinatarios que coincidan.',
-                                    ),
-                                  );
-                                }
-                                return ListView.builder(
-                                  itemCount: lista.length,
-                                  itemBuilder: (_, i) {
-                                    final d = lista[i];
-                                    final info = d['datos'] as Map;
-                                    return ListTile(
-                                      title: Text('${info['nombre']}'),
-                                      subtitle: Text(
-                                        '${info['sede'] ?? ''} · ${info['ciudad'] ?? ''} · ${info['direccion'] ?? ''}${esDestinatarioInternacional(info) ? ' · Internacional · ${info['pais_destino']}' : ''}',
-                                      ),
-                                      trailing:
-                                          d['id'] == _destinatarioId
-                                              ? const Icon(Icons.check_circle)
-                                              : null,
-                                      onTap:
-                                          () =>
-                                              Navigator.pop(ctx, '${d['id']}'),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Cancelar'),
-                      ),
-                    ],
-                  ),
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text(
+        'Destinatario o sede *',
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 6),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: DespachoDestinoSelector(
+              key: const ValueKey('despacho-destino-selector'),
+              datos: datos,
+              selectedId: _destinatarioId,
+              enabled: !congelado,
+              onSelected: (id) => setState(() => _destinatarioId = id),
             ),
-      );
-      if (mounted && id != null) setState(() => _destinatarioId = id);
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'Destino del empaque',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'Destinatario o sede *',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 16,
-                  ),
-                ),
-                onPressed: congelado ? null : elegir,
-                icon: const Icon(Icons.search, size: 20),
-                label: Text(
-                  _destino == null
-                      ? 'Buscar y seleccionar destinatario o sede'
-                      : _nombreDestino,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            IconButton.outlined(
-              tooltip: 'Actualizar destinatarios',
-              onPressed:
-                  congelado
-                      ? null
-                      : () => ref.invalidate(destinatariosEmpaqueProvider),
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          _destino == null
-              ? '¿No aparece? Actualiza para recargar la lista.'
-              : '${_destino!['datos']['direccion'] ?? ''}',
-          style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-        ),
-        if (datos.isEmpty)
-          const Text(
+          ),
+          const SizedBox(width: 8),
+          IconButton.outlined(
+            key: const ValueKey('despacho-destino-recargar'),
+            tooltip: 'Actualizar destinatarios',
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            onPressed:
+                congelado
+                    ? null
+                    : () => ref.invalidate(destinatariosEmpaqueProvider),
+            icon: const Icon(Icons.refresh, size: 20),
+          ),
+        ],
+      ),
+      const SizedBox(height: 7),
+      Text(
+        _destino == null
+            ? '¿No aparece? Actualiza para recargar la lista.'
+            : '${_destino!['datos']['direccion'] ?? ''}',
+        style: const TextStyle(fontSize: 12, color: AppColors.slate600),
+      ),
+      if (datos.isEmpty)
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Text(
             'Administración debe registrar un destinatario antes de empacar.',
           ),
-        const SizedBox(height: 20),
-      ],
-    );
-  }
+        ),
+    ],
+  );
 
   Widget _selectorDestino(bool congelado) => ref
       .watch(destinatariosEmpaqueProvider)
@@ -2390,64 +2336,74 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
   Widget _pasos() => LayoutBuilder(
     builder: (context, c) {
       const nombres = ['Destino', 'Prendas', 'Empaques', 'Confirmar'];
-      return Container(
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+      final estrecho = c.maxWidth < 600 * escala;
+      Widget paso(int n) => Semantics(
+        selected: n == _paso,
+        label: 'Paso ${n + 1} de 4',
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            for (var n = 0; n < 4; n++) ...[
-              if (n > 0)
-                Expanded(
-                  child: Container(
-                    height: 2,
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    color: n <= _paso ? _green : const Color(0xffe2ebef),
-                  ),
-                ),
-              Expanded(
-                flex: 4,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircleAvatar(
-                      radius: 17,
-                      backgroundColor:
-                          n < _paso
-                              ? _green
-                              : n == _paso
-                              ? _navy
-                              : const Color(0xffe2ebef),
-                      child:
-                          n < _paso
-                              ? const Icon(
-                                Icons.check,
-                                size: 14,
-                                color: Colors.white,
-                              )
-                              : Text(
-                                '${n + 1}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: n == _paso ? Colors.white : _navy,
-                                ),
-                              ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      nombres[n],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: c.maxWidth < 400 ? 10 : 12,
-                        fontWeight:
-                            n == _paso ? FontWeight.bold : FontWeight.normal,
+            CircleAvatar(
+              radius: 14,
+              backgroundColor:
+                  n < _paso
+                      ? _green
+                      : n == _paso
+                      ? _navy
+                      : AppColors.slate200,
+              child:
+                  n < _paso
+                      ? const Icon(Icons.check, size: 15, color: Colors.white)
+                      : Text(
+                        '${n + 1}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: n == _paso ? Colors.white : _navy,
+                        ),
                       ),
-                    ),
-                  ],
+            ),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                nombres[n],
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: n == _paso ? FontWeight.w700 : FontWeight.w600,
+                  color: n == _paso ? _navy : AppColors.slate600,
                 ),
               ),
-            ],
+            ),
           ],
         ),
+      );
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(0, 4, 0, 12),
+        child:
+            estrecho
+                ? Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    for (var n = 0; n < nombres.length; n++)
+                      SizedBox(width: (c.maxWidth - 12) / 2, child: paso(n)),
+                  ],
+                )
+                : Row(
+                  children: [
+                    for (var n = 0; n < nombres.length; n++) ...[
+                      if (n > 0)
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            margin: const EdgeInsets.symmetric(horizontal: 10),
+                            color: n <= _paso ? _green : AppColors.slate200,
+                          ),
+                        ),
+                      paso(n),
+                    ],
+                  ],
+                ),
       );
     },
   );
@@ -2537,6 +2493,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
           ),
           const SizedBox(height: 20),
           _selectorDestino(bloqueado),
+          const SizedBox(height: 20),
           TextField(
             controller: _ocDocumento,
             enabled: !bloqueado,
@@ -2567,10 +2524,10 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
       clientes.add(_cliente!);
     }
     Widget tarjeta(List<Widget> contenido) => Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: const Color(0xFFDCE6EC)),
+        border: Border.all(color: AppColors.cardBorder),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -2578,109 +2535,212 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
         children: contenido,
       ),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    Widget titulo(int numero, String texto, String detalle) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        tarjeta([
-          LayoutBuilder(
-            builder: (context, c) {
-              final titulo = Column(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$numero. ',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: _navy,
+              ),
+            ),
+            Expanded(
+              child: Text(
+                texto,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: _navy,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          detalle,
+          style: const TextStyle(color: AppColors.slate600, fontSize: 12),
+        ),
+      ],
+    );
+    final destino = tarjeta([
+      LayoutBuilder(
+        builder: (context, c) {
+          final encabezado = titulo(
+            1,
+            '¿A quién va el empaque?',
+            'El destinatario y su sede salen impresos en el rótulo.',
+          );
+          final catalogo = OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: _navy,
+              minimumSize: const Size(0, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            onPressed:
+                bloqueado ? null : () => mostrarListaEmpaque(context, ''),
+            icon: const Icon(Icons.contacts_outlined, size: 16),
+            label: const Text(
+              'Catálogo / consecutivo LE',
+              style: TextStyle(fontSize: 12),
+            ),
+          );
+          if (!ref.watch(usarSupabaseProvider)) return encabezado;
+          final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+          return c.maxWidth < 580 * escala
+              ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [encabezado, const SizedBox(height: 10), catalogo],
+              )
+              : Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '¿A quién va el empaque?',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 17,
-                      color: _navy,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'El destinatario y su sede salen impresos en el rótulo.',
-                    style: TextStyle(color: Colors.blueGrey, fontSize: 13),
-                  ),
+                  Expanded(child: encabezado),
+                  const SizedBox(width: 12),
+                  catalogo,
                 ],
               );
-              final catalogo = OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: _navy,
-                ),
-                onPressed:
-                    bloqueado ? null : () => mostrarListaEmpaque(context, ''),
-                icon: const Icon(Icons.contacts_outlined, size: 18),
-                label: const Text('Catálogo / consecutivo LE'),
-              );
-              if (!ref.watch(usarSupabaseProvider)) return titulo;
-              return c.maxWidth < 650
-                  ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [titulo, const SizedBox(height: 10), catalogo],
-                  )
-                  : Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: titulo),
-                      const SizedBox(width: 16),
-                      catalogo,
-                    ],
-                  );
-            },
-          ),
-          if (ref.watch(usarSupabaseProvider)) ...[
-            const SizedBox(height: 16),
-            _selectorDestino(bloqueado),
-          ],
-        ]),
-        const SizedBox(height: 16),
-        tarjeta([
-          const Text(
-            '¿De qué cliente son las prendas?',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 17,
-              color: _navy,
-            ),
-          ),
-          const SizedBox(height: 5),
-          const Text(
-            'En el siguiente paso verás sus órdenes de compra.',
-            style: TextStyle(color: Colors.blueGrey, fontSize: 13),
-          ),
-          const SizedBox(height: 18),
-          DropdownButtonFormField<String>(
-            key: ValueKey(_cliente),
-            initialValue: _cliente,
-            isExpanded: true,
-            menuMaxHeight: 260,
-            dropdownColor: Colors.white,
-            decoration: const InputDecoration(
-              labelText: 'Cliente',
-              hintText: 'Selecciona un cliente',
-              filled: true,
-              fillColor: Colors.white,
-            ),
-            items: [
-              for (final c in clientes)
-                DropdownMenuItem(
-                  value: c,
-                  child: Text(c, overflow: TextOverflow.ellipsis),
-                ),
-            ],
-            onChanged:
-                bloqueado
-                    ? null
-                    : (v) => setState(() {
-                      _limpiar();
-                      _cliente = v;
-                      _oc = null;
-                    }),
-          ),
-          if (clientes.isEmpty)
-            const Text('No hay prendas disponibles en bodega.'),
-        ]),
+        },
+      ),
+      if (ref.watch(usarSupabaseProvider)) ...[
+        const SizedBox(height: 14),
+        _selectorDestino(bloqueado),
       ],
+    ]);
+    final cliente = tarjeta([
+      titulo(
+        2,
+        '¿De qué cliente son las prendas?',
+        'En el siguiente paso verás sus órdenes de compra.',
+      ),
+      const SizedBox(height: 14),
+      KeyedSubtree(
+        key: const ValueKey('despacho-cliente-selector'),
+        child: DropdownButtonFormField<String>(
+          key: ValueKey(_cliente),
+          initialValue: _cliente,
+          isExpanded: true,
+          menuMaxHeight: 260,
+          dropdownColor: Colors.white,
+          decoration: const InputDecoration(
+            labelText: 'Cliente',
+            hintText: 'Selecciona un cliente',
+            filled: true,
+            fillColor: Colors.white,
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          ),
+          items: [
+            for (final c in clientes)
+              DropdownMenuItem(
+                value: c,
+                child: Text(c, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged:
+              bloqueado
+                  ? null
+                  : (v) => setState(() {
+                    _limpiar();
+                    _cliente = v;
+                    _oc = null;
+                  }),
+        ),
+      ),
+      if (clientes.isEmpty)
+        const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text('No hay prendas disponibles en bodega.'),
+        ),
+    ]);
+    final faltantes = (_faltaDestino ? 1 : 0) + (_cliente == null ? 1 : 0);
+    final resumen = tarjeta([
+      const Text(
+        'Resumen del despacho',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: _navy,
+        ),
+      ),
+      const SizedBox(height: 6),
+      for (final dato in [
+        (
+          'Destino',
+          _faltaDestino ? 'Sin seleccionar' : _nombreDestino,
+          'despacho-resumen-destino',
+        ),
+        ('Cliente', _cliente ?? 'Sin seleccionar', 'despacho-resumen-cliente'),
+        (
+          'Estado',
+          faltantes == 0
+              ? 'Listo para elegir prendas'
+              : faltantes == 1
+              ? 'Falta 1 dato'
+              : 'Faltan $faltantes datos',
+          'despacho-resumen-estado',
+        ),
+      ]) ...[
+        const Divider(height: 1, color: AppColors.cardBorder),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                dato.$1,
+                style: const TextStyle(fontSize: 12, color: AppColors.slate600),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  dato.$2,
+                  key: ValueKey(dato.$3),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color:
+                        dato.$1 == 'Estado'
+                            ? faltantes > 0
+                                ? AppColors.amberChip
+                                : _green
+                            : _navy,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ]);
+    return LayoutBuilder(
+      builder: (context, c) {
+        final formulario = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [destino, const SizedBox(height: 14), cliente],
+        );
+        final escala = MediaQuery.textScalerOf(context).scale(12) / 12;
+        return c.maxWidth >= 850 * escala
+            ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: formulario),
+                const SizedBox(width: 16),
+                SizedBox(width: 270, child: resumen),
+              ],
+            )
+            : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [formulario, const SizedBox(height: 14), resumen],
+            );
+      },
     );
   }
 
@@ -3082,6 +3142,7 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
             _pendiente == null,
         onClose: _cerrar,
         mobileCatalog: true,
+        compactHeader: true,
         fullscreen: _pantallaCompleta,
         onToggleFullscreen:
             () => setState(() => _pantallaCompleta = !_pantallaCompleta),
@@ -3112,21 +3173,21 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                   children: [
                     TabBar(
                       indicator: const UnderlineTabIndicator(
-                        borderSide: BorderSide(
-                          color: Color(0xFFC8DB00),
-                          width: 3,
-                        ),
+                        borderSide: BorderSide(color: AppColors.lima, width: 3),
                       ),
                       indicatorSize: TabBarIndicatorSize.tab,
                       labelColor: _navy,
                       unselectedLabelColor: Colors.blueGrey,
-                      isScrollable: MediaQuery.sizeOf(context).width < 650,
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
                       labelPadding: const EdgeInsets.symmetric(horizontal: 12),
                       tabs: [
-                        const Tab(text: 'Despacho'),
-                        if (puedeSeguimiento) const Tab(text: 'Seguimiento'),
-                        if (puedeSeguimiento) const Tab(text: 'Facturación'),
-                        const Tab(text: 'Historial'),
+                        const Tab(text: 'Despacho', height: 40),
+                        if (puedeSeguimiento)
+                          const Tab(text: 'Seguimiento', height: 40),
+                        if (puedeSeguimiento)
+                          const Tab(text: 'Facturación', height: 40),
+                        const Tab(text: 'Historial', height: 40),
                       ],
                     ),
                     Expanded(
@@ -3135,29 +3196,6 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                             ? _resultado(tabContext)
                             : Column(
                               children: [
-                                if (_avisoBorrador != null)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                    ),
-                                    child: Wrap(
-                                      crossAxisAlignment:
-                                          WrapCrossAlignment.center,
-                                      spacing: 12,
-                                      children: [
-                                        Text(_avisoBorrador!),
-                                        if (_errorBorrador)
-                                          TextButton(
-                                            onPressed: _cargarBorrador,
-                                            child: const Text(
-                                              'Reintentar borrador',
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                _sincronizarEnDialogo(),
-                                _pasos(),
                                 if (estado.isLoading ||
                                     _ocupado ||
                                     _preparando ||
@@ -3165,40 +3203,89 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                     _guardandoBorrador)
                                   const WmsLoadingStrip(),
                                 Expanded(
-                                  child: AbsorbPointer(
-                                    absorbing:
-                                        _cargandoBorrador ||
-                                        _guardandoBorrador ||
-                                        _errorBorrador,
+                                  child: ColoredBox(
+                                    color:
+                                        _paso == 0 && _inventario == null
+                                            ? _soft
+                                            : Colors.white,
                                     child: SingleChildScrollView(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 18,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          ColoredBox(
+                                            color: Colors.white,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                _sincronizarEnDialogo(),
+                                                _pasos(),
+                                              ],
+                                            ),
+                                          ),
+                                          ColoredBox(
+                                            color:
+                                                _paso == 0 &&
+                                                        _inventario == null
+                                                    ? _soft
+                                                    : Colors.white,
+                                            child: AbsorbPointer(
+                                              absorbing:
+                                                  _cargandoBorrador ||
+                                                  _guardandoBorrador ||
+                                                  _errorBorrador,
+                                              child: Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                  vertical:
+                                                      _paso == 0 ? 12 : 18,
+                                                  horizontal:
+                                                      _paso == 0 &&
+                                                              _inventario ==
+                                                                  null
+                                                          ? 12
+                                                          : 0,
+                                                ),
+                                                child:
+                                                    _paso == 0
+                                                        ? _destinoPaso(
+                                                          congelado,
+                                                        )
+                                                        : _paso == 1
+                                                        ? _prendasPaso(
+                                                          congelado,
+                                                        )
+                                                        : _paso == 2
+                                                        ? Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .stretch,
+                                                          children: [
+                                                            _cabeceraEmpaque(),
+                                                            const SizedBox(
+                                                              height: 12,
+                                                            ),
+                                                            _detalleSeleccion(
+                                                              congelado,
+                                                            ),
+                                                          ],
+                                                        )
+                                                        : _revision(),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      child:
-                                          _paso == 0
-                                              ? _destinoPaso(congelado)
-                                              : _paso == 1
-                                              ? _prendasPaso(congelado)
-                                              : _paso == 2
-                                              ? Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.stretch,
-                                                children: [
-                                                  _cabeceraEmpaque(),
-                                                  const SizedBox(height: 12),
-                                                  _detalleSeleccion(congelado),
-                                                ],
-                                              )
-                                              : _revision(),
                                     ),
                                   ),
                                 ),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
+                                    vertical: 10,
+                                    horizontal: 8,
                                   ),
                                   decoration: const BoxDecoration(
-                                    color: _soft,
+                                    color: Colors.white,
                                     border: Border(
                                       top: BorderSide(color: Color(0xffdce6eb)),
                                     ),
@@ -3206,6 +3293,10 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                   child: LayoutBuilder(
                                     builder: (context, c) {
                                       final siguiente = FilledButton.icon(
+                                        iconAlignment:
+                                            _paso == 0
+                                                ? IconAlignment.end
+                                                : IconAlignment.start,
                                         style: FilledButton.styleFrom(
                                           backgroundColor:
                                               _paso == 3 ? _green : _navy,
@@ -3281,6 +3372,10 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                       );
                                       final resumen = Column(
                                         mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            _paso == 0
+                                                ? CrossAxisAlignment.start
+                                                : CrossAxisAlignment.center,
                                         children: [
                                           Text(
                                             _paso == 0
@@ -3288,7 +3383,10 @@ class _DespachoState extends ConsumerState<DespachoDialog> {
                                                 : _paso == 1
                                                 ? '${_ops.length} OP elegidas'
                                                 : '$_cantidadTotal prendas · ${_bultos.length} empaques',
-                                            textAlign: TextAlign.center,
+                                            textAlign:
+                                                _paso == 0
+                                                    ? TextAlign.left
+                                                    : TextAlign.center,
                                             style: const TextStyle(
                                               fontSize: 12,
                                             ),
