@@ -930,7 +930,8 @@ extension _MasivaOperation on _MasivaPageState {
           }
           _redraw(() {
             if (existing == null) {
-              _receiptDrafts.add(
+              _receiptDrafts.insert(
+                0,
                 _ReceiptDraft(
                   item,
                   operation,
@@ -941,6 +942,8 @@ extension _MasivaOperation on _MasivaPageState {
             } else {
               existing.item = item;
               existing.quantity.text = '${count + 1}';
+              _receiptDrafts.remove(existing);
+              _receiptDrafts.insert(0, existing);
             }
             _receiptReads++;
             _receiptError = false;
@@ -978,289 +981,30 @@ extension _MasivaOperation on _MasivaPageState {
     }
   }
 
-  Widget _receiptCard(_ReceiptDraft draft) => AnimatedBuilder(
-    animation: draft.quantity,
-    builder: (context, _) {
-      final item = draft.item;
-      final max = draft.maximum;
-      final count = draft.count;
-      final valid = count > 0 && count <= max;
-      final enabled = _editable && !_scanning && !_scanAlert;
-      final expected = numeroMasiva(item['esperado']);
-      final received = numeroMasiva(item['recibido']);
-      void change(int value) => draft.quantity.text = '$value';
-      final controls = Wrap(
-        spacing: 8,
-        runSpacing: 10,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          IconButton.outlined(
-            tooltip: 'Disminuir cantidad',
-            onPressed: enabled && count > 1 ? () => change(count - 1) : null,
-            icon: const Icon(Icons.remove, size: 18),
-          ),
-          SizedBox(
-            width: 100,
-            child: TextField(
-              key: ValueKey('receipt-quantity-${item['id']}'),
-              controller: draft.quantity,
-              enabled: enabled,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              decoration: const InputDecoration(
-                labelText: 'Cantidad',
-                isDense: true,
-                fillColor: Colors.white,
-              ),
-            ),
-          ),
-          IconButton.outlined(
-            tooltip: 'Aumentar cantidad',
-            onPressed: enabled && count < max ? () => change(count + 1) : null,
-            icon: const Icon(Icons.add, size: 18),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: _lime,
-              foregroundColor: _ink,
-            ),
-            onPressed: enabled && max > 0 ? () => change(max) : null,
-            child: Text('Todo ($max)'),
-          ),
-        ],
-      );
-      final actions = Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(backgroundColor: Colors.white),
-            onPressed:
-                enabled
-                    ? () {
-                      change(1);
-                      _receiptFocus.requestFocus();
-                    }
-                    : null,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Recontar'),
-          ),
-          IconButton.outlined(
-            tooltip: 'Quitar tarjeta',
-            onPressed:
-                enabled
-                    ? () {
-                      _redraw(() => _receiptDrafts.remove(draft));
-                      WidgetsBinding.instance.addPostFrameCallback(
-                        (_) => draft.quantity.dispose(),
-                      );
-                    }
-                    : null,
-            icon: const Icon(Icons.close, color: Color(0xFFB93636), size: 18),
-          ),
-        ],
-      );
-      final confirm = FilledButton.icon(
-        key: ValueKey('confirm-receipt-${item['id']}'),
-        style: FilledButton.styleFrom(
-          backgroundColor: _ink,
-          foregroundColor: Colors.white,
-        ),
-        onPressed: enabled && valid ? () => _confirmReceipt(draft) : null,
-        icon: const Icon(Icons.check, size: 18),
-        label: Text('Confirmar recepción ($count)'),
-      );
-      return Container(
-        key: ValueKey('receipt-card-${item['id']}'),
-        margin: const EdgeInsets.only(top: 16),
-        padding: EdgeInsets.all(
-          MediaQuery.sizeOf(context).width < 600 ? 12 : 16,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: _line),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final title = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'SKU ${item['sku']}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: _ink,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${item['descripcion']}',
-                      style: const TextStyle(fontSize: 16, color: _ink),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${item['proveedor']} · OC ${item['pedido']} · Remisión ${draft.support}${draft.note.isNotEmpty ? ' · ${draft.note}' : ''}',
-                      style: const TextStyle(color: _muted, fontSize: 12),
-                    ),
-                  ],
-                );
-                if (constraints.maxWidth < 560) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [title, const SizedBox(height: 12), actions],
-                  );
-                }
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: title),
-                    const SizedBox(width: 16),
-                    actions,
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 24,
-              runSpacing: 10,
-              children: [
-                for (final metric in [
-                  (Icons.flag_outlined, 'Plan $expected'),
-                  (Icons.inventory_2_outlined, 'Recibidas $received'),
-                  (Icons.rule, 'Límite máximo $max'),
-                ])
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(metric.$1, size: 17, color: _muted),
-                      const SizedBox(width: 8),
-                      Text(metric.$2),
-                    ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              spacing: 12,
-              runSpacing: 6,
-              children: [
-                const Text(
-                  'Avance de recepción',
-                  style: TextStyle(color: _muted),
-                ),
-                Text(
-                  '${received + count} de $expected uds · ${expected > 0 ? (((received + count) / expected).clamp(0.0, 1.0) * 100).round() : 0} %',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: _ink,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Stack(
-                children: [
-                  LinearProgressIndicator(
-                    value:
-                        expected > 0
-                            ? ((received + count) / expected).clamp(0.0, 1.0)
-                            : 0,
-                    color: _lime,
-                    backgroundColor: const Color(0xFFF3F5F5),
-                    minHeight: 8,
-                  ),
-                  LinearProgressIndicator(
-                    value:
-                        expected > 0
-                            ? (received / expected).clamp(0.0, 1.0)
-                            : 0,
-                    color: _ink,
-                    backgroundColor: Colors.transparent,
-                    minHeight: 8,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'La franja lima es lo que sumarás al confirmar.',
-              style: TextStyle(fontSize: 12, color: _muted),
-            ),
-            const Divider(height: 20, color: _line),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final label = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Cantidad a recibir',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: _ink,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Máximo $max unidades',
-                      style: const TextStyle(color: _muted),
-                    ),
-                  ],
-                );
-                if (constraints.maxWidth >= 850 &&
-                    MediaQuery.textScalerOf(context).scale(1) <= 1.2) {
-                  return Row(
-                    children: [
-                      Expanded(child: label),
-                      controls,
-                      const SizedBox(width: 16),
-                      confirm,
-                    ],
-                  );
-                }
-                if (constraints.maxWidth < 650) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      label,
-                      const SizedBox(height: 8),
-                      controls,
-                      const SizedBox(height: 8),
-                      Align(alignment: Alignment.centerRight, child: confirm),
-                    ],
-                  );
-                }
-                return Column(
-                  children: [
-                    Row(children: [Expanded(child: label), controls]),
-                    const SizedBox(height: 8),
-                    Align(alignment: Alignment.centerRight, child: confirm),
-                  ],
-                );
-              },
-            ),
-            if (!valid)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Ingresa una cantidad entre 1 y $max.',
-                  style: const TextStyle(color: Color(0xFFB93636)),
-                ),
-              ),
-          ],
-        ),
+  Widget _receiptCard(_ReceiptDraft draft) => MasivaReceiptCard(
+    key: ValueKey('receipt-card-${draft.item['id']}'),
+    itemId: '${draft.item['id']}',
+    sku: '${draft.item['sku']}',
+    description: '${draft.item['descripcion']}',
+    provider: '${draft.item['proveedor']}',
+    order: '${draft.item['pedido']}',
+    support: draft.support,
+    note: draft.note,
+    expected: numeroMasiva(draft.item['esperado']),
+    received: numeroMasiva(draft.item['recibido']),
+    quantity: draft.quantity,
+    enabled: _editable && !_scanning && !_scanAlert,
+    onRecount: () {
+      draft.quantity.text = '1';
+      _receiptFocus.requestFocus();
+    },
+    onRemove: () {
+      _redraw(() => _receiptDrafts.remove(draft));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => draft.quantity.dispose(),
       );
     },
+    onConfirm: () => _confirmReceipt(draft),
   );
 
   Future<void> _confirmReceipt(_ReceiptDraft draft) async {

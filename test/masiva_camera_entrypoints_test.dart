@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbiloq_wms/features/masiva/presentation/masiva_camera_scanner.dart';
 import 'masiva_validacion_test.dart' show ValidacionFixture, openValidation;
-import 'masiva_operacion_test.dart' show OperacionFixture, receipt;
+import 'masiva_operacion_test.dart' show MultipleReceiptsFixture, receipt;
 
 Future<MasivaCameraScanner> openCamera(WidgetTester tester, String key) async {
   final button = find.byKey(ValueKey(key));
@@ -70,7 +70,7 @@ void main() {
   testWidgets('Cámara recepción respeta soporte y no confirma inventario', (
     tester,
   ) async {
-    final repo = OperacionFixture();
+    final repo = MultipleReceiptsFixture();
     await receipt(tester, repo);
     var camera = await openCamera(tester, 'masiva-recepcion-camera');
     expect((await camera.onRead('000123')).isError, isTrue);
@@ -87,19 +87,23 @@ void main() {
     camera = await openCamera(tester, 'masiva-recepcion-camera');
     expect((await camera.onRead('000123')).isError, isFalse);
     await tester.pumpAndSettle();
+    expect((await camera.onRead('000456')).isError, isFalse);
+    await tester.pumpAndSettle();
+    expect((await camera.onRead('000123')).isError, isFalse);
+    await tester.pumpAndSettle();
     expect(repo.writes, isEmpty);
     expect(repo.received, 1);
     await tester.tap(find.text('Ingresar código manualmente'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('receipt-card-inv1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('receipt-quantity-inv1')), findsNothing);
+    expect(find.text('+2 por confirmar'), findsOneWidget);
+    expect(find.text('+1 por confirmar'), findsOneWidget);
     expect(
-      tester
-          .widget<TextField>(
-            find.byKey(const ValueKey('receipt-quantity-inv1')),
-          )
-          .controller!
-          .text,
-      '1',
+      tester.getTopLeft(find.byKey(const ValueKey('receipt-card-inv1'))).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const ValueKey('receipt-card-inv2'))).dy,
+      ),
     );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

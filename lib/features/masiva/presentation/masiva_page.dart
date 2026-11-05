@@ -23,6 +23,7 @@ import '../masiva_repository.dart';
 import '../../admin/presentation/empaque_editor.dart';
 import 'masiva_recepcion_tabla.dart';
 import 'masiva_maestro_tabla.dart';
+import 'widgets/masiva_receipt_card.dart';
 
 part 'masiva_acciones.dart';
 part 'masiva_componentes.dart';

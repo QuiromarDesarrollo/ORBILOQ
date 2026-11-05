@@ -158,6 +158,53 @@ Future<void> scan(WidgetTester tester, String code) async {
   await tester.pump();
 }
 
+Future<void> openReceiptCard(WidgetTester tester, {String id = 'inv1'}) async {
+  final quantity = find.byKey(ValueKey('receipt-quantity-$id'));
+  if (quantity.evaluate().isNotEmpty) return;
+  final toggle = find.byKey(ValueKey('toggle-receipt-$id'));
+  await tester.ensureVisible(toggle);
+  await tester.tap(toggle);
+  await tester.pumpAndSettle();
+}
+
+class MultipleReceiptsFixture extends OperacionFixture {
+  @override
+  Future<MasivaJson> consultarRecepcion({
+    required String operacion,
+    String buscar = '',
+    Map<String, Set<String>> filtros = const {},
+    int pagina = 1,
+    String? proveedor,
+    String? pedido,
+  }) async {
+    final result = await super.consultarRecepcion(
+      operacion: operacion,
+      buscar: buscar,
+      filtros: filtros,
+      pagina: pagina,
+      proveedor: proveedor,
+      pedido: pedido,
+    );
+    if (proveedor != null &&
+        (filtros['sku'] == null || filtros['sku']!.contains('000456'))) {
+      final rows = filasMasiva(result['filas']);
+      rows.add({
+        'id': 'inv2',
+        'sku': '000456',
+        'descripcion': 'Pantalón talla L',
+        'proveedor': 'Proveedor de ejemplo',
+        'pedido': '10001',
+        'esperado': 10,
+        'recibido': 0,
+        'pendiente': 10,
+        'validado': 0,
+      });
+      return {...result, 'filas': rows, 'total': rows.length};
+    }
+    return result;
+  }
+}
+
 Future<void> captureReceipt(WidgetTester tester, String name) async {
   await tester.pumpAndSettle();
   await tester.runAsync(() async {
@@ -187,6 +234,84 @@ void main() {
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
     await icons.load();
   });
+  testWidgets(
+    'El último SKU queda primero sin duplicar ni perder su cantidad',
+    (tester) async {
+      final repo = MultipleReceiptsFixture();
+      await receipt(tester, repo);
+      await tester.enterText(
+        find.byWidgetPredicate(
+          (w) =>
+              w is TextField && w.decoration?.labelText == 'Remisión o soporte',
+        ),
+        'REM-ORDEN',
+      );
+      final first = find.byKey(const ValueKey('receipt-card-inv1'));
+      final second = find.byKey(const ValueKey('receipt-card-inv2'));
+      await scan(tester, '000123');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('receipt-quantity-inv1')), findsNothing);
+      await openReceiptCard(tester);
+      await scan(tester, '000456');
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(second).dy,
+        lessThan(tester.getTopLeft(first).dy),
+      );
+      await scan(tester, '000123');
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(first).dy,
+        lessThan(tester.getTopLeft(second).dy),
+      );
+      expect(first, findsOneWidget);
+      expect(second, findsOneWidget);
+      // La expansión y el controlador pertenecen al SKU, no a su posición.
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const ValueKey('receipt-quantity-inv1')),
+            )
+            .controller!
+            .text,
+        '2',
+      );
+      expect(find.byKey(const ValueKey('receipt-quantity-inv2')), findsNothing);
+      expect(repo.writes, isEmpty);
+      await scan(tester, '000456');
+      await tester.pumpAndSettle();
+      await scan(tester, '000123'); // Excede el máximo: no debe reordenar.
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cerrar aviso').last);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(second).dy,
+        lessThan(tester.getTopLeft(first).dy),
+      );
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+      final open = find.byKey(const ValueKey('open-receipt-station'));
+      await tester.ensureVisible(open);
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(second).dy,
+        lessThan(tester.getTopLeft(first).dy),
+      );
+      expect(find.text('+2 por confirmar'), findsNWidgets(2));
+      await tester.ensureVisible(second);
+      await captureReceipt(tester, 'masiva-recepcion-compacta-integrada-1440');
+      await openReceiptCard(tester, id: 'inv2');
+      final quantity2 = find.byKey(const ValueKey('receipt-quantity-inv2'));
+      await tester.ensureVisible(quantity2);
+      await tester.enterText(quantity2, '3');
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(quantity2).controller!.text, '3');
+      expect(repo.writes, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
   testWidgets('Tarjeta acumula lecturas y confirma una sola recepción', (
     tester,
   ) async {
@@ -207,6 +332,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.writes, isEmpty);
     expect(find.byKey(const ValueKey('receipt-card-inv1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('receipt-quantity-inv1')), findsNothing);
+    expect(find.text('+2 por confirmar'), findsOneWidget);
+    await openReceiptCard(tester);
     expect(
       tester
           .widget<TextField>(
@@ -248,6 +376,7 @@ void main() {
     );
     await scan(tester, '000123');
     await tester.pumpAndSettle();
+    await openReceiptCard(tester);
     final quantity = find.byKey(const ValueKey('receipt-quantity-inv1'));
     await tester.ensureVisible(quantity);
     await tester.enterText(quantity, '99');
@@ -301,6 +430,7 @@ void main() {
       );
       await scan(tester, '000123');
       await tester.pumpAndSettle();
+      await openReceiptCard(tester);
       await tester.ensureVisible(find.text('Todo (2)'));
       await tester.tap(find.text('Todo (2)'));
       await tester.pumpAndSettle();
@@ -328,6 +458,7 @@ void main() {
       );
       await scan(tester, '000123');
       await tester.pumpAndSettle();
+      await openReceiptCard(tester);
       final quantity = find.byKey(const ValueKey('receipt-quantity-inv1'));
       await tester.ensureVisible(quantity);
       await tester.enterText(quantity, '2');
@@ -341,6 +472,7 @@ void main() {
       await tester.ensureVisible(open);
       await tester.tap(open);
       await tester.pumpAndSettle();
+      await openReceiptCard(tester);
       expect(tester.widget<TextField>(quantity).controller!.text, '2');
       expect(
         tester
@@ -389,6 +521,7 @@ void main() {
     );
     await scan(tester, '000123');
     await tester.pumpAndSettle();
+    await openReceiptCard(tester);
     final confirm = find.byKey(const ValueKey('confirm-receipt-inv1'));
     await tester.ensureVisible(confirm);
     await tester.tap(confirm);
