@@ -165,7 +165,7 @@ class SupabaseWmsRepository implements WmsRepository {
   WmsSnapshot? _ultimo;
   Timer? _avisoPendiente;
   Future<void>? _recarga;
-  bool _repetirRecarga = false;
+  Completer<void>? _siguienteRecarga;
   bool _cerrado = false;
 
   // Agrupa avisos por fila sin iniciar varias lecturas completas simultaneas.
@@ -195,27 +195,44 @@ class SupabaseWmsRepository implements WmsRepository {
     _avisoPendiente?.cancel();
     _avisoPendiente = null;
     if (_recarga != null) {
-      _repetirRecarga = true;
-      return _recarga!;
+      // Una solicitud posterior a un guardado necesita una lectura que comience
+      // después de ella. Las solicitudes de este ciclo comparten esa lectura.
+      return (_siguienteRecarga ??= Completer<void>()).future;
     }
-    return _recarga = _refrescarHastaActualizar().whenComplete(() {
-      _recarga = null;
-    });
+    final completado = Completer<void>();
+    _iniciarRecarga(completado);
+    return completado.future;
   }
 
-  Future<void> _refrescarHastaActualizar() async {
-    do {
-      _repetirRecarga = false;
-      try {
-        final snapshot = await _cargarSnapshot();
-        if (_cerrado) return;
+  void _iniciarRecarga(Completer<void> completado) {
+    _recarga = completado.future;
+    unawaited(_ejecutarRecarga(completado));
+  }
+
+  Future<void> _ejecutarRecarga(Completer<void> completado) async {
+    try {
+      final snapshot = await _cargarSnapshot();
+      if (!_cerrado) {
         _ultimo = snapshot;
         _controller.add(snapshot);
-      } catch (e) {
-        if (!_cerrado) _controller.addError(e);
-        rethrow;
       }
-    } while (_repetirRecarga && !_cerrado);
+      // Termina esta solicitud aunque sigan llegando avisos de otros usuarios.
+      completado.complete();
+    } catch (e, stack) {
+      if (!_cerrado) _controller.addError(e, stack);
+      completado.completeError(e, stack);
+    } finally {
+      _recarga = null;
+      final siguiente = _siguienteRecarga;
+      _siguienteRecarga = null;
+      if (siguiente != null) {
+        if (_cerrado) {
+          siguiente.complete();
+        } else {
+          _iniciarRecarga(siguiente);
+        }
+      }
+    }
   }
 
   // Una operación ya guardada no debe parecer fallida por su recarga posterior.
