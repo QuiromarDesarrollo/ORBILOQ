@@ -124,6 +124,13 @@ class MasivaRepository {
     );
   }
 
+  Future<MasivaJson> consultarEmpaque(String operacion, String lista) async {
+    if (client == null) throw const MasivaError('Se requiere conexión para consultar los kits.');
+    return mapaMasiva(await client!.rpc('masiva_empaque_consultar', params: {
+      'p_operacion': operacion, 'p_lista': lista.trim(),
+    }).timeout(const Duration(seconds: 30)));
+  }
+
   Future<MasivaJson> consultarHistorialRecepcion({
     required String operacion,
     String buscar = '',

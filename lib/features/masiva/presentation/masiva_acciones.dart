@@ -259,7 +259,14 @@ extension _MasivaActions on _MasivaPageState {
     await _execute('asignar', _rangeData(v));
   }
 
-  Future<void> _time() async {
+  Future<void> _time({String? listaInicial}) async {
+    if (_dialog ||
+        _scanning ||
+        _scanAlert ||
+        !_editable ||
+        _operationId == null) {
+      return;
+    }
     if (_people.isEmpty) {
       await mostrarAviso(
         context,
@@ -267,26 +274,45 @@ extension _MasivaActions on _MasivaPageState {
       );
       return;
     }
-    final v = await _form(
-      'Registrar empaque (tiempo real)',
-      'Selecciona la lista y el empacador. Deja ambos números vacíos si empacó toda la lista. Iniciar asigna los kits y comienza el tiempo; las pausas no cuentan. La validación puede avanzar en paralelo.',
-      [
-        ..._rangeFields(),
-        const _Field(
-          'accion',
-          'Acción',
-          initial: 'iniciar',
-          options: [
-            ('iniciar', 'Iniciar / continuar'),
-            ('pausar', 'Pausar'),
-            ('finalizar', 'Finalizar empaque'),
-          ],
-        ),
-      ],
-      submit: 'Registrar',
-    );
-    if (v == null || !mounted) return;
-    await _execute('tiempo', {..._rangeData(v), 'accion': v['accion']});
+    final operation = _operationId!;
+    _dialog = true;
+    try {
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (_) => Theme(
+              data: _masivaTheme(),
+              child: MasivaRegistrarEmpaqueDialog(
+                people: _people,
+                initialLista: listaInicial ?? _list.text,
+                consultar: (lista) => _repo.consultarEmpaque(operation, lista),
+                registrar: (datos) async {
+                  final pendiente = _repo.movimientoPendiente;
+                  if (pendiente != null) {
+                    final previo = mapaMasiva(pendiente['datos']);
+                    if (pendiente['accion'] == 'registrar_empaque' &&
+                        previo['request_id'] == datos['request_id'] &&
+                        previo['operacion_id'] == operation) {
+                      await _repo.recuperarConfirmacion();
+                      return;
+                    }
+                    throw const MasivaError(
+                      'Hay otro movimiento pendiente de confirmar. Cierra este formulario y usa Recuperar confirmación antes de registrar un nuevo empaque.',
+                    );
+                  }
+                  await _repo.ejecutar('registrar_empaque', {
+                    'operacion_id': operation,
+                    ...datos,
+                  });
+                },
+              ),
+            ),
+      );
+    } finally {
+      _dialog = false;
+      if (mounted) await _load(silent: true);
+    }
   }
 
   Future<void> _camera({bool document = false, bool reception = false}) async {

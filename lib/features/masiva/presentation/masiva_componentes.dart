@@ -201,12 +201,15 @@ extension _MasivaViews on _MasivaPageState {
                       OutlinedButton.icon(
                         onPressed:
                             _editable
-                                ? () => _execute('tiempo', {
+                                ? () => _execute('registrar_empaque', {
+                                  'request_id': MasivaRepository.requestId(),
+                                  'lista': a['lista'],
+                                  'empacador_id': a['empacador_id'],
                                   'asignacion_id': a['id'],
                                   'accion':
                                       a['estado'] == 'en_curso'
                                           ? 'pausar'
-                                          : 'iniciar',
+                                          : 'continuar',
                                 })
                                 : null,
                         icon: Icon(
@@ -222,12 +225,9 @@ extension _MasivaViews on _MasivaPageState {
                       TextButton(
                         onPressed:
                             _editable && a['inicio'] != null
-                                ? () => _execute('tiempo', {
-                                  'asignacion_id': a['id'],
-                                  'accion': 'finalizar',
-                                })
+                                ? () => _time(listaInicial: '${a['lista']}')
                                 : null,
-                        child: const Text('Finalizar empaque'),
+                        child: const Text('Registrar terminados'),
                       ),
                     ],
                   ],
