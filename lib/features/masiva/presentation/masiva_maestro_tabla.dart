@@ -430,14 +430,30 @@ class _MasivaMaestroTablaState extends State<MasivaMaestroTabla> {
           (_selectable ? 48 : 0) +
           120,
     );
+    // Mantiene la barra al pie del área visible incluso en portátiles con
+    // poca altura. Todas las filas siguen disponibles mediante scroll vertical.
+    final media = MediaQuery.of(context);
+    final usableHeight =
+        media.size.height - media.viewInsets.bottom - media.padding.vertical;
+    final rowsHeight = math.min(
+      widget.filas.length * 68.0,
+      (usableHeight * .45).clamp(136.0, 544.0),
+    );
     return Scrollbar(
+      key: const ValueKey('maestro-horizontal-scrollbar'),
       controller: _horizontal,
+      scrollbarOrientation: ScrollbarOrientation.bottom,
+      notificationPredicate:
+          (notification) => notification.metrics.axis == Axis.horizontal,
+      interactive: true,
+      thickness: 14,
+      radius: const Radius.circular(7),
       thumbVisibility: true,
       trackVisibility: true,
       child: SingleChildScrollView(
         controller: _horizontal,
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.only(bottom: 22),
         child: SizedBox(
           width: width,
           child: Column(
@@ -468,7 +484,7 @@ class _MasivaMaestroTablaState extends State<MasivaMaestroTabla> {
                 ),
               ),
               SizedBox(
-                height: math.min(widget.filas.length * 68.0, 544),
+                height: rowsHeight,
                 child: Scrollbar(
                   controller: _vertical,
                   child: ListView.builder(

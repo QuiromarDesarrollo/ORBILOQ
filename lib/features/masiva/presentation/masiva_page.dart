@@ -164,6 +164,10 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   Timer? _timer;
   int _section = 0, _page = 1, _epoch = 0;
   bool _loading = true, _dialog = false;
+  int _activeLoads = 0;
+  bool _masterPaging = false;
+  String? _masterCacheKey;
+  int _masterLoadedPage = 0, _masterLoadedSize = 0;
   String? _operationId, _error, _busy;
   double? _progress;
   DateTime? _updated;
@@ -181,6 +185,20 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   String _masterDateType = 'fecha_carga';
   DateTime? _masterFrom, _masterUntil;
   bool get _isMaster => _section == 2 || _section == 8;
+  String _masterKey(String? operation) {
+    final filters = _masterQueryFilters;
+    final keys = filters.keys.toList()..sort();
+    return jsonEncode([
+      operation,
+      _section,
+      _search.text.trim(),
+      {for (final key in keys) key: (filters[key]!.toList()..sort())},
+      _masterDateType,
+      _masterDateParam(_masterFrom),
+      _masterDateParam(_masterUntil),
+    ]);
+  }
+
   MasivaJson? _receiptOrder;
   MasivaRepository get _repo => ref.read(masivaRepositoryProvider);
   void _redraw(VoidCallback change) {
@@ -236,7 +254,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
           !_scanning &&
           _busy == null &&
           !_loading) {
-        _load(silent: true);
+        _load(silent: true, automatic: true);
       }
     });
   }
@@ -263,11 +281,62 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
     super.dispose();
   }
 
-  Future<void> _load({bool silent = false}) async {
-    if (_scanning) return;
+  Future<void> _load({bool silent = false, bool automatic = false}) async {
+    if (_scanning || (automatic && _activeLoads > 0)) return;
+    final paging =
+        !silent &&
+        _isMaster &&
+        _error == null &&
+        _operationId != null &&
+        _masterCacheKey == _masterKey(_operationId) &&
+        (_page != _masterLoadedPage || _masterPageSize != _masterLoadedSize);
+    final requestedPage = _page;
+    final requestedSize = _masterPageSize;
+    _activeLoads++;
     final serial = ++_epoch;
-    if (!silent && mounted) _redraw(() => _loading = true);
+    if (!silent && mounted) {
+      _redraw(() {
+        _loading = true;
+        _masterPaging = paging;
+      });
+    }
     try {
+      if (paging) {
+        // Las facetas pertenecen a la consulta completa, no a una página.
+        // Solo se reutilizan al paginar el mismo contexto; actualizar, cambiar
+        // filtros u operación sigue recorriendo la carga completa de abajo.
+        final result = await _repo.consultarMaestro(
+          operacion: _operationId!,
+          vista: _section == 2 ? 'listado' : 'base',
+          buscar: _search.text.trim(),
+          filtros: _masterQueryFilters,
+          pagina: requestedPage,
+          tamano: requestedSize,
+          fechaTipo: _masterDateType,
+          desde: _masterDateParam(_masterFrom),
+          hasta: _masterDateParam(_masterUntil),
+          incluirOpciones: false,
+        );
+        if (!mounted || serial != _epoch) return;
+        final last = (numeroMasiva(result['total']) / requestedSize)
+            .ceil()
+            .clamp(1, 100000);
+        if (requestedPage > last) {
+          _page = last;
+          _masterCacheKey = null;
+          await _load();
+          return;
+        }
+        _redraw(() {
+          _data = {..._data, ...result, 'opciones': _data['opciones']};
+          _masterLoadedPage = requestedPage;
+          _masterLoadedSize = requestedSize;
+          _loading = false;
+          _masterPaging = false;
+          _updated = DateTime.now();
+        });
+        return;
+      }
       final operations = await _repo.consultar();
       if (!mounted || serial != _epoch) return;
       final available = filasMasiva(operations['operaciones']);
@@ -277,6 +346,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
               : available.firstOrNull?['id']?.toString();
       MasivaJson data = {};
       MasivaJson masterQuery = {};
+      String? masterCacheKey;
       MasivaJson? selectedKit;
       List<MasivaJson> people = [], packages = [], assignments = [];
       if (id != null) {
@@ -287,6 +357,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
           _selectedLists.clear();
         }
         if (_isMaster) {
+          masterCacheKey = _masterKey(id);
           masterQuery = {
             'buscar': _search.text.trim(),
             'filtros': _masterQueryFilters,
@@ -401,11 +472,15 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
         _operationId = id;
         _data = data;
         _masterLoadedQuery = masterQuery;
+        _masterCacheKey = masterCacheKey;
+        _masterLoadedPage = requestedPage;
+        _masterLoadedSize = requestedSize;
         _people = people;
         _packages = packages;
         _assignments = assignments;
         _error = null;
         _loading = false;
+        _masterPaging = false;
         _updated = DateTime.now();
         if (_kit.isNotEmpty) {
           _kit = selectedKit ?? {};
@@ -415,8 +490,16 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
       if (!mounted || serial != _epoch) return;
       _redraw(() {
         _loading = false;
+        _masterPaging = false;
+        _masterCacheKey = null;
+        if (paging) {
+          _page = _masterLoadedPage;
+          _masterPageSize = _masterLoadedSize;
+        }
         _error = errorMasiva(e);
       });
+    } finally {
+      _activeLoads--;
     }
   }
 
@@ -804,112 +887,121 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   Widget _body(double width) =>
       _section == 3
           ? _validationWorkspace(width)
-          : SingleChildScrollView(
-            padding: EdgeInsets.all(width < 600 ? 16 : 28),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1440),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    estadoBorrador(),
-                    if (_operations.isNotEmpty) _operationBar(),
-                    if (_repo.movimientoPendiente != null) ...[
-                      _notice(
-                        'Hay un movimiento sin confirmación de red. Recupera su respuesta para continuar sin duplicar cantidades.',
-                        Icons.sync_problem,
-                        action: TextButton(
-                          onPressed:
-                              () => _work(
-                                'Recuperando la confirmación original…',
-                                () async {
-                                  await _repo.recuperarConfirmacion();
-                                },
-                              ),
-                          child: const Text('Recuperar'),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    if (_archived) ...[
-                      _notice(
-                        'Operación archivada. Puedes consultar su historial, indicadores y documentos.',
-                        Icons.lock_outline,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    if (_error != null) ...[
-                      _notice(
-                        _error!,
-                        Icons.wifi_off,
-                        action: TextButton(
-                          onPressed: () => _load(),
-                          child: const Text('Reintentar'),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    if (_loading)
-                      const SizedBox(
-                        height: 350,
-                        child: WmsLoadingPanel(label: 'Actualizando Masiva…'),
-                      )
-                    else if (_operationId == null)
-                      _onboarding()
-                    else ...[
-                      if (_section == 0)
-                        _summary(width)
-                      else if (_section == 7)
-                        _settings(width)
-                      else if (_section == 5)
-                        _indicators(width)
-                      else if (_section == 9)
-                        _balanceView(width)
-                      else ...[
-                        if (_section == 1) _receptionStation(width),
-                        if (_isMaster)
-                          _masterToolbar(width)
-                        else
-                          _toolbar(width),
-                        const SizedBox(height: 18),
-                        if (_isMaster) ...[
-                          _masterRecords(width),
-                          _masterPagination(),
-                          if (_section == 2 && _assignments.isNotEmpty)
-                            ExpansionTile(
-                              title: const Text(
-                                'Asignaciones y tiempos de empaque',
-                              ),
-                              children: [_assignmentPanel()],
+          : AbsorbPointer(
+            absorbing: _masterPaging,
+            child: ExcludeFocus(
+              excluding: _masterPaging,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(width < 600 ? 16 : 28),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1440),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        estadoBorrador(),
+                        if (_operations.isNotEmpty) _operationBar(),
+                        if (_repo.movimientoPendiente != null) ...[
+                          _notice(
+                            'Hay un movimiento sin confirmación de red. Recupera su respuesta para continuar sin duplicar cantidades.',
+                            Icons.sync_problem,
+                            action: TextButton(
+                              onPressed:
+                                  () => _work(
+                                    'Recuperando la confirmación original…',
+                                    () async {
+                                      await _repo.recuperarConfirmacion();
+                                    },
+                                  ),
+                              child: const Text('Recuperar'),
                             ),
+                          ),
+                          const SizedBox(height: 16),
                         ],
-                        if (_isMaster)
-                          const SizedBox.shrink()
-                        else if (_section == 1) ...[
-                          _receptionRecords(width),
-                          _pagination(),
-                        ] else if (_rows.isEmpty)
-                          _empty(
-                            _section == 1
-                                ? 'Aún no hay prendas en el plan de recepción'
-                                : 'No hay resultados',
-                            _section == 1
-                                ? 'Carga el Excel de proveedores para registrar las cantidades iniciales.'
-                                : 'Prueba con otra lista o búsqueda. Los registros aparecerán aquí al avanzar la operación.',
+                        if (_archived) ...[
+                          _notice(
+                            'Operación archivada. Puedes consultar su historial, indicadores y documentos.',
+                            Icons.lock_outline,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        if (_error != null) ...[
+                          _notice(
+                            _error!,
+                            Icons.wifi_off,
+                            action: TextButton(
+                              onPressed: () => _load(),
+                              child: const Text('Reintentar'),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        if (_masterPaging) const LinearProgressIndicator(),
+                        if (_loading && !_masterPaging)
+                          const SizedBox(
+                            height: 350,
+                            child: WmsLoadingPanel(
+                              label: 'Actualizando Masiva…',
+                            ),
                           )
+                        else if (_operationId == null)
+                          _onboarding()
                         else ...[
-                          _records(width),
-                          _pagination(),
+                          if (_section == 0)
+                            _summary(width)
+                          else if (_section == 7)
+                            _settings(width)
+                          else if (_section == 5)
+                            _indicators(width)
+                          else if (_section == 9)
+                            _balanceView(width)
+                          else ...[
+                            if (_section == 1) _receptionStation(width),
+                            if (_isMaster)
+                              _masterToolbar(width)
+                            else
+                              _toolbar(width),
+                            const SizedBox(height: 18),
+                            if (_isMaster) ...[
+                              _masterRecords(width),
+                              _masterPagination(),
+                              if (_section == 2 && _assignments.isNotEmpty)
+                                ExpansionTile(
+                                  title: const Text(
+                                    'Asignaciones y tiempos de empaque',
+                                  ),
+                                  children: [_assignmentPanel()],
+                                ),
+                            ],
+                            if (_isMaster)
+                              const SizedBox.shrink()
+                            else if (_section == 1) ...[
+                              _receptionRecords(width),
+                              _pagination(),
+                            ] else if (_rows.isEmpty)
+                              _empty(
+                                _section == 1
+                                    ? 'Aún no hay prendas en el plan de recepción'
+                                    : 'No hay resultados',
+                                _section == 1
+                                    ? 'Carga el Excel de proveedores para registrar las cantidades iniciales.'
+                                    : 'Prueba con otra lista o búsqueda. Los registros aparecerán aquí al avanzar la operación.',
+                              )
+                            else ...[
+                              _records(width),
+                              _pagination(),
+                            ],
+                          ],
                         ],
+                        const SizedBox(height: 24),
+                        if (_updated != null && _operationId != null)
+                          Text(
+                            'Última actualización: ${_updated!.hour.toString().padLeft(2, '0')}:${_updated!.minute.toString().padLeft(2, '0')} · Actualización automática cada 30 s',
+                            style: const TextStyle(color: _muted, fontSize: 11),
+                          ),
                       ],
-                    ],
-                    const SizedBox(height: 24),
-                    if (_updated != null && _operationId != null)
-                      Text(
-                        'Última actualización: ${_updated!.hour.toString().padLeft(2, '0')}:${_updated!.minute.toString().padLeft(2, '0')} · Actualización automática cada 30 s',
-                        style: const TextStyle(color: _muted, fontSize: 11),
-                      ),
-                  ],
+                    ),
+                  ),
                 ),
               ),
             ),
