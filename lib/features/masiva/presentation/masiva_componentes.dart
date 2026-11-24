@@ -798,7 +798,7 @@ extension _MasivaViews on _MasivaPageState {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Personas que arman los kits',
+              'Empacadores',
               style: TextStyle(
                 fontSize: 18,
                 color: _ink,
@@ -811,11 +811,6 @@ extension _MasivaViews on _MasivaPageState {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.person_outline),
                 title: Text('${p['nombre']}'),
-                subtitle: Text(
-                  p['usuario_numero'] == null
-                      ? 'Personal sin cuenta de acceso'
-                      : 'Usuario ${p['usuario_numero']}',
-                ),
               ),
             if (_people.isEmpty)
               const Padding(
@@ -826,9 +821,9 @@ extension _MasivaViews on _MasivaPageState {
                 ),
               ),
             OutlinedButton.icon(
-              onPressed: _editable ? _addPerson : null,
+              onPressed: _editable && _admin ? _addPerson : null,
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Registrar persona'),
+              label: const Text('Agregar empacador'),
             ),
           ],
         ),

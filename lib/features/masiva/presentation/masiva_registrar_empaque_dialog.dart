@@ -8,6 +8,7 @@ import '../../../shared/widgets/responsive_row.dart';
 import '../../../shared/widgets/wms_dialog.dart';
 import '../../../shared/widgets/wms_loader.dart';
 import '../masiva_repository.dart';
+import 'masiva_empacador_dialog.dart';
 
 /// Registro de armado separado de la validación de prendas y del cronómetro.
 /// El servidor vuelve a comprobar alcance, propietario y estado al guardar.
@@ -18,9 +19,11 @@ class MasivaRegistrarEmpaqueDialog extends StatefulWidget {
     required this.consultar,
     required this.registrar,
     this.initialLista = '',
+    this.agregarEmpacador,
   });
 
   final List<MasivaJson> people;
+  final Future<MasivaJson> Function(String nombre)? agregarEmpacador;
   final String initialLista;
   final Future<MasivaJson> Function(String lista) consultar;
   final Future<void> Function(MasivaJson datos) registrar;
@@ -35,6 +38,7 @@ class _EmpaqueState extends State<MasivaRegistrarEmpaqueDialog> {
   final _hasta = TextEditingController();
   MasivaJson? _data;
   String? _person;
+  late final List<MasivaJson> _people = [...widget.people];
   String? _assignment;
   String _scope = 'todos';
   String _action = 'registrar';
@@ -46,6 +50,22 @@ class _EmpaqueState extends State<MasivaRegistrarEmpaqueDialog> {
   String? _payloadFingerprint;
   String? _request;
   bool get _busy => _loading || _saving;
+
+  Future<void> _addPerson() async {
+    if (_busy || widget.agregarEmpacador == null) return;
+    final person = await showWmsDialog<MasivaJson>(
+      context,
+      (_) => MasivaEmpacadorDialog(guardar: widget.agregarEmpacador!),
+    );
+    if (person == null || !mounted) return;
+    setState(() {
+      if (!_people.any((p) => p['id'] == person['id'])) _people.add(person);
+      _person = '${person['id']}';
+      _assignment = null;
+      _error = null;
+    });
+  }
+
   bool get _existing => _action == 'pausar' || _action == 'continuar';
   List<MasivaJson> get _kits => filasMasiva(_data?['kits']);
   List<MasivaJson> get _assignments =>
@@ -318,27 +338,47 @@ class _EmpaqueState extends State<MasivaRegistrarEmpaqueDialog> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
+                KeyedSubtree(
                   key: const ValueKey('empaque-persona'),
-                  initialValue: _person,
-                  isExpanded: true,
-                  decoration: _input('Empacador'),
-                  items: [
-                    for (final p in widget.people)
-                      DropdownMenuItem(
-                        value: '${p['id']}',
-                        child: Text('${p['nombre']}'),
-                      ),
-                  ],
-                  onChanged:
-                      _busy
-                          ? null
-                          : (v) => setState(() {
-                            _person = v;
-                            _assignment = null;
-                            _error = null;
-                          }),
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey('empaque-persona-$_person'),
+                    initialValue: _person,
+                    isExpanded: true,
+                    decoration: _input('Empacador'),
+                    items: [
+                      for (final p in _people)
+                        DropdownMenuItem(
+                          value: '${p['id']}',
+                          child: Text(
+                            '${p['nombre']}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged:
+                        _busy
+                            ? null
+                            : (v) => setState(() {
+                              _person = v;
+                              _assignment = null;
+                              _error = null;
+                            }),
+                  ),
                 ),
+                if (widget.agregarEmpacador != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: _busy ? null : _addPerson,
+                      icon: const Icon(Icons.person_add_alt_1, size: 18),
+                      label: const Text('Agregar empacador'),
+                    ),
+                  ),
+                if (_people.isEmpty && widget.agregarEmpacador == null)
+                  const Text(
+                    'Pide al administrador que agregue los nombres de los empacadores.',
+                  ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _action,

@@ -267,13 +267,6 @@ extension _MasivaActions on _MasivaPageState {
         _operationId == null) {
       return;
     }
-    if (_people.isEmpty) {
-      await mostrarAviso(
-        context,
-        'Registra primero al empacador en Configuración.',
-      );
-      return;
-    }
     final operation = _operationId!;
     _dialog = true;
     try {
@@ -285,6 +278,7 @@ extension _MasivaActions on _MasivaPageState {
               data: _masivaTheme(),
               child: MasivaRegistrarEmpaqueDialog(
                 people: _people,
+                agregarEmpacador: _admin ? _savePerson : null,
                 initialLista: listaInicial ?? _list.text,
                 consultar: (lista) => _repo.consultarEmpaque(operation, lista),
                 registrar: (datos) async {
@@ -588,25 +582,46 @@ extension _MasivaActions on _MasivaPageState {
     },
   );
 
-  Future<void> _addPerson() async {
-    final v = await _form(
-      'Registrar empacador',
-      'Seleccionable al asignar kits. Si tiene cuenta ORBILOQ, vincula su número de usuario para conservar la atribución del empaque y la validación.',
-      [
-        const _Field('nombre', 'Nombre completo'),
-        const _Field(
-          'usuario_numero',
-          'Número de usuario ORBILOQ',
-          required: false,
-        ),
-      ],
+  Future<MasivaJson> _savePerson(String nombre) async {
+    final catalogo = await _repo.consultar(
+      operacion: _operationId,
+      vista: 'personal',
     );
-    if (v == null || !mounted) return;
-    await _execute('guardar_personal', {
-      'nombre': v['nombre'],
-      if (v['usuario_numero']?.isNotEmpty == true)
-        'usuario_numero': v['usuario_numero'],
-    });
+    final people = filasMasiva(catalogo['filas']);
+    if (mounted) _redraw(() => _people = people);
+    // Reutiliza identidades existentes: nunca sustituye los UUID del historial.
+    for (final person in people) {
+      if ('${person['nombre']}'
+              .trim()
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .toLowerCase() ==
+          nombre.toLowerCase()) {
+        return person;
+      }
+    }
+    final result = await _repo.ejecutar('guardar_personal', {'nombre': nombre});
+    final person = <String, dynamic>{'id': result['id'], 'nombre': nombre};
+    if (person['id'] == null) {
+      throw const MasivaError(
+        'No se pudo confirmar el empacador. Actualiza la lista antes de reintentar.',
+      );
+    }
+    if (mounted) _redraw(() => _people = [..._people, person]);
+    return person;
+  }
+
+  Future<void> _addPerson() async {
+    if (!_admin || !_editable || _dialog) return;
+    _dialog = true;
+    try {
+      await showWmsDialog<MasivaJson>(
+        context,
+        (_) => MasivaEmpacadorDialog(guardar: _savePerson),
+      );
+    } finally {
+      _dialog = false;
+      if (mounted) await _load(silent: true);
+    }
   }
 
   Future<void> _editPackage([MasivaJson? package]) async {
