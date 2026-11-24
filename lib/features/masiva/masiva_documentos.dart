@@ -106,7 +106,7 @@ Future<void> _agregarListaReferencia(
   pdf.addPage(
     pw.MultiPage(
       pageFormat: PdfPageFormat.letter.landscape,
-      margin: const pw.EdgeInsets.fromLTRB(28, 20, 28, 23),
+      margin: const pw.EdgeInsets.all(42.5),
       theme: tema,
       maxPages: 500,
       header: (context) => _cabeceraReferencia(d, context.pageNumber > 1),
@@ -723,7 +723,7 @@ pw.Widget _rotuloReferencia(
                               child: pw.Text(
                                 d.lista,
                                 style: pw.TextStyle(
-                                  fontSize: 32,
+                                  fontSize: 48,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
@@ -758,27 +758,27 @@ pw.Widget _rotuloReferencia(
                           'BULTO $posicion DE $total · ID EMPAQUE: $numero',
                           style: const pw.TextStyle(fontSize: 6),
                         ),
+                        pw.SizedBox(height: 5),
+                        _textoRotulo(
+                          'SECTOR: ${_s(destino['sector']).isEmpty ? 'Sin registrar' : _s(destino['sector'])}',
+                          height: 13,
+                          size: 8,
+                        ),
+                        _textoRotulo(
+                          '$kits kits · $unidades prendas/pares · ${_decimal(empaque['peso_lleno'] ?? empaque['peso_promedio'])} kg promedio',
+                          height: 9,
+                          size: 5.8,
+                        ),
+                        _textoRotulo(
+                          'Versión ${d.version} · ${d.fecha}',
+                          height: 8,
+                          size: 5.5,
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
-            ),
-            pw.SizedBox(height: 5),
-            _textoRotulo(
-              'SECTOR: ${_s(destino['sector']).isEmpty ? 'Sin registrar' : _s(destino['sector'])}',
-              height: 13,
-              size: 8,
-            ),
-            _textoRotulo(
-              '$kits kits · $unidades prendas/pares · ${_decimal(empaque['peso_lleno'] ?? empaque['peso_promedio'])} kg promedio',
-              height: 9,
-              size: 5.8,
-            ),
-            _textoRotulo(
-              'Versión ${d.version} · ${d.fecha}',
-              height: 8,
-              size: 5.5,
             ),
           ],
         ),
