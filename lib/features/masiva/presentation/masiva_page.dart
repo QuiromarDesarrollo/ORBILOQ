@@ -177,6 +177,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
       _packages = [],
       _assignments = [];
   MasivaJson _data = {}, _kit = {};
+  String? _validationKitPosition;
   MasivaJson _masterLoadedQuery = {};
   MasivaJson _balanceLoadedQuery = {};
   final Map<String, Set<String>> _receptionFilters = {};
@@ -487,6 +488,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
           _kit = selectedKit ?? {};
         }
       });
+      if (_section == 3 && _kit.isNotEmpty) _loadValidationKitPosition();
     } catch (e) {
       if (!mounted || serial != _epoch) return;
       _redraw(() {

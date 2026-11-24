@@ -27,6 +27,15 @@ class ValidacionFixture extends MasivaFixture {
   final writes = <({String action, MasivaJson data})>[];
 
   @override
+  Future<MasivaJson> consultarEmpaque(String operacion, String lista) async => {
+    'kits': [
+      {'id': 'posterior', 'numero_persona': 12},
+      {'id': 'kit1', 'numero_persona': 7},
+      {'id': 'anterior', 'numero_persona': 2},
+    ],
+  };
+
+  @override
   Future<MasivaJson> consultar({
     String? operacion,
     String vista = 'resumen',
@@ -41,7 +50,8 @@ class ValidacionFixture extends MasivaFixture {
       lista: lista,
       pagina: pagina,
     );
-    if (operacion == null || !['kits', 'validacion_documento'].contains(vista)) {
+    if (operacion == null ||
+        !['kits', 'validacion_documento'].contains(vista)) {
       return base;
     }
     final row = <String, dynamic>{
@@ -253,6 +263,7 @@ void main() {
     await captureMasiva(tester, 'masiva-validacion-inicial');
     await searchPerson(tester);
     expect(find.text('KIT EN VALIDACIÓN'), findsOneWidget);
+    expect(find.text('Kit 2 de 3'), findsOneWidget);
     expect(find.byKey(const ValueKey('masiva-sku')), findsOneWidget);
     expect(find.text('Validar 1 unidad'), findsOneWidget);
     expect(find.text('Sede: Sede de ejemplo'), findsOneWidget);
@@ -513,6 +524,7 @@ void main() {
         tester.element(find.text('KIT EN VALIDACIÓN')),
       );
       await tester.pumpAndSettle();
+      expect(find.text('Kit 2 de 3'), findsOneWidget);
       await captureMasiva(tester, 'masiva-validacion-${width.toInt()}');
       expect(tester.takeException(), isNull);
       await scanSku(tester, '000123');

@@ -362,6 +362,16 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
                       ),
                     ),
                     const SizedBox(height: 3),
+                    Text(
+                      _validationKitPosition ??
+                          'Consultando posición en la lista…',
+                      key: const ValueKey('masiva-validation-kit-position'),
+                      style: const TextStyle(
+                        color: _ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     Tooltip(
                       message: name,
                       child: Text(

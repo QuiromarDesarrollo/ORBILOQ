@@ -1,6 +1,34 @@
 part of 'masiva_page.dart';
 
 extension _MasivaValidation on _MasivaPageState {
+  Future<void> _loadValidationKitPosition() async {
+    final operation = _operationId;
+    final kitId = _kit['id'];
+    final list = '${_kit['lista'] ?? ''}';
+    if (operation == null || kitId == null || list.isEmpty) return;
+    try {
+      final result = await _repo.consultarEmpaque(operation, list);
+      final kits = filasMasiva(result['kits'])..sort(
+        (a, b) => numeroMasiva(
+          a['numero_persona'],
+        ).compareTo(numeroMasiva(b['numero_persona'])),
+      );
+      final index = kits.indexWhere((row) => row['id'] == kitId);
+      if (!mounted || _operationId != operation || _kit['id'] != kitId) return;
+      _redraw(
+        () =>
+            _validationKitPosition =
+                index < 0
+                    ? 'Posición no disponible'
+                    : 'Kit ${index + 1} de ${kits.length}',
+      );
+    } catch (_) {
+      if (mounted && _operationId == operation && _kit['id'] == kitId) {
+        _redraw(() => _validationKitPosition = 'Posición no disponible');
+      }
+    }
+  }
+
   void _focusSku() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted &&
@@ -74,6 +102,7 @@ extension _MasivaValidation on _MasivaPageState {
     if (_scanning || _scanAlert) return;
     _redraw(() {
       _kit = kit;
+      _validationKitPosition = null;
       _validationPackerId = kit['empacador_id']?.toString();
       if (kit['caja'] != null) {
         _packNumber.text = '${kit['caja']}';
@@ -83,6 +112,7 @@ extension _MasivaValidation on _MasivaPageState {
       _lastScanSku = null;
       _scanFeedback = null;
     });
+    _loadValidationKitPosition();
     if (_validationPackerId == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_cameraOpen && _kit.isNotEmpty) {
