@@ -8,8 +8,6 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../shared/descargar_excel.dart';
 
 const _azul = PdfColor.fromInt(0xff0b3b4d);
-const _verde = PdfColor.fromInt(0xffc5d900);
-const _suave = PdfColor.fromInt(0xfff1f5f6);
 const _urlFirmaLista =
     'https://transacciones.colsubsidio.com/dotaciones/#/login';
 
@@ -606,129 +604,259 @@ void _agregarRotulos(pw.Document pdf, pw.ThemeData tema, _Datos datos) {
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat(10 * PdfPageFormat.cm, 10 * PdfPageFormat.cm),
-        margin: pw.EdgeInsets.zero,
+        margin: const pw.EdgeInsets.all(9),
         theme: tema,
         build:
-            (context) => pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    _marca(
-                      datos.logoColsubsidio,
-                      'COLSUBSIDIO',
-                      width: 50 * PdfPageFormat.mm,
-                      height: 8.5 * PdfPageFormat.mm,
-                    ),
-                    _marca(
-                      datos.logoQuiromar,
-                      'QUIROMAR',
-                      width: 50 * PdfPageFormat.mm,
-                      height: 8.5 * PdfPageFormat.mm,
-                    ),
-                  ],
-                ),
-                pw.Expanded(
-                  child: pw.Padding(
-                    padding: const pw.EdgeInsets.fromLTRB(12, 7, 12, 12),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Container(
-                          color: _azul,
-                          padding: const pw.EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 6,
-                          ),
-                          child: pw.Row(
-                            mainAxisAlignment:
-                                pw.MainAxisAlignment.spaceBetween,
-                            children: [
-                              pw.Text(
-                                'LISTA ${datos.lista}',
-                                style: pw.TextStyle(
-                                  color: PdfColors.white,
-                                  fontSize: 11,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.Text(
-                                '${_s(empaque['tipo']).toUpperCase() == 'BOLSA' ? 'BOLSA' : 'CAJA'} $numero',
-                                style: pw.TextStyle(
-                                  color: _verde,
-                                  fontSize: 16,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        pw.SizedBox(height: 8),
-                        pw.Text(
-                          datos.nombre,
-                          maxLines: 2,
-                          style: pw.TextStyle(
-                            fontSize: 9,
-                            color: _azul,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                        pw.SizedBox(height: 5),
-                        _campoRotulo(
-                          'SEDE / CIUDAD',
-                          '${_s(primero['sede'])} · ${_s(primero['ciudad'])}',
-                          2,
-                        ),
-                        _campoRotulo('DIRECCIÓN', _s(primero['direccion']), 3),
-                        _campoRotulo('RESPONSABLE', datos.responsable, 2),
-                        pw.Spacer(),
-                        pw.Container(
-                          padding: const pw.EdgeInsets.all(7),
-                          color: _suave,
-                          child: pw.Row(
-                            mainAxisAlignment:
-                                pw.MainAxisAlignment.spaceBetween,
-                            children: [
-                              pw.Text(
-                                '${kits.length} kits · $unidades prendas/pares',
-                                style: pw.TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.Text(
-                                '${_decimal(empaque['peso_lleno'] ?? empaque['peso_promedio'])} kg*',
-                                style: pw.TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        pw.SizedBox(height: 4),
-                        pw.Text(
-                          '* Peso promedio lleno. Vacío: ${_decimal(empaque['peso_vacio'])} kg.',
-                          style: const pw.TextStyle(fontSize: 6),
-                        ),
-                        pw.Text(
-                          'Versión ${datos.version} · ${datos.fecha}',
-                          style: const pw.TextStyle(
-                            fontSize: 6,
-                            color: PdfColors.grey700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            (context) => _rotuloReferencia(
+              datos,
+              primero,
+              empaque,
+              numero,
+              numeros.indexOf(numero) + 1,
+              numeros.length,
+              kits.length,
+              unidades,
             ),
       ),
     );
   }
 }
+
+/// Presentación de impresión; no altera el snapshot ni el contenido del empaque.
+pw.Widget _rotuloReferencia(
+  _Datos d,
+  Map<String, dynamic> destino,
+  Map<String, dynamic> empaque,
+  String numero,
+  int posicion,
+  int total,
+  int kits,
+  int unidades,
+) {
+  final nombreEmpaque = _s(empaque['nombre']).trim();
+  final tipo = _s(empaque['tipo']).toUpperCase() == 'BOLSA' ? 'BOLSA' : 'CAJA';
+  final titulo =
+      d.nombre.toUpperCase().contains(d.cliente.toUpperCase())
+          ? d.nombre
+          : '${d.cliente} / ${d.nombre}';
+  return pw.Container(
+    decoration: pw.BoxDecoration(border: pw.Border.all(width: .7)),
+    padding: const pw.EdgeInsets.all(6),
+    child: pw.Stack(
+      children: [
+        pw.Positioned(
+          left: 0,
+          right: 0,
+          bottom: 20,
+          child: pw.Opacity(
+            opacity: .07,
+            child: pw.SizedBox(
+              height: 75,
+              child: pw.SvgImage(
+                svg: utf8
+                    .decode(d.logoColsubsidio)
+                    .replaceAll(RegExp(r'#[0-9a-fA-F]{6}'), '#000000'),
+                fit: pw.BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.SizedBox(
+              height: 37,
+              child: pw.Row(
+                children: [
+                  pw.Expanded(
+                    flex: 3,
+                    child: _marca(d.logoQuiromar, 'QUIROMAR', height: 31),
+                  ),
+                  pw.SizedBox(width: 8),
+                  pw.Expanded(
+                    flex: 2,
+                    child: pw.Text(
+                      'REMITE\nGRUPO QUIROMAR S.A.S.\nNIT: 830055605-3\nTEL: 7136381',
+                      textAlign: pw.TextAlign.center,
+                      style: pw.TextStyle(
+                        fontSize: 6.3,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 3),
+            _textoRotulo(
+              titulo.toUpperCase(),
+              height: 26,
+              size: 12,
+              center: true,
+            ),
+            _filaRotulo('SEDE', _s(destino['sede']), height: 27),
+            _filaRotulo('DIRECCIÓN', _s(destino['direccion']), height: 28),
+            _filaRotulo('CIUDAD', _s(destino['ciudad']), height: 21),
+            pw.SizedBox(height: 5),
+            pw.Expanded(
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  pw.Expanded(
+                    flex: 4,
+                    child: pw.Column(
+                      children: [
+                        _textoRotulo(
+                          '# LISTA DE\nEMPAQUE',
+                          height: 32,
+                          size: 15,
+                        ),
+                        pw.SizedBox(height: 3),
+                        pw.Expanded(
+                          child: pw.Container(
+                            width: double.infinity,
+                            decoration: pw.BoxDecoration(
+                              border: pw.Border.all(width: .8),
+                            ),
+                            padding: const pw.EdgeInsets.all(5),
+                            child: pw.FittedBox(
+                              child: pw.Text(
+                                d.lista,
+                                style: pw.TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(width: 12),
+                  pw.Expanded(
+                    flex: 5,
+                    child: pw.Column(
+                      children: [
+                        _textoRotulo(
+                          'EMPAQUE: ${nombreEmpaque.isEmpty ? tipo : nombreEmpaque.toUpperCase()}',
+                          height: 24,
+                          size: 9,
+                        ),
+                        pw.Expanded(
+                          child: pw.FittedBox(
+                            child: pw.Text(
+                              '$posicion / $total',
+                              style: pw.TextStyle(
+                                fontSize: 39,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        pw.Text(
+                          'BULTO $posicion DE $total · ID EMPAQUE: $numero',
+                          style: const pw.TextStyle(fontSize: 6),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 5),
+            _textoRotulo(
+              'SECTOR: ${_s(destino['sector']).isEmpty ? 'Sin registrar' : _s(destino['sector'])}',
+              height: 13,
+              size: 8,
+            ),
+            _textoRotulo(
+              '$kits kits · $unidades prendas/pares · ${_decimal(empaque['peso_lleno'] ?? empaque['peso_promedio'])} kg promedio',
+              height: 9,
+              size: 5.8,
+            ),
+            _textoRotulo(
+              'Versión ${d.version} · ${d.fecha}',
+              height: 8,
+              size: 5.5,
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+pw.Widget _textoRotulo(
+  String value, {
+  required double height,
+  double size = 10,
+  bool center = false,
+}) => pw.SizedBox(
+  height: height,
+  width: double.infinity,
+  child: pw.FittedBox(
+    fit: pw.BoxFit.scaleDown,
+    alignment: center ? pw.Alignment.center : pw.Alignment.centerLeft,
+    child: pw.Text(
+      value,
+      textAlign: center ? pw.TextAlign.center : pw.TextAlign.left,
+      style: pw.TextStyle(fontSize: size, fontWeight: pw.FontWeight.bold),
+    ),
+  ),
+);
+
+pw.Widget _filaRotulo(String label, String value, {required double height}) =>
+    pw.Container(
+      height: height,
+      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(bottom: pw.BorderSide(width: .5)),
+      ),
+      child:
+          value.length > 55
+              ? pw.FittedBox(
+                fit: pw.BoxFit.scaleDown,
+                alignment: pw.Alignment.centerLeft,
+                child: pw.SizedBox(
+                  width: 250,
+                  child: pw.Text(
+                    '$label: ${value.toUpperCase()}',
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+              )
+              : pw.Row(
+                children: [
+                  pw.Text(
+                    '$label: ',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Expanded(
+                    child: pw.FittedBox(
+                      fit: pw.BoxFit.scaleDown,
+                      alignment: pw.Alignment.centerLeft,
+                      child: pw.SizedBox(
+                        width: 173,
+                        child: pw.Text(
+                          value.isEmpty ? 'Sin registrar' : value.toUpperCase(),
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+    );
 
 /// Exporta valores como texto o números tipados; nunca interpreta fórmulas del
 /// usuario. Las cédulas y SKU conservan sus ceros iniciales.
@@ -914,27 +1042,6 @@ pw.Widget _marca(
               ),
             ),
           ),
-);
-
-pw.Widget _campoRotulo(String nombre, String valor, int lineas) => pw.Padding(
-  padding: const pw.EdgeInsets.only(bottom: 5),
-  child: pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-      pw.Text(
-        nombre,
-        style: pw.TextStyle(
-          fontSize: 6,
-          color: PdfColors.grey700,
-          fontWeight: pw.FontWeight.bold,
-        ),
-      ),
-      pw.Text(
-        valor.isEmpty ? 'Sin registrar' : valor,
-        style: pw.TextStyle(fontSize: valor.length > 100 ? 8 : 9),
-      ),
-    ],
-  ),
 );
 
 pw.Widget _imagenLogo(Uint8List bytes) {
