@@ -259,6 +259,35 @@ class NetworkRejectedFixture extends ValidacionFixture {
   }
 }
 
+class ExcessRefreshFailedFixture extends ValidacionFixture {
+  ExcessRefreshFailedFixture() : super(secondArticle: true) {
+    concurrentExcess = true;
+  }
+
+  bool failRefresh = true;
+
+  @override
+  Future<MasivaJson> consultar({
+    String? operacion,
+    String vista = 'resumen',
+    String buscar = '',
+    String lista = '',
+    int pagina = 1,
+  }) async {
+    if (vista == 'kits' && buscar == 'kit1' && failRefresh) {
+      failRefresh = false;
+      throw TimeoutException('Falló la actualización posterior al rechazo');
+    }
+    return super.consultar(
+      operacion: operacion,
+      vista: vista,
+      buscar: buscar,
+      lista: lista,
+      pagina: pagina,
+    );
+  }
+}
+
 class DelayedInventoryRejectedFixture extends InventoryRejectedFixture {
   final release = Completer<void>();
 
@@ -478,6 +507,41 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final width in [390.0, 768.0, 1440.0]) {
+    testWidgets(
+      'Excedente con refresco fallido permite seguir validando $width',
+      (tester) async {
+        final repo = ExcessRefreshFailedFixture();
+        await openValidation(tester, repo, size: Size(width, 1100));
+        await scanSku(tester, '000123');
+        expect(find.text('Unidad excedente'), findsOneWidget);
+        await tester.tap(find.text('Prenda retirada · continuar'));
+        await tester.pumpAndSettle();
+        final field = tester.widget<TextField>(
+          find.byKey(const ValueKey('masiva-sku')),
+        );
+        expect(field.enabled, isTrue);
+        expect(field.focusNode!.hasPrimaryFocus, isTrue);
+        expect(tester.testTextInput.hasAnyClients, isTrue);
+        expect(repo.validated, 2);
+        await captureMasiva(
+          tester,
+          'masiva-excedente-recuperado-${width.toInt()}',
+        );
+        // Input through the existing scanner connection, without refocusing it.
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(text: '000456'),
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(repo.writes.where((w) => w.action == 'validar'), hasLength(2));
+        expect(repo.writes.last.data['sku'], '000456');
+        expect(find.text('000456 · 1 unidad validada'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('Empaque parcial exige confirmación y cancelar no escribe', (
     tester,

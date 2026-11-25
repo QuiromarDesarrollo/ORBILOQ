@@ -348,8 +348,32 @@ extension _MasivaValidation on _MasivaPageState {
             );
             try {
               await _refreshValidation(kitId, operation);
-            } catch (refreshError) {
-              _redraw(() => _error = errorMasiva(refreshError));
+            } catch (_) {
+              // The write was rejected, not left unconfirmed. A failed follow-up
+              // read must not disable the entire validation workspace.
+              if (mounted && _kit['id'] == kitId && _operationId == operation) {
+                _redraw(() {
+                  if (detail['tipo'] == 'unidad_excedente' &&
+                      detail['sku'] == sku &&
+                      detail['validado'] is num) {
+                    _kit = {
+                      ..._kit,
+                      'articulos': [
+                        for (final row in filasMasiva(_kit['articulos']))
+                          if (row['sku'] == sku)
+                            {...row, 'validado': detail['validado']}
+                          else
+                            row,
+                      ],
+                    };
+                  }
+                  _lastScanSku = null;
+                  _scanFeedback =
+                      'SKU $sku · Lectura rechazada; no se registró esta unidad. '
+                      'No se pudo actualizar el detalle del kit. Puedes continuar '
+                      'escaneando; cada lectura se comprueba en el servidor.';
+                });
+              }
             }
           } else {
             final pending = _scanQueue.length;
