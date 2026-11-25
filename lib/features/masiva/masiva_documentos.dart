@@ -109,7 +109,7 @@ Future<void> _agregarListaReferencia(
       margin: const pw.EdgeInsets.all(42.5),
       theme: tema,
       maxPages: 500,
-      header: (context) => _cabeceraReferencia(d, context.pageNumber > 1),
+      header: (context) => _cabeceraReferencia(d),
       footer:
           (context) => pw.Padding(
             padding: const pw.EdgeInsets.only(top: 6),
@@ -178,7 +178,7 @@ pw.Widget _marcaReferencia(
           ),
 );
 
-pw.Widget _cabeceraReferencia(_Datos d, bool continuacion) => pw.Padding(
+pw.Widget _cabeceraReferencia(_Datos d) => pw.Padding(
   padding: const pw.EdgeInsets.only(bottom: 9),
   child: pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -206,8 +206,6 @@ pw.Widget _cabeceraReferencia(_Datos d, bool continuacion) => pw.Padding(
                 textAlign: pw.TextAlign.center,
                 style: const pw.TextStyle(fontSize: 8),
               ),
-              if (continuacion)
-                pw.Text('CONTINUACIÓN', style: const pw.TextStyle(fontSize: 7)),
             ],
           ),
         ),
