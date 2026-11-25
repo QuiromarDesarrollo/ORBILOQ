@@ -369,18 +369,19 @@ extension _MasivaViews on _MasivaPageState {
                       kits == 0 ? 'Ir a recepción' : 'Continuar validación',
                     ),
                   ),
-                  TextButton.icon(
-                    onPressed: () => _select(4),
-                    icon: const Icon(
-                      Icons.description_outlined,
-                      size: 18,
-                      color: Colors.white,
+                  if (_canAccessSection(4))
+                    TextButton.icon(
+                      onPressed: () => _select(4),
+                      icon: const Icon(
+                        Icons.description_outlined,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        'Ver documentos',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
-                    label: const Text(
-                      'Ver documentos',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
                 ],
               ),
             ],
@@ -462,37 +463,38 @@ extension _MasivaViews on _MasivaPageState {
                   Icons.description_outlined,
                 ),
               ])
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(vertical: 5),
-                  leading: CircleAvatar(
-                    backgroundColor: _bg,
-                    foregroundColor: _ink,
-                    child: Text(
-                      step.$2,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                if (_canAccessSection(step.$1))
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(vertical: 5),
+                    leading: CircleAvatar(
+                      backgroundColor: _bg,
+                      foregroundColor: _ink,
+                      child: Text(
+                        step.$2,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                  title: Text(
-                    step.$3,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _ink,
+                    title: Text(
+                      step.$3,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _ink,
+                      ),
                     ),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Text(
-                      step.$4,
-                      style: const TextStyle(fontSize: 12, color: _muted),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Text(
+                        step.$4,
+                        style: const TextStyle(fontSize: 12, color: _muted),
+                      ),
                     ),
+                    trailing: const Icon(Icons.chevron_right, size: 20),
+                    onTap: () => _select(step.$1),
                   ),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
-                  onTap: () => _select(step.$1),
-                ),
             ],
           ),
         ),

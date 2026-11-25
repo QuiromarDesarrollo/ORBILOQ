@@ -104,7 +104,8 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   @override
   void recuperarBorrador(MasivaJson d) {
     _operationId = d['operacion'] as String?;
-    _section = (d['seccion'] as int? ?? 0).clamp(0, _sections.length - 1);
+    final section = (d['seccion'] as int? ?? 0).clamp(0, _sections.length - 1);
+    _section = _canAccessSection(section) ? section : 0;
     _search.text = d['buscar'] as String? ?? '';
     _list.text = d['lista'] as String? ?? '';
     _kit = d['kit'] == null ? {} : {'id': d['kit']};
@@ -213,6 +214,11 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
       !ref.read(usarSupabaseProvider) ||
       ref.read(usuarioSesionProvider).valueOrNull?.tieneRol(RolCuenta.admin) ==
           true;
+  bool _canAccessSection(int index) =>
+      index >= 0 &&
+      index < _sections.length &&
+      (_admin || !const {2, 4, 6, 7, 8, 9}.contains(index));
+
   MasivaJson get _operation => mapaMasiva(_data['operacion']);
   bool get _archived => ['cerrada', 'archivada'].contains(_operation['estado']);
   bool get _editable =>
@@ -285,6 +291,12 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
 
   Future<void> _load({bool silent = false, bool automatic = false}) async {
     if (_scanning || (automatic && _activeLoads > 0)) return;
+    if (!_canAccessSection(_section)) {
+      _section = 0;
+      _page = 1;
+      _data = {};
+      _masterCacheKey = null;
+    }
     final paging =
         !silent &&
         _isMaster &&
@@ -511,7 +523,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
     String lista = '',
     String buscar = '',
   }) async {
-    if (_scanning || _scanAlert) return;
+    if (!_canAccessSection(index) || _scanning || _scanAlert) return;
     setState(() {
       _section = index;
       _page = 1;
@@ -783,7 +795,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
           padding: const EdgeInsets.symmetric(horizontal: 12),
           children: [
             for (final i in [0, 1, 9, 2, 8, 3, 4, 5, 6, 7])
-              if (i != 7 || _admin)
+              if (_canAccessSection(i))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Material(
@@ -888,7 +900,14 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   );
 
   Widget _body(double width) =>
-      _section == 3
+      !_canAccessSection(_section)
+          ? Center(
+            child: TextButton(
+              onPressed: () => _select(0),
+              child: const Text('Volver al resumen'),
+            ),
+          )
+          : _section == 3
           ? _validationWorkspace(width)
           : AbsorbPointer(
             absorbing: _masterPaging,
@@ -1217,12 +1236,13 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
                       : 'Recibir prendas',
                 ),
               ),
-              TextButton.icon(
-                onPressed:
-                    !_scanning && _busy == null ? () => _select(9) : null,
-                icon: const Icon(Icons.compare_arrows, size: 18),
-                label: const Text('Ver conciliación'),
-              ),
+              if (_canAccessSection(9))
+                TextButton.icon(
+                  onPressed:
+                      !_scanning && _busy == null ? () => _select(9) : null,
+                  icon: const Icon(Icons.compare_arrows, size: 18),
+                  label: const Text('Ver conciliación'),
+                ),
             ],
             if (_admin && (_section == 1 || _section == 2))
               FilledButton.icon(
