@@ -37,6 +37,7 @@ extension _MasivaValidation on _MasivaPageState {
           !_cameraOpen &&
           !_scanning &&
           !_scanAlert &&
+          !_validationReadOnly &&
           (_kit['empacador_id'] != null || _validationPackerId != null)) {
         _scanFocus.requestFocus();
       }
@@ -44,7 +45,7 @@ extension _MasivaValidation on _MasivaPageState {
   }
 
   Future<void> _searchRecords() async {
-    if (_scanning || _scanAlert) return;
+    if (_scanning || _scanAlert || _busy != null) return;
     if (_section != 3) {
       _page = 1;
       await _load();
@@ -77,7 +78,7 @@ extension _MasivaValidation on _MasivaPageState {
         _error = null;
       });
       if (matches.length == 1 && numeroMasiva(result['total']) == 1) {
-        _openValidation(matches.single);
+        await _openValidation(matches.single);
       } else {
         _redraw(
           () =>
@@ -98,10 +99,11 @@ extension _MasivaValidation on _MasivaPageState {
     }
   }
 
-  void _openValidation(MasivaJson kit) {
-    if (_scanning || _scanAlert) return;
+  Future<void> _openValidation(MasivaJson kit) async {
+    if (_scanning || _scanAlert || _busy != null) return;
     _redraw(() {
       _kit = kit;
+      _editingPackedKit = false;
       _validationKitPosition = null;
       _validationPackerId = kit['empacador_id']?.toString();
       if (kit['caja'] != null) {
@@ -113,6 +115,10 @@ extension _MasivaValidation on _MasivaPageState {
       _scanFeedback = null;
     });
     _loadValidationKitPosition();
+    if (_kitHasPackage) {
+      if (!_cameraOpen) await _showPackedKitActions();
+      return;
+    }
     if (_validationPackerId == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_cameraOpen && _kit.isNotEmpty) {
@@ -124,10 +130,49 @@ extension _MasivaValidation on _MasivaPageState {
     }
   }
 
+  Future<void> _showPackedKitActions() async {
+    if (!mounted || !_kitHasPackage || _scanAlert) return;
+    final kitId = _kit['id'];
+    final operation = _operationId;
+    var edit = false;
+    _redraw(() => _scanAlert = true);
+    _dialog = true;
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      await mostrarAvisoContenido(
+        context,
+        Text(
+          '${_kit['nombre']} · Lista ${_kit['lista']}\nPuedes consultar el kit o reabrirlo para modificar las cantidades validadas y el empaque.',
+        ),
+        tipo: TipoAviso.informacion,
+        tituloPersonalizado: 'El kit ya está empacado',
+        cerrarEtiqueta: 'Ver',
+        accion: SnackBarAction(label: 'Editar', onPressed: () => edit = true),
+        requiereConfirmacion: true,
+        esperarCierreCompleto: true,
+      );
+    } finally {
+      _dialog = false;
+      _redraw(() => _scanAlert = false);
+    }
+    if (!mounted || _kit['id'] != kitId || _operationId != operation) return;
+    if (edit) {
+      await _reopen();
+    } else {
+      _redraw(
+        () =>
+            _scanFeedback =
+                'Kit empacado · Solo consulta. Usa Reabrir revisión para editarlo.',
+      );
+    }
+  }
+
   void _closeValidation({bool focus = true}) {
-    if (_scanning || _scanAlert) return;
+    if (_scanning || _scanAlert || _busy != null) return;
     _redraw(() {
       _kit = {};
+      _editingPackedKit = false;
       _validationPackerId = null;
       _sku.clear();
       _lastScanSku = null;
@@ -225,6 +270,7 @@ extension _MasivaValidation on _MasivaPageState {
     final code = _sku.text.trim();
     if (code.isEmpty ||
         _kit.isEmpty ||
+        _validationReadOnly ||
         (!_editable && !_scanning) ||
         _scanAlert ||
         (_kit['empacador_id'] == null && _validationPackerId == null)) {
@@ -340,7 +386,7 @@ extension _MasivaValidation on _MasivaPageState {
   }
 
   Future<void> _resetValidation() async {
-    if (!_editable || _scanning || _kit.isEmpty) return;
+    if (!_editable || _scanning || _kit.isEmpty || _validationReadOnly) return;
     final kitId = _kit['id'];
     final quantities = [
       for (final item in filasMasiva(_kit['articulos']))
@@ -363,7 +409,7 @@ extension _MasivaValidation on _MasivaPageState {
   }
 
   Future<void> _pack() async {
-    if (!_editable || _scanning || _kit.isEmpty) return;
+    if (!_editable || _scanning || _kit.isEmpty || _validationReadOnly) return;
     final items = filasMasiva(_kit['articulos']);
     final done = items.fold<int>(0, (n, a) => n + numeroMasiva(a['validado']));
     if (done == 0) return;

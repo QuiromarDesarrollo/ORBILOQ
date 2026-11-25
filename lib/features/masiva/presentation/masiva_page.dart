@@ -109,6 +109,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
     _search.text = d['buscar'] as String? ?? '';
     _list.text = d['lista'] as String? ?? '';
     _kit = d['kit'] == null ? {} : {'id': d['kit']};
+    _editingPackedKit = false;
     _packType = d['tipo'] as String?;
     _packNumber.text = d['numero'] as String? ?? '';
     _validationPackerId = d['empacador'] as String?;
@@ -166,6 +167,9 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   Timer? _timer;
   int _section = 0, _page = 1, _epoch = 0;
   bool _loading = true, _dialog = false;
+  bool _editingPackedKit = false;
+  bool get _kitHasPackage => _kit['caja_id'] != null || _kit['caja'] != null;
+  bool get _validationReadOnly => _kitHasPackage && !_editingPackedKit;
   int _activeLoads = 0;
   bool _masterPaging = false;
   String? _masterCacheKey;
@@ -503,6 +507,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
         _updated = DateTime.now();
         if (_kit.isNotEmpty) {
           _kit = selectedKit ?? {};
+          if (_kit.isEmpty) _editingPackedKit = false;
         }
       });
       if (_section == 3 && _kit.isNotEmpty) _loadValidationKitPosition();
@@ -533,6 +538,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
       _section = index;
       _page = 1;
       _kit = {};
+      _editingPackedKit = false;
       _validationPackerId = null;
       _data = {};
       _masterLoadedQuery = {};
@@ -1078,6 +1084,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
                         _balanceStatus = '';
                         _page = 1;
                         _kit = {};
+                        _editingPackedKit = false;
                         _validationPackerId = null;
                         _data = {};
                         _receiptOrder = null;

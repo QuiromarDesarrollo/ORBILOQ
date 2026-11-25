@@ -4,6 +4,8 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
   bool get _validationAvailable =>
       _editable && !_loading && !_scanning && !_scanAlert;
 
+  bool get _validationCanEdit => _validationAvailable && !_validationReadOnly;
+
   String? get _validationSelectedPacker {
     final assigned = '${_kit['empacador_id'] ?? ''}';
     if (assigned.isNotEmpty) return assigned;
@@ -168,7 +170,10 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
           ),
           IconButton(
             tooltip: 'Cambiar operación',
-            onPressed: !_scanning && !_scanAlert ? () => _select(0) : null,
+            onPressed:
+                !_scanning && !_scanAlert
+                    ? () => _select(_defaultSection)
+                    : null,
             icon: const Icon(Icons.swap_horiz, color: _ink),
           ),
         ],
@@ -258,7 +263,7 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
                     ),
                 ],
                 onChanged:
-                    _validationAvailable && _kit.isNotEmpty
+                    _validationCanEdit && _kit.isNotEmpty
                         ? (value) {
                           _redraw(() => _validationPackerId = value);
                           if (value != null) _focusSku();
@@ -290,14 +295,14 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
               ),
           ],
           onChanged:
-              _validationAvailable && _kit['caja'] == null
+              _validationCanEdit && (!_kitHasPackage || _editingPackedKit)
                   ? (value) => _redraw(() => _packType = value)
                   : null,
         ),
         TextField(
           key: const ValueKey('masiva-validation-container'),
           controller: _packNumber,
-          enabled: _validationAvailable && _kit['caja'] == null,
+          enabled: _validationCanEdit && (!_kitHasPackage || _editingPackedKit),
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
             labelText: 'N.º de contenedor',
@@ -533,7 +538,11 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
               controller: _sku,
               focusNode: _scanFocus,
               enabled:
-                  (_editable || _scanning) && !_loading && ready && !_scanAlert,
+                  (_editable || _scanning) &&
+                  !_loading &&
+                  ready &&
+                  !_scanAlert &&
+                  !_validationReadOnly,
               autocorrect: false,
               enableSuggestions: false,
               onEditingComplete: () {},
@@ -554,7 +563,7 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
           IconButton.outlined(
             key: const ValueKey('masiva-sku-camera'),
             tooltip: 'Leer código con cámara',
-            onPressed: _validationAvailable && ready ? _camera : null,
+            onPressed: _validationCanEdit && ready ? _camera : null,
             icon: const Icon(Icons.photo_camera_outlined),
           ),
         ],
@@ -565,7 +574,7 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           FilledButton.icon(
-            onPressed: _validationAvailable && ready ? _validate : null,
+            onPressed: _validationCanEdit && ready ? _validate : null,
             icon: const Icon(Icons.add_task, size: 17),
             label: const Text('Validar 1 unidad'),
           ),
@@ -614,6 +623,11 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
             ? (_people.any((p) => p['activo'] != false)
                 ? 'Selecciona quién empacó este kit. Al validar la primera prenda se registrará MAL EMPAQUE por no haber registrado el empaque.'
                 : 'No hay empacadores disponibles. Regístralos en Configuración para continuar.')
+            : _validationReadOnly
+            ? 'Kit empacado · Solo consulta. Usa Reabrir revisión para editarlo.'
+            : _editingPackedKit
+            ? (_scanFeedback ??
+                'Edición abierta. Puedes corregir cantidades y cambiar el tipo o número de empaque; termina con Guardar cambios.')
             : _scanFeedback ??
                 (_kit.isNotEmpty && _kit['revision_abierta'] != true
                     ? 'Este kit está validado. Las lecturas adicionales detectan prendas incorrectas o excedentes.'
@@ -689,7 +703,7 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
   Widget _validationCorrect(MasivaJson item) => IconButton(
     tooltip: 'Corregir cantidad con motivo',
     onPressed:
-        _validationAvailable && _kit['revision_abierta'] == true
+        _validationCanEdit && _kit['revision_abierta'] == true
             ? () => _correct(item)
             : null,
     icon: const Icon(Icons.edit_outlined, size: 18),
@@ -907,23 +921,24 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         FilledButton.icon(
-          onPressed:
-              _validationAvailable && selected && done > 0 ? _pack : null,
+          onPressed: _validationCanEdit && selected && done > 0 ? _pack : null,
           icon: const Icon(Icons.inventory_2_outlined, size: 17),
-          label: const Text('Empacar'),
+          label: Text(_editingPackedKit ? 'Guardar cambios' : 'Empacar'),
         ),
         OutlinedButton.icon(
           onPressed:
-              _validationAvailable && selected && done > 0
+              _validationCanEdit && selected && done > 0
                   ? _resetValidation
                   : null,
           icon: const Icon(Icons.restart_alt, size: 17),
           label: const Text('Reiniciar validación'),
         ),
-        if (selected && _kit['revision_abierta'] != true)
+        if (selected &&
+            (_validationReadOnly || _kit['revision_abierta'] != true))
           TextButton.icon(
             onPressed:
-                _validationAvailable && _kit['validacion_inicio'] != null
+                _validationAvailable &&
+                        (_kitHasPackage || _kit['validacion_inicio'] != null)
                     ? _reopen
                     : null,
             icon: const Icon(Icons.lock_open_outlined, size: 17),
@@ -931,7 +946,7 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
           ),
         TextButton.icon(
           onPressed:
-              _validationAvailable && selected && _kit['empacador_id'] != null
+              _validationCanEdit && selected && _kit['empacador_id'] != null
                   ? _reportError
                   : null,
           icon: const Icon(Icons.report_outlined, size: 17),

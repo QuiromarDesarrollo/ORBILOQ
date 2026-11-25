@@ -9,7 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orbiloq_wms/features/masiva/masiva_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'masiva_ui_test.dart' show MasivaFixture, captureMasiva, mount;
+import 'masiva_ui_test.dart'
+    show MasivaFixture, captureMasiva, captureMasivaOverlay, mount;
 
 class ValidacionFixture extends MasivaFixture {
   ValidacionFixture({
@@ -123,6 +124,83 @@ class ValidacionFixture extends MasivaFixture {
     }
     if (accion == 'reiniciar_validacion') validated = 0;
     return {};
+  }
+}
+
+class PackedValidationFixture extends ValidacionFixture {
+  PackedValidationFixture({bool partial = false})
+    : reviewOpen = partial,
+      super(validated: partial ? 1 : 2);
+
+  bool reviewOpen;
+  bool rejectPackaging = false;
+  int containerNumber = 3;
+  String packageId = 'box1';
+
+  @override
+  Future<MasivaJson> consultar({
+    String? operacion,
+    String vista = 'resumen',
+    String buscar = '',
+    String lista = '',
+    int pagina = 1,
+  }) async {
+    final result = await super.consultar(
+      operacion: operacion,
+      vista: vista,
+      buscar: buscar,
+      lista: lista,
+      pagina: pagina,
+    );
+    if (operacion != null && vista == 'empaques') {
+      return {
+        ...result,
+        'filas': [
+          ...filasMasiva(result['filas']),
+          {
+            'id': 'box2',
+            'nombre': 'Bolsa grande',
+            'peso_lleno': 5,
+            'activo': true,
+          },
+        ],
+      };
+    }
+    if (operacion != null && ['kits', 'validacion_documento'].contains(vista)) {
+      return {
+        ...result,
+        'filas': [
+          for (final row in filasMasiva(result['filas']))
+            {
+              ...row,
+              'caja_id': 'packed-box',
+              'caja': containerNumber,
+              'empaque_id': packageId,
+              'validacion_inicio': '2026-10-27T14:30:00Z',
+              'revision_abierta': reviewOpen,
+            },
+        ],
+      };
+    }
+    return result;
+  }
+
+  @override
+  Future<MasivaJson> ejecutar(String accion, MasivaJson datos) async {
+    if (accion == 'reabrir') reviewOpen = true;
+    if (accion == 'corregir') validated = datos['cantidad'] as int;
+    if (accion == 'embalar') {
+      if (rejectPackaging) {
+        throw const PostgrestException(
+          message:
+              'El empaque contiene otros kits; selecciona otro contenedor.',
+          code: 'P0001',
+        );
+      }
+      containerNumber = datos['caja'] as int;
+      packageId = datos['empaque_id'] as String;
+    }
+    return super.ejecutar(accion, datos);
   }
 }
 
@@ -550,6 +628,204 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final width in [390.0, 768.0, 1440.0]) {
+    testWidgets('Kit empacado permite ver y editar empaque a $width px', (
+      tester,
+    ) async {
+      final repo = PackedValidationFixture();
+      await openValidation(tester, repo, size: Size(width, 1200));
+      expect(find.text('El kit ya está empacado'), findsOneWidget);
+      expect(find.text('Ver'), findsOneWidget);
+      expect(find.text('Editar'), findsOneWidget);
+      expect(repo.writes, isEmpty);
+      await captureMasivaOverlay(
+        tester,
+        'masiva-kit-empacado-aviso-${width.toInt()}',
+      );
+      await tapVisible(tester, find.text('Ver'));
+      final sku = find.byKey(const ValueKey('masiva-sku'));
+      final container = find.byKey(
+        const ValueKey('masiva-validation-container'),
+      );
+      final type = find.byWidgetPredicate(
+        (w) =>
+            w is DropdownButtonFormField<String> &&
+            w.decoration.labelText == 'Tipo de empaque',
+      );
+      expect(tester.widget<TextField>(sku).enabled, isFalse);
+      expect(tester.widget<TextField>(container).enabled, isFalse);
+      expect(
+        tester.widget<DropdownButtonFormField<String>>(type).onChanged,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byWidgetPredicate(
+                (w) =>
+                    w is IconButton &&
+                    w.tooltip == 'Corregir cantidad con motivo',
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(repo.writes, isEmpty);
+      expect(repo.validated, 2);
+      await searchPerson(tester);
+      await tapVisible(tester, find.text('Editar'));
+      final motive = find.byWidgetPredicate(
+        (w) =>
+            w is TextField &&
+            w.decoration?.labelText == 'Motivo de la reapertura *',
+      );
+      await tester.enterText(motive, 'Cambiar bolsa y revisar cantidad');
+      await tapVisible(
+        tester,
+        find.widgetWithText(FilledButton, 'Reabrir kit'),
+      );
+      expect(repo.writes.single.action, 'reabrir');
+      expect(
+        repo.writes.single.data['motivo'],
+        'Cambiar bolsa y revisar cantidad',
+      );
+      expect(tester.widget<TextField>(sku).enabled, isTrue);
+      expect(tester.widget<TextField>(container).enabled, isTrue);
+      expect(
+        tester.widget<DropdownButtonFormField<String>>(type).onChanged,
+        isNotNull,
+      );
+      await tapVisible(tester, type);
+      await tapVisible(tester, find.text('Paquete grande').last);
+      await tester.ensureVisible(container);
+      await tester.enterText(container, '7');
+      await tester.pumpAndSettle();
+      await captureMasiva(
+        tester,
+        'masiva-kit-empacado-editar-${width.toInt()}',
+      );
+      await tapVisible(
+        tester,
+        find.widgetWithText(FilledButton, 'Guardar cambios'),
+      );
+      expect(repo.writes.last.action, 'embalar');
+      expect(repo.writes.last.data['caja'], 7);
+      expect(repo.writes.last.data['empaque_id'], 'box2');
+      expect(repo.validated, 2);
+      expect(find.text('KIT EN VALIDACIÓN'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'Cancelar edición de kit empacado conserva consulta sin escrituras',
+    (tester) async {
+      final repo = PackedValidationFixture();
+      await openValidation(tester, repo);
+      await tapVisible(tester, find.text('Editar'));
+      await tapVisible(tester, find.widgetWithText(TextButton, 'Cancelar'));
+      expect(repo.writes, isEmpty);
+      expect(repo.reviewOpen, isFalse);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('masiva-sku')))
+            .enabled,
+        isFalse,
+      );
+      expect(find.text('KIT EN VALIDACIÓN'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Reabrir kit parcial habilita correcciones y tipo de empaque', (
+    tester,
+  ) async {
+    final repo = PackedValidationFixture(partial: true);
+    await openValidation(tester, repo);
+    await tapVisible(tester, find.text('Ver'));
+    await tapVisible(tester, find.text('Reabrir revisión'));
+    final motive = find.byWidgetPredicate(
+      (w) =>
+          w is TextField &&
+          w.decoration?.labelText == 'Motivo de la reapertura *',
+    );
+    await tester.enterText(motive, 'Completar y corregir kit parcial');
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Reabrir kit'));
+    expect(repo.writes.single.action, 'reabrir');
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('masiva-validation-container')),
+          )
+          .enabled,
+      isTrue,
+    );
+    await tapVisible(tester, find.byTooltip('Corregir cantidad con motivo'));
+    final quantity = find.byWidgetPredicate(
+      (w) =>
+          w is TextField &&
+          w.decoration?.labelText == 'Cantidad final validada *',
+    );
+    final correctionMotive = find.byWidgetPredicate(
+      (w) =>
+          w is TextField &&
+          w.decoration?.labelText == 'Motivo de la corrección *',
+    );
+    await tester.enterText(quantity, '2');
+    await tester.enterText(correctionMotive, 'Conteo físico de dos unidades');
+    await tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Guardar corrección'),
+    );
+    expect(repo.writes.last.action, 'corregir');
+    expect(repo.writes.last.data['cantidad'], 2);
+    expect(repo.validated, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Rechazo al guardar conserva edición y permite reintentar', (
+    tester,
+  ) async {
+    final repo = PackedValidationFixture()..rejectPackaging = true;
+    await openValidation(tester, repo);
+    await tapVisible(tester, find.text('Editar'));
+    final motive = find.byWidgetPredicate(
+      (w) =>
+          w is TextField &&
+          w.decoration?.labelText == 'Motivo de la reapertura *',
+    );
+    await tester.enterText(motive, 'Cambiar contenedor');
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Reabrir kit'));
+    final container = find.byKey(const ValueKey('masiva-validation-container'));
+    await tester.enterText(container, '7');
+    final save = find.widgetWithText(FilledButton, 'Guardar cambios');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      find.textContaining('El empaque contiene otros kits'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cerrar aviso'));
+    await tester.pumpAndSettle();
+    expect(repo.writes.map((w) => w.action), ['reabrir']);
+    expect(repo.containerNumber, 3);
+    expect(repo.validated, 2);
+    expect(tester.widget<TextField>(container).enabled, isTrue);
+    expect(tester.widget<TextField>(container).controller!.text, '7');
+    expect(find.text('KIT EN VALIDACIÓN'), findsOneWidget);
+    repo.rejectPackaging = false;
+    await tapVisible(
+      tester,
+      find.widgetWithText(FilledButton, 'Guardar cambios'),
+    );
+    expect(repo.writes.last.action, 'embalar');
+    expect(repo.containerNumber, 7);
+    expect(find.text('KIT EN VALIDACIÓN'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Rechazo de inventario detiene cola y avisa repetir pendientes', (
     tester,

@@ -314,7 +314,7 @@ extension _MasivaActions on _MasivaPageState {
     if (reception && (_receiptOrder == null || !_editable)) return;
     if (!document &&
         !reception &&
-        (!_validationAvailable ||
+        (!_validationCanEdit ||
             _kit.isEmpty ||
             _validationSelectedPacker == null)) {
       return;
@@ -412,7 +412,9 @@ extension _MasivaActions on _MasivaPageState {
       _cameraOpen = false;
       _dialog = previousDialog;
       if (mounted) {
-        if (reception && _receiptDialogOpen) {
+        if (document && captured != null && _kitHasPackage) {
+          await _showPackedKitActions();
+        } else if (reception && _receiptDialogOpen) {
           _receiptFocus.requestFocus();
         } else if (document && (captured == null || _kit.isEmpty)) {
           _personFocus.requestFocus();
@@ -426,17 +428,43 @@ extension _MasivaActions on _MasivaPageState {
   }
 
   Future<void> _reopen() async {
+    if (!_validationAvailable || _kit.isEmpty) return;
+    final kitId = '${_kit['id']}';
+    final operation = _operationId!;
     final v = await _form(
       'Reabrir kit',
-      'Se conservarán el empacador, la caja y las cantidades ya validadas. El motivo quedará en auditoría.',
+      'Podrás corregir las cantidades validadas y cambiar el tipo o número de empaque. Se conservan las prendas, el responsable y el historial. Registra el motivo y termina con Guardar cambios.',
       [const _Field('motivo', 'Motivo de la reapertura', multiline: true)],
       submit: 'Reabrir kit',
     );
-    if (v == null || !mounted) return;
-    await _execute('reabrir', {'kit_id': _kit['id'], 'motivo': v['motivo']});
+    if (v == null ||
+        !mounted ||
+        _kit['id'] != kitId ||
+        _operationId != operation) {
+      return;
+    }
+    await _work('Reabriendo el kit para editar…', () async {
+      await _repo.ejecutar('reabrir', {
+        'operacion_id': operation,
+        'kit_id': kitId,
+        'motivo': v['motivo'],
+      });
+      await _refreshValidation(kitId, operation);
+      if (mounted &&
+          _kit['id'] == kitId &&
+          _operationId == operation &&
+          _kit['revision_abierta'] == true) {
+        _redraw(() {
+          _editingPackedKit = _kitHasPackage;
+          _scanFeedback = null;
+        });
+      }
+    }, refresh: false);
+    if (mounted) _focusSku();
   }
 
   Future<void> _correct(MasivaJson item) async {
+    if (!_validationCanEdit || _kit['revision_abierta'] != true) return;
     final v = await _form(
       'Corregir cantidad validada',
       '${item['sku']} · ${item['descripcion']}\nSe registra la cantidad final correcta. El inventario se ajustará únicamente por la diferencia.',
