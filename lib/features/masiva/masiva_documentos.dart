@@ -103,6 +103,8 @@ Future<void> _agregarListaReferencia(
                 _articulos(k).any((a) => _n(a['cantidad']) > _n(a['validado'])),
           )
           .toList();
+  final paginasAnteriores = pdf.document.pdfPageList.pages.length;
+  var paginasLista = 1;
   pdf.addPage(
     pw.MultiPage(
       pageFormat: PdfPageFormat.letter.landscape,
@@ -121,7 +123,7 @@ Future<void> _agregarListaReferencia(
                   style: const pw.TextStyle(fontSize: 6.5),
                 ),
                 pw.Text(
-                  'Página ${context.pageNumber} de ${context.pagesCount}',
+                  'Página ${context.pageNumber - paginasAnteriores} de $paginasLista',
                   style: const pw.TextStyle(fontSize: 6.5),
                 ),
               ],
@@ -156,6 +158,8 @@ Future<void> _agregarListaReferencia(
           ],
     ),
   );
+  // addPage realiza la composición; los pies definitivos se pintan en save.
+  paginasLista = pdf.document.pdfPageList.pages.length - paginasAnteriores;
 }
 
 pw.Widget _marcaReferencia(
