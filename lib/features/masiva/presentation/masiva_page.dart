@@ -105,7 +105,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   void recuperarBorrador(MasivaJson d) {
     _operationId = d['operacion'] as String?;
     final section = (d['seccion'] as int? ?? 0).clamp(0, _sections.length - 1);
-    _section = _canAccessSection(section) ? section : 0;
+    _section = _canAccessSection(section) ? section : _defaultSection;
     _search.text = d['buscar'] as String? ?? '';
     _list.text = d['lista'] as String? ?? '';
     _kit = d['kit'] == null ? {} : {'id': d['kit']};
@@ -217,7 +217,9 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   bool _canAccessSection(int index) =>
       index >= 0 &&
       index < _sections.length &&
-      (_admin || !const {2, 4, 6, 7, 8, 9}.contains(index));
+      (_admin || const {1, 3}.contains(index));
+
+  int get _defaultSection => _admin ? 0 : 1;
 
   MasivaJson get _operation => mapaMasiva(_data['operacion']);
   bool get _archived => ['cerrada', 'archivada'].contains(_operation['estado']);
@@ -292,7 +294,7 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
   Future<void> _load({bool silent = false, bool automatic = false}) async {
     if (_scanning || (automatic && _activeLoads > 0)) return;
     if (!_canAccessSection(_section)) {
-      _section = 0;
+      _section = _defaultSection;
       _page = 1;
       _data = {};
       _masterCacheKey = null;
@@ -402,7 +404,10 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
               )
               : _repo.consultar(
                 operacion: id,
-                vista: _section == 1 ? 'resumen' : _sections[_section].$3,
+                vista:
+                    _section == 1 && _admin
+                        ? 'resumen'
+                        : _sections[_section].$3,
                 buscar: _search.text.trim(),
                 lista: _list.text.trim(),
                 pagina: _page,
@@ -903,8 +908,8 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
       !_canAccessSection(_section)
           ? Center(
             child: TextButton(
-              onPressed: () => _select(0),
-              child: const Text('Volver al resumen'),
+              onPressed: () => _select(_defaultSection),
+              child: const Text('Volver a una pantalla permitida'),
             ),
           )
           : _section == 3

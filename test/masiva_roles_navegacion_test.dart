@@ -12,6 +12,8 @@ import 'package:orbiloq_wms/features/masiva/presentation/masiva_page.dart';
 import 'masiva_ui_test.dart' show MasivaFixture, captureMasivaOverlay;
 
 const restricted = [
+  'Resumen',
+  'Indicadores',
   'Conciliación',
   'Listado maestro',
   'Base de datos maestra',
@@ -79,6 +81,8 @@ void main() {
     ) async {
       final repo = MasivaFixture();
       await mountRole(tester, width, repo, admin: false);
+      final dynamic state = tester.state(find.byType(MasivaPage));
+      expect(state.capturarBorrador()['seccion'], 1);
       for (final label in restricted) {
         expect(find.text(label), findsNothing);
       }
@@ -87,47 +91,40 @@ void main() {
       for (final label in restricted) {
         expect(find.text(label), findsNothing);
       }
-      for (final label in [
-        'Resumen',
-        'Recepción',
-        'Validación',
-        'Indicadores',
-      ]) {
+      for (final label in ['Recepción', 'Validación']) {
         expect(find.text(label), findsOneWidget);
       }
       await captureMasivaOverlay(
         tester,
-        'masiva-roles-operario-${width.toInt()}',
+        'masiva-dos-vistas-operario-${width.toInt()}',
       );
-      for (final label in [
-        'Recepción',
-        'Validación',
-        'Indicadores',
-        'Resumen',
-      ]) {
+      for (final label in ['Recepción', 'Validación', 'Recepción']) {
         await tester.tap(find.text(label));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        if (label != 'Resumen') await openMenu(tester, width);
+        await openMenu(tester, width);
       }
       expect(repo.maestroConsultas, isEmpty);
       expect(
         repo.consultas.any(
-          (q) => [
-            'listado',
-            'base',
-            'documentos',
-            'auditoria',
-            'configuracion',
-            'conciliacion',
-          ].contains(q['vista']),
+          (q) =>
+              [
+                'listado',
+                'base',
+                'documentos',
+                'auditoria',
+                'configuracion',
+                'conciliacion',
+                'indicadores',
+              ].contains(q['vista']) ||
+              (q['vista'] == 'resumen' && q['operacion'] != null),
         ),
         isFalse,
       );
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('Administrador conserva las seis pantallas a $width px', (
+    testWidgets('Administrador conserva las ocho pantallas a $width px', (
       tester,
     ) async {
       await mountRole(tester, width, MasivaFixture(), admin: true);
@@ -135,7 +132,18 @@ void main() {
       for (final label in restricted) {
         expect(find.text(label), findsWidgets);
       }
-      await captureMasivaOverlay(tester, 'masiva-roles-admin-${width.toInt()}');
+      await captureMasivaOverlay(
+        tester,
+        'masiva-dos-vistas-admin-${width.toInt()}',
+      );
+      for (final target in [('Resumen', 0), ('Indicadores', 5)]) {
+        await tester.tap(find.text(target.$1).first);
+        await tester.pumpAndSettle();
+        final dynamic state = tester.state(find.byType(MasivaPage));
+        expect(state.capturarBorrador()['seccion'], target.$2);
+        expect(tester.takeException(), isNull);
+        await openMenu(tester, width);
+      }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -147,27 +155,30 @@ void main() {
     final repo = MasivaFixture();
     await mountRole(tester, 1440, repo, admin: false);
     final dynamic state = tester.state(find.byType(MasivaPage));
-    for (final section in [2, 4, 6, 7, 8, 9]) {
+    for (final section in [0, 2, 4, 5, 6, 7, 8, 9]) {
       state.recuperarBorrador(<String, dynamic>{
         'seccion': section,
         'operacion': 'demo',
       });
       await state.alRecuperarBorrador();
       await tester.pumpAndSettle();
-      expect(state.capturarBorrador()['seccion'], 0);
+      expect(state.capturarBorrador()['seccion'], 1);
       expect(tester.takeException(), isNull);
     }
     expect(repo.maestroConsultas, isEmpty);
     expect(
       repo.consultas.any(
-        (q) => [
-          'listado',
-          'base',
-          'documentos',
-          'auditoria',
-          'configuracion',
-          'conciliacion',
-        ].contains(q['vista']),
+        (q) =>
+            [
+              'listado',
+              'base',
+              'documentos',
+              'auditoria',
+              'configuracion',
+              'conciliacion',
+              'indicadores',
+            ].contains(q['vista']) ||
+            (q['vista'] == 'resumen' && q['operacion'] != null),
       ),
       isFalse,
     );
