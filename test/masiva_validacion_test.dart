@@ -153,6 +153,46 @@ class DelayedValidationFixture extends ValidacionFixture {
   }
 }
 
+class InventoryRejectedFixture extends ValidacionFixture {
+  InventoryRejectedFixture() : super(secondArticle: true);
+
+  final rejected = <MasivaJson>[];
+
+  @override
+  Future<MasivaJson> ejecutar(String accion, MasivaJson datos) async {
+    if (accion == 'validar' && datos['sku'] == '000456') {
+      rejected.add(Map<String, dynamic>.from(datos));
+      throw const PostgrestException(
+        message: 'No hay inventario recibido suficiente para este SKU',
+        code: 'P0001',
+      );
+    }
+    return super.ejecutar(accion, datos);
+  }
+}
+
+class NetworkRejectedFixture extends ValidacionFixture {
+  @override
+  Future<MasivaJson> ejecutar(String accion, MasivaJson datos) async {
+    if (accion == 'validar') {
+      throw TimeoutException('No se recibió confirmación del servidor');
+    }
+    return super.ejecutar(accion, datos);
+  }
+}
+
+class DelayedInventoryRejectedFixture extends InventoryRejectedFixture {
+  final release = Completer<void>();
+
+  @override
+  Future<MasivaJson> ejecutar(String accion, MasivaJson datos) async {
+    if (accion == 'validar' && datos['sku'] == '000456') {
+      await release.future;
+    }
+    return super.ejecutar(accion, datos);
+  }
+}
+
 Future<void> openValidation(
   WidgetTester tester,
   ValidacionFixture repo, {
@@ -511,7 +551,98 @@ void main() {
     },
   );
 
+  testWidgets('Rechazo de inventario detiene cola y avisa repetir pendientes', (
+    tester,
+  ) async {
+    final repo = DelayedInventoryRejectedFixture();
+    await openValidation(tester, repo);
+    final input = find.byKey(const ValueKey('masiva-sku'));
+    await tester.ensureVisible(input);
+    await tester.enterText(input, '000456');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    await tester.enterText(input, '000123');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    repo.release.complete();
+    await tester.pumpAndSettle();
+    expect(repo.rejected, hasLength(1));
+    expect(repo.writes, isEmpty);
+    expect(repo.validated, 1);
+    expect(
+      find.textContaining('Repite las 1 lecturas posteriores'),
+      findsOneWidget,
+    );
+    expect(tester.widget<TextField>(input).enabled, isTrue);
+    await scanSku(tester, '000123');
+    expect(repo.writes, hasLength(1));
+    expect(repo.validated, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Error de red no se confunde con rechazo de inventario', (
+    tester,
+  ) async {
+    final repo = NetworkRejectedFixture();
+    await openValidation(tester, repo);
+    final input = find.byKey(const ValueKey('masiva-sku'));
+    await tester.ensureVisible(input);
+    await tester.enterText(input, '000123');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Cerrar aviso'), findsOneWidget);
+    expect(
+      find.textContaining('Sin inventario recibido disponible'),
+      findsNothing,
+    );
+    expect(repo.writes, isEmpty);
+    expect(repo.validated, 1);
+    await tester.tap(find.text('Cerrar aviso'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(input).enabled, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in [390.0, 768.0, 1440.0]) {
+    testWidgets('Inventario insuficiente permite continuar a $width px', (
+      tester,
+    ) async {
+      final repo = InventoryRejectedFixture();
+      await openValidation(tester, repo, size: Size(width, 1200));
+      final existingBarriers = find.byType(ModalBarrier).evaluate().length;
+      final input = find.byKey(const ValueKey('masiva-sku'));
+      await tester.ensureVisible(input);
+      await tester.enterText(input, '000456');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(repo.rejected, hasLength(1));
+      expect(repo.writes, isEmpty);
+      expect(repo.validated, 1);
+      expect(find.byType(ModalBarrier), findsNWidgets(existingBarriers));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('inventario'), findsWidgets);
+      expect(find.text('KIT EN VALIDACIÓN'), findsOneWidget);
+      expect(find.text('Kit 2 de 3'), findsOneWidget);
+      expect(tester.widget<TextField>(input).enabled, isTrue);
+      expect(tester.widget<TextField>(input).focusNode!.hasFocus, isTrue);
+      await captureMasiva(tester, 'masiva-inventario-aviso-${width.toInt()}');
+      await scanSku(tester, '000123');
+      expect(repo.validated, 2);
+      expect(repo.writes, hasLength(1));
+      expect(repo.writes.single.data['sku'], '000123');
+      expect(find.text('000123 · 1 unidad validada'), findsOneWidget);
+      if (width < 1080) {
+        await tester.tap(find.byTooltip('Abrir menú'));
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('Recepción').first);
+      await tester.pumpAndSettle();
+      expect(find.text('KIT EN VALIDACIÓN'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('Validación responsive sin desbordamientos a $width px', (
       tester,
     ) async {

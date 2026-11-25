@@ -269,6 +269,23 @@ extension _MasivaValidation on _MasivaPageState {
             _scanFeedback = '$sku · 1 unidad validada';
           });
         } catch (e) {
+          // This confirmed business rejection rolls back the server write. It
+          // must not become a page error, which disables the entire workspace.
+          if (e is PostgrestException &&
+              e.code == 'P0001' &&
+              e.message.trim() ==
+                  'No hay inventario recibido suficiente para este SKU') {
+            final pending = _scanQueue.length;
+            _scanQueue.clear();
+            _sku.clear();
+            _redraw(() {
+              _lastScanSku = null;
+              _scanFeedback =
+                  'SKU $sku · Sin inventario recibido disponible. No se registró esta unidad.'
+                  '${pending > 0 ? ' Repite las $pending lecturas posteriores.' : ''}';
+            });
+            break;
+          }
           MasivaJson detail = {};
           if (e is PostgrestException && e.details != null) {
             try {
