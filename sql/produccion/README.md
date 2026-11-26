@@ -1,5 +1,25 @@
 # Preparación del despliegue de ORBILOQ
 
+## Avance de validación por lista — 26 de noviembre de 2026
+
+- `018_masiva_avance_validacion_lista.sql` aplicada y verificada en producción
+  `cxrflhgnxvomcvxzugda`. Amplía únicamente la lectura de empaque con `validados`
+  y el estado de cada kit; conserva OID 23724, propietario, ACL, STABLE,
+  SECURITY DEFINER y search_path. No modifica datos operativos ni copia datos DEV.
+- El indicador incluye una vez el kit actual y conserva la posición `Kit X de Y`.
+  Los dos casos se comprobaron en DEV: lista 34, tres kits y uno validado;
+  actual pendiente muestra 2/3 y falta 1; actual validado muestra 1/3 y faltan 2.
+- Código funcional `00745e1`; publicación `gh-pages` `9a9f3f8`, versión
+  `20261126-avance-lista`. GitHub Pages terminó correctamente en la ejecución
+  [45886958188](https://github.com/QuiromarDesarrollo/ORBILOQ/actions/runs/45886958188).
+- HTTP 200 y comparación byte a byte correctos para index, bootstrap y main
+  versionados, version.json, manifiesto de fuentes y CanvasKit Chromium.
+  El navegador cargó la nueva versión y mostró el acceso sin errores de consola;
+  no se inició sesión ni se validaron prendas en producción.
+- Validación previa: 58 pruebas Flutter aprobadas y ensayo PostgreSQL de la
+  migración de producción, contrato, idempotencia y conservación de permisos.
+  Se mantienen los archivos web anteriores y la publicación anterior `d34d02b`.
+
 ## Actualización 20261030 aplicada; publicación web completada el 3 de noviembre
 
 **SQL 015 aplicado y verificado. NO volver a ejecutarlo.**
