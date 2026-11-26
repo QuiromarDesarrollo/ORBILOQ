@@ -288,14 +288,13 @@ extension _MasivaActions on _MasivaPageState {
                     if (pendiente['accion'] == 'registrar_empaque' &&
                         previo['request_id'] == datos['request_id'] &&
                         previo['operacion_id'] == operation) {
-                      await _repo.recuperarConfirmacion();
-                      return;
+                      return await _repo.recuperarConfirmacion();
                     }
                     throw const MasivaError(
                       'Hay otro movimiento pendiente de confirmar. Cierra este formulario y usa Recuperar confirmación antes de registrar un nuevo empaque.',
                     );
                   }
-                  await _repo.ejecutar('registrar_empaque', {
+                  return await _repo.ejecutar('registrar_empaque', {
                     'operacion_id': operation,
                     ...datos,
                   });

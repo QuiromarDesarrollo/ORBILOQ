@@ -26,7 +26,7 @@ class MasivaRegistrarEmpaqueDialog extends StatefulWidget {
   final Future<MasivaJson> Function(String nombre)? agregarEmpacador;
   final String initialLista;
   final Future<MasivaJson> Function(String lista) consultar;
-  final Future<void> Function(MasivaJson datos) registrar;
+  final Future<MasivaJson> Function(MasivaJson datos) registrar;
 
   @override
   State<MasivaRegistrarEmpaqueDialog> createState() => _EmpaqueState();
@@ -45,6 +45,16 @@ class _EmpaqueState extends State<MasivaRegistrarEmpaqueDialog> {
   bool _loading = false;
   bool _saving = false;
   bool _changed = false;
+  String? _confirmedOwnership;
+  bool get _wholeRegistration => _action == 'registrar' && _scope == 'todos';
+  List<MasivaJson> get _expectedKits => [
+    for (final k in _kits)
+      {
+        for (final key in ['id', 'empacador_id', 'asignacion_id', 'armado'])
+          key: k[key],
+      },
+  ];
+  String get _ownershipFingerprint => jsonEncode([_person, _expectedKits]);
   String? _error;
   String? _message;
   String? _payloadFingerprint;
@@ -185,6 +195,13 @@ class _EmpaqueState extends State<MasivaRegistrarEmpaqueDialog> {
       return 'Los extremos del rango deben corresponder a personas de esta lista.';
     }
     if (_selected.isEmpty) return 'No hay kits disponibles para este alcance.';
+    if (_wholeRegistration) {
+      if (_selected.any((k) => !_mineOrFree(k)) &&
+          _confirmedOwnership != _ownershipFingerprint) {
+        return 'Hay kits de otro empacador. Confirma el responsable de toda la lista antes de guardar.';
+      }
+      return null;
+    }
     if (_selected.any(_armed)) {
       return 'El alcance incluye kits ya terminados. Usa Solo pendientes o ajusta el rango.';
     }
@@ -207,6 +224,8 @@ class _EmpaqueState extends State<MasivaRegistrarEmpaqueDialog> {
       'accion': _action,
       if (_existing) 'asignacion_id': _assignment,
       if (!_existing) 'alcance': _scope,
+      if (_wholeRegistration) 'kits_esperados': _expectedKits,
+      if (_wholeRegistration) 'confirmar_responsable': true,
       if (!_existing && _scope == 'rango') 'desde': int.parse(_desde.text),
       if (!_existing && _scope == 'rango') 'hasta': int.parse(_hasta.text),
     };
@@ -221,13 +240,18 @@ class _EmpaqueState extends State<MasivaRegistrarEmpaqueDialog> {
       _message = null;
     });
     try {
-      await widget.registrar({...payload, 'request_id': _request});
+      final result = await widget.registrar({
+        ...payload,
+        'request_id': _request,
+      });
       if (!mounted) return;
       setState(() {
         _changed = true;
         _message =
             _action == 'registrar'
-                ? 'Kits registrados como terminados. La validación de prendas conserva su estado.'
+                ? '${numeroMasiva(result['kits'])} de ${numeroMasiva(result['total_lista'])} kits registrados en esta operación. '
+                    '${result['nuevos'] == null ? '' : '${numeroMasiva(result['nuevos'])} nuevos; los demás conservan su fecha. '}'
+                    '${_wholeRegistration ? 'Toda la lista quedó a nombre del empacador seleccionado.' : 'Los kits fuera del alcance conservan su responsable.'}'
                 : _action == 'pausar'
                 ? 'Tiempo pausado. El tiempo acumulado se conserva.'
                 : 'Tiempo de empaque en curso.';
@@ -478,12 +502,35 @@ class _EmpaqueState extends State<MasivaRegistrarEmpaqueDialog> {
                   Text(
                     _scope == 'pendientes'
                         ? 'Incluye únicamente kits sin terminar, libres o asignados a este empacador. Conserva lo ya registrado.'
+                        : _wholeRegistration
+                        ? 'Toda la lista quedará a nombre del empacador seleccionado. Los kits ya terminados conservan su fecha y sus validaciones.'
                         : 'Los kits terminados o de otro empacador no se sobrescriben.',
                     style: const TextStyle(
                       color: AppColors.slate600,
                       fontSize: 12,
                     ),
                   ),
+                  if (_wholeRegistration &&
+                      _person != null &&
+                      _kits.any((k) => !_mineOrFree(k)))
+                    CheckboxListTile(
+                      key: const ValueKey('empaque-confirmar-responsable'),
+                      contentPadding: EdgeInsets.zero,
+                      value: _confirmedOwnership == _ownershipFingerprint,
+                      onChanged:
+                          _busy
+                              ? null
+                              : (v) => setState(() {
+                                _confirmedOwnership =
+                                    v == true ? _ownershipFingerprint : null;
+                              }),
+                      title: Text(
+                        'Confirmo que los ${_kits.length} kits fueron empacados por ${_people.where((p) => p['id'] == _person).firstOrNull?['nombre'] ?? ''}.',
+                      ),
+                      subtitle: const Text(
+                        'Se corregirán los responsables anteriores y se conservará el historial.',
+                      ),
+                    ),
                 ] else
                   DropdownButtonFormField<String>(
                     key: ValueKey(

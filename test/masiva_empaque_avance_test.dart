@@ -59,14 +59,17 @@ class EmpaqueFixture {
     'kits': kits.map((k) => {...k}).toList(),
     'asignaciones': [],
   };
-  Future<void> save(MasivaJson data) async {
+  Future<MasivaJson> save(MasivaJson data) async {
     writes.add({...data});
     await gate?.future;
     if (fail) throw const MasivaError('Conexión interrumpida de prueba');
+    var count = 0;
+    var nuevos = 0;
     for (final k in kits) {
-      if (k['armado'] != null ||
-          (k['empacador_id'] != null &&
-              k['empacador_id'] != data['empacador_id'])) {
+      if (data['alcance'] != 'todos' &&
+          (k['armado'] != null ||
+              (k['empacador_id'] != null &&
+                  k['empacador_id'] != data['empacador_id']))) {
         continue;
       }
       if (data['alcance'] == 'rango' &&
@@ -74,9 +77,13 @@ class EmpaqueFixture {
               (k['numero_persona'] as int) > data['hasta'])) {
         continue;
       }
-      k['armado'] = '2026-11-20T11:00:00Z';
+      count++;
+      if (k['armado'] == null) nuevos++;
+      k['armado'] ??= '2026-11-20T11:00:00Z';
       k['empacador_id'] = data['empacador_id'];
+      k['empacador'] = data['empacador_id'] == 'a' ? 'Operario A' : 'Operario B';
     }
+    return {'kits': count, 'total_lista': kits.length, 'nuevos': nuevos};
   }
 }
 
@@ -149,7 +156,7 @@ void main() {
       final repo = EmpaqueFixture();
       await mountEmpaque(tester, repo, Size(width, 800));
       await choose(tester, 'empaque-persona', 'Operario A');
-      expect(find.textContaining('ya terminados'), findsOneWidget);
+      expect(find.textContaining('Confirma el responsable'), findsOneWidget);
       await choose(tester, 'empaque-alcance', 'Solo pendientes');
       expect(find.text('3 kits en el alcance seleccionado'), findsOneWidget);
       await submit(tester);
@@ -159,8 +166,35 @@ void main() {
       expect(repo.kits.first['armado'], '2026-11-20T10:00:00Z');
       expect(repo.kits[3]['armado'], isNull);
       expect(find.text('Pendientes: 1'), findsOneWidget);
+      expect(find.textContaining('3 de 5 kits registrados'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+  }
+  for (final width in [320.0, 390.0, 768.0, 1440.0]) {
+    testWidgets(
+      'lista completa confirma propietario y conserva fechas a $width',
+      (tester) async {
+        final repo = EmpaqueFixture();
+        await mountEmpaque(tester, repo, Size(width, 800));
+        await choose(tester, 'empaque-persona', 'Operario A');
+        expect(repo.writes, isEmpty);
+        final confirm = find.byKey(
+          const ValueKey('empaque-confirmar-responsable'),
+        );
+        await tester.ensureVisible(confirm);
+        await tester.tap(confirm);
+        await tester.pumpAndSettle();
+        await submit(tester);
+        await tester.pumpAndSettle();
+        expect(repo.writes.single['kits_esperados'], hasLength(5));
+        expect(repo.writes.single['confirmar_responsable'], isTrue);
+        expect(repo.kits.every((k) => k['empacador_id'] == 'a'), isTrue);
+        expect(repo.kits.first['armado'], '2026-11-20T10:00:00Z');
+        expect(find.textContaining('5 de 5 kits registrados'), findsOneWidget);
+        expect(find.textContaining('4 nuevos'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
   testWidgets('rango parcial valida extremos y no envía rango con otro dueño', (
     tester,
