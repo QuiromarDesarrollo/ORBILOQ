@@ -686,7 +686,14 @@ void main() {
       expect(repo.writes.single.data['caja'], 3);
       expect(repo.writes.single.data['empaque_id'], 'box1');
       expect(find.text('KIT EN VALIDACIÓN'), findsNothing);
-      await searchPerson(tester);
+      final document = find.byKey(const ValueKey('masiva-persona'));
+      expect(
+        tester.widget<TextField>(document).focusNode!.hasPrimaryFocus,
+        isTrue,
+      );
+      tester.testTextInput.enterText('DEMO-01');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
       expect(tester.widget<TextField>(number).controller!.text, '3');
       expect(find.text('Caja mediana'), findsWidgets);
       expect(tester.takeException(), isNull);

@@ -263,7 +263,7 @@ pw.Widget _destinoReferencia(_Datos d, int totalKits) {
   pw.Widget cantidad(String etiqueta, int valor) => pw.Row(
     children: [
       pw.SizedBox(
-        width: 40,
+        width: 64,
         child: pw.Text(
           etiqueta,
           style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold),
@@ -313,8 +313,8 @@ pw.Widget _destinoReferencia(_Datos d, int totalKits) {
           padding: const pw.EdgeInsets.only(top: 20, left: 42),
           child: pw.Column(
             children: [
-              cantidad('CAJA:', d.cajas),
-              cantidad('BOLSA:', d.bolsas),
+              for (final entry in d.conteoEmpaques.entries)
+                cantidad('${entry.key}:', entry.value),
             ],
           ),
         ),
@@ -431,7 +431,7 @@ pw.Widget _tablaReferencia(
               0: const pw.FixedColumnWidth(52),
               1: const pw.FlexColumnWidth(1),
               2: const pw.FixedColumnWidth(28),
-              3: const pw.FixedColumnWidth(29),
+              3: const pw.FixedColumnWidth(41),
             },
             children: [
               pw.TableRow(
@@ -443,7 +443,7 @@ pw.Widget _tablaReferencia(
                     titulo: true,
                     centro: true,
                   ),
-                  celda('CAJA', titulo: true, centro: true),
+                  celda('EMPAQUE', titulo: true, centro: true),
                 ],
               ),
             ],
@@ -472,7 +472,7 @@ pw.Widget _tablaReferencia(
                 0: const pw.FixedColumnWidth(52),
                 1: const pw.FlexColumnWidth(1),
                 2: const pw.FixedColumnWidth(28),
-                3: const pw.FixedColumnWidth(29),
+                3: const pw.FixedColumnWidth(41),
               },
               children: [
                 for (final linea in articulos)
@@ -1009,16 +1009,36 @@ class _Datos {
     return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year}';
   }
 
-  int get bolsas =>
-      empaques.where((e) => _s(e['tipo']).toUpperCase() == 'BOLSA').length;
-  int get cajas =>
-      empaques.isEmpty
-          ? kits
-              .map((k) => _s(k['caja']))
-              .where((v) => v.isNotEmpty)
-              .toSet()
-              .length
-          : empaques.length - bolsas;
+  Map<String, int> get conteoEmpaques {
+    final porNumero = {
+      for (final e in empaques) _s(e['numero'] ?? e['caja']): e,
+    };
+    final usados = kits
+        .where((k) => _articulos(k).any((a) => _n(a['validado']) > 0))
+        .map((k) => _s(k['caja']))
+        .where((n) => n.isNotEmpty)
+        .toSet();
+    final conteo = <String, int>{};
+    for (final numero in usados) {
+      final tipo = tipoEmpaqueListaMasiva(porNumero[numero] ?? const {});
+      conteo.update(tipo, (n) => n + 1, ifAbsent: () => 1);
+    }
+    return conteo;
+  }
+}
+
+/// Usa la categoría registrada; BOLSA es el código histórico de PAQUETE.
+/// Un snapshot antiguo sin tipo no se presume caja.
+String tipoEmpaqueListaMasiva(Map<String, dynamic> empaque) {
+  final tipo = _s(empaque['tipo']).trim();
+  final categoria = (tipo.isEmpty ? _s(empaque['categoria']) : tipo)
+      .trim()
+      .toUpperCase();
+  return switch (categoria) {
+    'CAJA' => 'CAJA',
+    'BOLSA' || 'PAQUETE' => 'PAQUETE',
+    _ => 'EMPAQUE',
+  };
 }
 
 pw.Widget _marca(

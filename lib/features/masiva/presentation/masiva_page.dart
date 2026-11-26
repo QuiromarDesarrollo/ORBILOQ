@@ -511,6 +511,9 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
         }
       });
       if (_section == 3 && _kit.isNotEmpty) _loadValidationKitPosition();
+      if (!silent && _section == 3 && _kit.isEmpty) {
+        _focusDocumentWhenReady();
+      }
     } catch (e) {
       if (!mounted || serial != _epoch) return;
       _redraw(() {
@@ -562,13 +565,6 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
       _masterDateType = index == 2 ? 'ultima_validacion' : 'fecha_carga';
     });
     await _load();
-    if (index == 3) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _section == 3 && !_scanAlert && !_scanning) {
-          _personFocus.requestFocus();
-        }
-      });
-    }
   }
 
   Future<void> _work(

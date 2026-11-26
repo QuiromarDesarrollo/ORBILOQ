@@ -1,6 +1,39 @@
 part of 'masiva_page.dart';
 
 extension _MasivaValidation on _MasivaPageState {
+  void _focusDocumentWhenReady({bool preserveEditing = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _section != 3 ||
+          _operationId == null ||
+          _kit.isNotEmpty ||
+          _loading ||
+          _busy != null ||
+          _dialog ||
+          _cameraOpen ||
+          _scanning ||
+          _scanAlert ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      final focused = FocusManager.instance.primaryFocus;
+      // Do not interrupt a container edit begun while data was loading.
+      if (preserveEditing &&
+          focused != _personFocus &&
+          focused != _scanFocus &&
+          focused?.context?.findAncestorStateOfType<EditableTextState>() != null) {
+        return;
+      }
+      if (!_personFocus.hasPrimaryFocus) {
+        _search.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _search.text.length,
+        );
+      }
+      _personFocus.requestFocus();
+    });
+  }
+
   Future<void> _loadValidationKitPosition() async {
     final operation = _operationId;
     final kitId = _kit['id'];
@@ -178,7 +211,7 @@ extension _MasivaValidation on _MasivaPageState {
       _lastScanSku = null;
       _scanFeedback = null;
     });
-    if (focus) _personFocus.requestFocus();
+    if (focus) _focusDocumentWhenReady(preserveEditing: false);
   }
 
   Future<void> _refreshValidation(String kitId, String operation) async {

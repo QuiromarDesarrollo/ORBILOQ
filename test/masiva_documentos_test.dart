@@ -86,6 +86,14 @@ int paginas(Uint8List bytes) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('Tipo de empaque respeta categoría actual e histórica sin asumir caja', () {
+    expect(tipoEmpaqueListaMasiva({'tipo': 'caja'}), 'CAJA');
+    expect(tipoEmpaqueListaMasiva({'tipo': ' bolsa '}), 'PAQUETE');
+    expect(tipoEmpaqueListaMasiva({'tipo': 'PAQUETE'}), 'PAQUETE');
+    expect(tipoEmpaqueListaMasiva({'categoria': 'BOLSA'}), 'PAQUETE');
+    expect(tipoEmpaqueListaMasiva({'tipo': null, 'categoria': 'CAJA'}), 'CAJA');
+    expect(tipoEmpaqueListaMasiva({}), 'EMPAQUE');
+  });
   test(
     'La lista individual usa número y periodo de la masiva en el nombre',
     () {
