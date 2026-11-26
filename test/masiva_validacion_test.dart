@@ -29,10 +29,15 @@ class ValidacionFixture extends MasivaFixture {
 
   @override
   Future<MasivaJson> consultarEmpaque(String operacion, String lista) async => {
+    'validados': validated == 2 && !secondArticle ? 2 : 1,
     'kits': [
-      {'id': 'posterior', 'numero_persona': 12},
-      {'id': 'kit1', 'numero_persona': 7},
-      {'id': 'anterior', 'numero_persona': 2},
+      {'id': 'posterior', 'numero_persona': 12, 'estado': 'armado'},
+      {
+        'id': 'kit1',
+        'numero_persona': 7,
+        'estado': validated == 2 && !secondArticle ? 'validado' : 'parcial',
+      },
+      {'id': 'anterior', 'numero_persona': 2, 'estado': 'validado'},
     ],
   };
 

@@ -367,15 +367,33 @@ extension _MasivaValidationWorkspace on _MasivaPageState {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      _validationKitPosition ??
-                          'Consultando posición en la lista…',
-                      key: const ValueKey('masiva-validation-kit-position'),
-                      style: const TextStyle(
-                        color: _ink,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Wrap(
+                      spacing: 14,
+                      runSpacing: 3,
+                      children: [
+                        Text(
+                          _validationKitPosition ??
+                              'Consultando posición en la lista…',
+                          key: const ValueKey('masiva-validation-kit-position'),
+                          style: const TextStyle(
+                            color: _ink,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          _validationListProgress ??
+                              'Consultando avance de lista…',
+                          key: const ValueKey(
+                            'masiva-validation-list-progress',
+                          ),
+                          style: const TextStyle(
+                            color: _ink,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                     Tooltip(
                       message: name,

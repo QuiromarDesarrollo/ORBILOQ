@@ -21,7 +21,8 @@ extension _MasivaValidation on _MasivaPageState {
       if (preserveEditing &&
           focused != _personFocus &&
           focused != _scanFocus &&
-          focused?.context?.findAncestorStateOfType<EditableTextState>() != null) {
+          focused?.context?.findAncestorStateOfType<EditableTextState>() !=
+              null) {
         return;
       }
       if (!_personFocus.hasPrimaryFocus) {
@@ -39,6 +40,7 @@ extension _MasivaValidation on _MasivaPageState {
     final kitId = _kit['id'];
     final list = '${_kit['lista'] ?? ''}';
     if (operation == null || kitId == null || list.isEmpty) return;
+    final read = ++_validationListRead;
     try {
       final result = await _repo.consultarEmpaque(operation, list);
       final kits = filasMasiva(result['kits'])..sort(
@@ -47,17 +49,45 @@ extension _MasivaValidation on _MasivaPageState {
         ).compareTo(numeroMasiva(b['numero_persona'])),
       );
       final index = kits.indexWhere((row) => row['id'] == kitId);
-      if (!mounted || _operationId != operation || _kit['id'] != kitId) return;
-      _redraw(
-        () =>
-            _validationKitPosition =
-                index < 0
-                    ? 'Posición no disponible'
-                    : 'Kit ${index + 1} de ${kits.length}',
-      );
+      if (!mounted ||
+          read != _validationListRead ||
+          _operationId != operation ||
+          _kit['id'] != kitId ||
+          _kit['lista'] != list) {
+        return;
+      }
+      var progress = 'Avance de lista no disponible';
+      final validated = result['validados'];
+      if (index >= 0 &&
+          validated is num &&
+          validated >= 0 &&
+          validated <= kits.length &&
+          kits[index]['estado'] is String) {
+        final count =
+            validated.toInt() + (kits[index]['estado'] == 'validado' ? 0 : 1);
+        if (count <= kits.length) {
+          progress =
+              'Avance de lista: $count de ${kits.length} kits · '
+              'Faltan: ${kits.length - count} (incluye actual)';
+        }
+      }
+      _redraw(() {
+        _validationKitPosition =
+            index < 0
+                ? 'Posición no disponible'
+                : 'Kit ${index + 1} de ${kits.length}';
+        _validationListProgress = progress;
+      });
     } catch (_) {
-      if (mounted && _operationId == operation && _kit['id'] == kitId) {
-        _redraw(() => _validationKitPosition = 'Posición no disponible');
+      if (mounted &&
+          read == _validationListRead &&
+          _operationId == operation &&
+          _kit['id'] == kitId &&
+          _kit['lista'] == list) {
+        _redraw(() {
+          _validationKitPosition = 'Posición no disponible';
+          _validationListProgress = 'Avance de lista no disponible';
+        });
       }
     }
   }
@@ -138,6 +168,7 @@ extension _MasivaValidation on _MasivaPageState {
       _kit = kit;
       _editingPackedKit = false;
       _validationKitPosition = null;
+      _validationListProgress = null;
       _validationPackerId = kit['empacador_id']?.toString();
       if (kit['caja'] != null) {
         _packNumber.text = '${kit['caja']}';
@@ -203,8 +234,11 @@ extension _MasivaValidation on _MasivaPageState {
 
   void _closeValidation({bool focus = true}) {
     if (_scanning || _scanAlert || _busy != null) return;
+    ++_validationListRead;
     _redraw(() {
       _kit = {};
+      _validationKitPosition = null;
+      _validationListProgress = null;
       _editingPackedKit = false;
       _validationPackerId = null;
       _sku.clear();
@@ -236,6 +270,7 @@ extension _MasivaValidation on _MasivaPageState {
         };
         _updated = DateTime.now();
       });
+      unawaited(_loadValidationKitPosition());
     }
   }
 

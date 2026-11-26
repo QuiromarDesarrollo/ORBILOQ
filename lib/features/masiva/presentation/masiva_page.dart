@@ -183,6 +183,8 @@ class _MasivaPageState extends ConsumerState<MasivaPage>
       _assignments = [];
   MasivaJson _data = {}, _kit = {};
   String? _validationKitPosition;
+  String? _validationListProgress;
+  int _validationListRead = 0;
   MasivaJson _masterLoadedQuery = {};
   MasivaJson _balanceLoadedQuery = {};
   final Map<String, Set<String>> _receptionFilters = {};
